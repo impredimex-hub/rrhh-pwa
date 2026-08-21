@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, Plus, Trash2, CheckCircle2 } from 'lucide-react';
+import { ClipboardList, Plus, Trash2, CheckCircle2, FileSpreadsheet, FileText } from 'lucide-react';
 import type { Colaborador, Incidencia } from '../types/rrhh';
 import { subscribeColaboradores } from '../services/personalService';
 import { subscribeIncidencias, saveIncidencia, deleteIncidencia } from '../services/incidenciaService';
+import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 export const IncidenciasModule: React.FC = () => {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
@@ -64,12 +65,52 @@ export const IncidenciasModule: React.FC = () => {
     });
   };
 
+  const handleExportExcel = () => {
+    const data = incidencias.map(i => ({
+      'No. Nómina': i.noNomina,
+      'Colaborador': i.nombreCompleto,
+      'Tipo de Incidencia': i.tipo,
+      'Fecha Inicio': i.fechaInicio,
+      'Fecha Fin': i.fechaFin,
+      'Días Totales': i.diasTotales,
+      'Estatus': i.estatus
+    }));
+    exportToExcel(data, 'Reporte_Incidencias_Asistencia');
+  };
+
+  const handleExportPDF = () => {
+    const headers = ['Nómina', 'Colaborador', 'Tipo', 'Periodo', 'Días', 'Estatus'];
+    const rows = incidencias.map(i => [
+      i.noNomina,
+      i.nombreCompleto,
+      i.tipo.replace('_', ' '),
+      `${i.fechaInicio} al ${i.fechaFin}`,
+      `${i.diasTotales} d`,
+      i.estatus
+    ]);
+    exportToPDF('Reporte General de Asistencia e Incidencias', headers, rows, 'Reporte_Incidencias');
+  };
+
   return (
     <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <div style={{ borderBottom: '2px solid #eaeaea', paddingBottom: '12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #eaeaea', paddingBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
         <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, color: '#1a1a1a' }}>
           <ClipboardList size={24} color="#7c3aed" /> Registro de Asistencia e Incidencias
         </h2>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={handleExportExcel}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+          >
+            <FileSpreadsheet size={16} /> Exportar Excel
+          </button>
+          <button
+            onClick={handleExportPDF}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+          >
+            <FileText size={16} /> Exportar PDF
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginTop: '20px' }}>
