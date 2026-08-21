@@ -7,25 +7,45 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: ['favicon.ico', 'robots.txt', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Gestión de Recursos Humanos',
-        short_name: 'RRHH App',
-        description: 'Control de Personal, Incidencias y Capacitación',
-        theme_color: '#ffffff',
-        background_color: '#ffffff',
+        name: 'RH Industrial PWA',
+        short_name: 'RH App',
+        description: 'Sistema de Gestión de Personal, Asistencia, Vacantes y Capacitación',
+        theme_color: '#2563eb',
+        background_color: '#f8fafc',
         display: 'standalone',
-        orientation: 'portrait',
+        orientation: 'portrait-primary',
+        start_url: '/',
         icons: [
           {
-            src: 'pwa-192x192.png',
+            src: 'https://cdn-icons-png.flaticon.com/512/912/912318.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'https://cdn-icons-png.flaticon.com/512/912/912318.png',
             sizes: '512x512',
             type: 'image/png'
+          },
+          {
+            src: 'https://cdn-icons-png.flaticon.com/512/912/912318.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable'
+          }
+        ]
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'firestore-data-cache',
+              networkTimeoutSeconds: 5
+            }
           }
         ]
       }
