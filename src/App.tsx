@@ -30,69 +30,107 @@ function App() {
   ];
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', fontFamily: 'sans-serif' }}>
-      {/* Barra de estado de conexión */}
+    <div style={{ minHeight: '100vh', backgroundColor: '#f8f9ff', paddingBottom: '30px' }}>
+      {/* Offline Alert Strip */}
       {!isOnline && (
-        <div style={{ background: '#ea580c', color: '#fff', padding: '6px 12px', fontSize: '12px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold' }}>
-          <WifiOff size={16} /> Modo Sin Conexión (Offline): Los cambios se guardarán localmente y se sincronizarán al recuperar la red.
+        <div style={{ background: 'var(--brand-red)', color: '#fff', padding: '6px 12px', fontSize: '11px', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold', letterSpacing: '.04em' }}>
+          <WifiOff size={14} /> MODO OFFLINE — Los cambios se sincronizarán con Firebase al recuperar conexión.
         </div>
       )}
 
-      {/* Barra superior de navegación */}
-      <header style={{ background: '#ffffff', borderBottom: '1px solid #e2e8f0', padding: '0 20px' }}>
-        <div style={{ maxWidth: '1100px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '60px', flexWrap: 'wrap', gap: '10px', padding: '8px 0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#0f172a' }}>
-              RH Industrial App
-            </h1>
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold',
-              background: isOnline ? '#e6f4ea' : '#fee2e2',
-              color: isOnline ? '#137333' : '#b91c1c'
-            }}>
-              {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
-              {isOnline ? 'Online' : 'Offline'}
-            </span>
+      {/* IMPREDIMEX Frosted Header */}
+      <header style={{
+        background: 'rgba(255,255,255,.88)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        borderBottom: '0.5px solid rgba(0,32,96,.08)',
+        boxShadow: '0 2px 8px rgba(0,32,96,.05)',
+        padding: '0.75rem 1.5rem',
+        marginBottom: '1rem'
+      }}>
+        <div style={{ maxWidth: '1050px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ background: 'var(--brand-navy)', color: '#fff', width: '40px', height: '40px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '18px', letterSpacing: '.05em' }}>
+              IM
+            </div>
+            <div>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--brand-navy-dark)', letterSpacing: '.02em' }}>IMPREDIMEX</div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--brand-navy)', letterSpacing: '.01em' }}>Sistema de Gestión de Recursos Humanos</div>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#8A9AB0', marginTop: '2px' }}>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isOnline ? '#4ADE80' : '#c0392b', display: 'inline-block' }}></span>
+                {isOnline ? 'En línea' : 'Sin conexión'}
+              </div>
+            </div>
           </div>
 
-          <nav style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const activo = pestanaActiva === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setPestanaActiva(item.id as any)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                    fontSize: '13px',
-                    background: activo ? '#2563eb' : 'transparent',
-                    color: activo ? '#ffffff' : '#64748b',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <Icon size={16} /> {item.label}
-                </button>
-              );
-            })}
-          </nav>
+          <div style={{ fontSize: '11px', color: '#8A9AB0', textAlign: 'right', lineHeight: '1.4' }}>
+            {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </div>
         </div>
       </header>
 
-      {/* Contenido principal */}
-      <main style={{ padding: '20px 0' }}>
-        {pestanaActiva === 'personal' && <PersonalModule />}
-        {pestanaActiva === 'antiguedad' && <AntiguedadVacantesModule />}
-        {pestanaActiva === 'incidencias' && <IncidenciasModule />}
-        {pestanaActiva === 'capacitacion' && <CapacitacionModule />}
-      </main>
+      {/* Main Container */}
+      <div style={{ maxWidth: '1050px', margin: '0 auto', padding: '0 1rem' }}>
+        
+        {/* Floating Tabs Bar */}
+        <div style={{
+          display: 'flex',
+          background: 'rgba(255,255,255,.88)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderRadius: '16px',
+          border: '1px solid rgba(255,255,255,.98)',
+          outline: '0.5px solid rgba(0,32,96,.06)',
+          boxShadow: 'var(--shadow-sm)',
+          padding: '0 8px',
+          marginBottom: '1rem',
+          overflowX: 'auto'
+        }}>
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const activo = pestanaActiva === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setPestanaActiva(item.id as any)}
+                style={{
+                  flex: 1,
+                  padding: '12px 10px 10px',
+                  border: 'none',
+                  borderBottom: activo ? '2px solid var(--brand-navy)' : '2px solid transparent',
+                  background: 'transparent',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontFamily: 'inherit',
+                  whiteSpace: 'nowrap',
+                  fontWeight: activo ? 700 : 500,
+                  color: activo ? 'var(--brand-navy-dark)' : '#8A9AB0',
+                  letterSpacing: '.03em',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all .2s'
+                }}
+              >
+                <Icon size={15} /> {item.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Dynamic Views */}
+        <main>
+          {pestanaActiva === 'personal' && <PersonalModule />}
+          {pestanaActiva === 'antiguedad' && <AntiguedadVacantesModule />}
+          {pestanaActiva === 'incidencias' && <IncidenciasModule />}
+          {pestanaActiva === 'capacitacion' && <CapacitacionModule />}
+        </main>
+
+        <footer style={{ textAlign: 'center', padding: '1.2rem', fontSize: '11px', color: 'var(--text-light)', borderTop: '1px solid var(--border-light)', marginTop: '2rem' }}>
+          <strong style={{ color: 'var(--brand-navy)' }}>IMPREDIMEX</strong> — Impresión y Diseño de México S.A. de C.V. &nbsp;·&nbsp; Sistema Integral de Recursos Humanos
+        </footer>
+      </div>
     </div>
   );
 }
