@@ -56,6 +56,26 @@ export const PersonalModule: React.FC = () => {
     }
   };
 
+  // Conversor para fechas de Excel (números seriales o cadenas de texto)
+  const formatearFechaExcel = (val: any): string => {
+    if (!val) return '';
+    if (typeof val === 'number') {
+      const date = new Date((val - (25567 + 2)) * 86400 * 1000);
+      return date.toISOString().split('T')[0];
+    }
+    const str = String(val).trim();
+    if (str.includes('/')) {
+      const partes = str.split('/');
+      if (partes.length === 3) {
+        const dia = partes[0].padStart(2, '0');
+        const mes = partes[1].padStart(2, '0');
+        const anio = partes[2].length === 2 ? `20${partes[2]}` : partes[2];
+        return `${anio}-${mes}-${dia}`;
+      }
+    }
+    return str;
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -65,22 +85,31 @@ export const PersonalModule: React.FC = () => {
       try {
         setLoading(true);
         const bstr = event.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: false });
         const wsName = wb.SheetNames[0];
         const ws = wb.Sheets[wsName];
         const rawData: any[] = XLSX.utils.sheet_to_json(ws);
 
-        const colaboradoresProcesados: Colaborador[] = rawData.map((row) => ({
-          noNomina: String(row.NoNomina || row.Nomina || row.noNomina || '').trim(),
-          nombreCompleto: String(row.Nombre || row.nombreCompleto || row.NombreCompleto || '').trim().toUpperCase(),
-          departamento: String(row.Departamento || row.departamento || '').trim().toUpperCase(),
-          puesto: String(row.Puesto || row.puesto || '').trim().toUpperCase(),
-          fechaIngreso: row.FechaIngreso || row.fechaIngreso ? String(row.FechaIngreso || row.fechaIngreso).trim() : '',
-          estatus: (row.Estatus || row.estatus || 'ACTIVO').toUpperCase()
-        })).filter(c => c.noNomina && c.nombreCompleto);
+        const colaboradoresProcesados: Colaborador[] = rawData.map((row) => {
+          // Búsqueda flexible de encabezados exactos del formato
+          const nominaVal = row['# NOMINA'] || row['#NOMINA'] || row['NOMINA'] || row['NoNomina'] || row['No. Nomina'] || '';
+          const nombreVal = row['NOMBRE'] || row['Nombre'] || row['NombreCompleto'] || '';
+          const puestoVal = row['PUESTO'] || row['Puesto'] || '';
+          const ingresoVal = row['INGRESO'] || row['Ingreso'] || row['FECHA INGRESO'] || row['FechaIngreso'] || '';
+          const deptoVal = row['DEPARTAMENTO'] || row['Departamento'] || row['DEPTO'] || '';
+
+          return {
+            noNomina: String(nominaVal).trim(),
+            nombreCompleto: String(nombreVal).trim().toUpperCase(),
+            puesto: String(puestoVal).trim().toUpperCase(),
+            fechaIngreso: formatearFechaExcel(ingresoVal),
+            departamento: String(deptoVal).trim().toUpperCase(),
+            estatus: 'ACTIVO'
+          };
+        }).filter(c => c.noNomina && c.nombreCompleto);
 
         if (colaboradoresProcesados.length === 0) {
-          alert('No se encontraron registros válidos en el archivo.');
+          alert('No se encontraron registros válidos. Verifica que las columnas coincidan con: # NOMINA, NOMBRE, PUESTO, INGRESO, DEPARTAMENTO.');
           return;
         }
 
@@ -98,29 +127,30 @@ export const PersonalModule: React.FC = () => {
   const listaFiltrada = colaboradores.filter(c => 
     c.nombreCompleto.toLowerCase().includes(filtro.toLowerCase()) ||
     c.noNomina.toLowerCase().includes(filtro.toLowerCase()) ||
-    (c.departamento && c.departamento.toLowerCase().includes(filtro.toLowerCase()))
+    (c.departamento && c.departamento.toLowerCase().includes(filtro.toLowerCase())) ||
+    (c.puesto && c.puesto.toLowerCase().includes(filtro.toLowerCase()))
   );
 
   const handleExportExcel = () => {
     const data = colaboradores.map(c => ({
-      'No. Nómina': c.noNomina,
-      'Nombre Completo': c.nombreCompleto,
-      'Departamento': c.departamento || '-',
-      'Puesto': c.puesto || '-',
-      'Fecha de Ingreso': c.fechaIngreso || '-',
-      'Estatus': c.estatus
+      '# NOMINA': c.noNomina,
+      'NOMBRE': c.nombreCompleto,
+      'PUESTO': c.puesto || '-',
+      'INGRESO': c.fechaIngreso || '-',
+      'DEPARTAMENTO': c.departamento || '-',
+      'ESTATUS': c.estatus
     }));
     exportToExcel(data, 'IMPREDIMEX_Directorio_Personal');
   };
 
   const handleExportPDF = () => {
-    const headers = ['Nómina', 'Nombre Completo', 'Departamento', 'Puesto', 'Ingreso', 'Estatus'];
+    const headers = ['# Nómina', 'Nombre', 'Puesto', 'Ingreso', 'Departamento', 'Estatus'];
     const rows = colaboradores.map(c => [
       c.noNomina,
       c.nombreCompleto,
-      c.departamento || '-',
       c.puesto || '-',
       c.fechaIngreso || '-',
+      c.departamento || '-',
       c.estatus
     ]);
     exportToPDF('IMPREDIMEX — Directorio de Personal', headers, rows, 'Directorio_Personal');
@@ -128,7 +158,6 @@ export const PersonalModule: React.FC = () => {
 
   return (
     <div>
-      {/* Cajas de Captura y Carga */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px', marginBottom: '1rem' }}>
         
         {/* Formulario Individual */}
@@ -140,27 +169,27 @@ export const PersonalModule: React.FC = () => {
           <form onSubmit={handleManualSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <input
-                type="text" name="noNomina" placeholder="No. Nómina *" required
+                type="text" name="noNomina" placeholder="# Nómina *" required
                 value={formData.noNomina} onChange={handleInputChange}
               />
               <input
-                type="text" name="nombreCompleto" placeholder="Nombre Completo *" required
+                type="text" name="nombreCompleto" placeholder="Nombre *" required
                 value={formData.nombreCompleto} onChange={handleInputChange}
               />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
               <input
-                type="text" name="departamento" placeholder="Departamento (ej. TINTAS)"
-                value={formData.departamento} onChange={handleInputChange}
-              />
-              <input
                 type="text" name="puesto" placeholder="Puesto (ej. OPERADOR)"
                 value={formData.puesto} onChange={handleInputChange}
               />
+              <input
+                type="date" name="fechaIngreso"
+                value={formData.fechaIngreso} onChange={handleInputChange}
+              />
             </div>
             <input
-              type="date" name="fechaIngreso"
-              value={formData.fechaIngreso} onChange={handleInputChange}
+              type="text" name="departamento" placeholder="Departamento (ej. TINTAS)"
+              value={formData.departamento} onChange={handleInputChange}
             />
             <button type="submit" disabled={loading} className="btn-industrial-primary" style={{ width: '100%', marginTop: '4px' }}>
               <UserPlus size={16} /> {loading ? 'Guardando…' : 'Guardar Colaborador'}
@@ -175,7 +204,7 @@ export const PersonalModule: React.FC = () => {
             <div className="sec-title" style={{ margin: 0 }}>Carga Masiva desde Archivo Excel</div>
           </div>
           <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5', marginBottom: '14px' }}>
-            Columnas requeridas en la cabecera: <code>NoNomina</code>, <code>Nombre</code>, <code>Departamento</code>, <code>Puesto</code>, <code>FechaIngreso</code>.
+            Columnas requeridas en la cabecera: <code># NOMINA</code>, <code>NOMBRE</code>, <code>PUESTO</code>, <code>INGRESO</code>, <code>DEPARTAMENTO</code>.
           </p>
           <div style={{ border: '2px dashed var(--border-mid)', borderRadius: 'var(--radius-md)', padding: '24px', textAlign: 'center', background: 'rgba(255,255,255,.5)' }}>
             <input
@@ -201,9 +230,9 @@ export const PersonalModule: React.FC = () => {
 
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <input
-              type="text" placeholder="Buscar por nombre o nómina…"
+              type="text" placeholder="Buscar por nombre, nómina, puesto o depto…"
               value={filtro} onChange={(e) => setFiltro(e.target.value)}
-              style={{ width: '220px', padding: '6px 10px', fontSize: '12px' }}
+              style={{ width: '260px', padding: '6px 10px', fontSize: '12px' }}
             />
             <button onClick={handleExportExcel} className="btn-industrial-success">
               <FileSpreadsheet size={15} /> Excel
@@ -218,11 +247,11 @@ export const PersonalModule: React.FC = () => {
           <table className="table-industrial">
             <thead>
               <tr>
-                <th>Nómina</th>
+                <th># Nómina</th>
                 <th>Nombre</th>
-                <th>Departamento</th>
                 <th>Puesto</th>
                 <th>Ingreso</th>
+                <th>Departamento</th>
                 <th>Estatus</th>
                 <th>Acción</th>
               </tr>
@@ -239,13 +268,13 @@ export const PersonalModule: React.FC = () => {
                   <tr key={colab.noNomina}>
                     <td style={{ fontWeight: 'bold', color: 'var(--brand-navy)' }}>{colab.noNomina}</td>
                     <td style={{ fontWeight: 600 }}>{colab.nombreCompleto}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{colab.puesto || '-'}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{colab.fechaIngreso || '-'}</td>
                     <td>
                       {colab.departamento ? (
                         <span className="badge-industrial badge-navy">{colab.departamento}</span>
                       ) : '-'}
                     </td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{colab.puesto || '-'}</td>
-                    <td style={{ color: 'var(--text-secondary)' }}>{colab.fechaIngreso || '-'}</td>
                     <td>
                       <span className={`badge-industrial ${colab.estatus === 'ACTIVO' ? 'badge-ok' : 'badge-nok'}`}>
                         {colab.estatus}
