@@ -8,6 +8,7 @@ import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 export const PersonalModule: React.FC = () => {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [loading, setLoading] = useState(false);
+  const [filtro, setFiltro] = useState('');
   const [formData, setFormData] = useState<Partial<Colaborador>>({
     noNomina: '',
     nombreCompleto: '',
@@ -71,9 +72,9 @@ export const PersonalModule: React.FC = () => {
 
         const colaboradoresProcesados: Colaborador[] = rawData.map((row) => ({
           noNomina: String(row.NoNomina || row.Nomina || row.noNomina || '').trim(),
-          nombreCompleto: String(row.Nombre || row.nombreCompleto || row.NombreCompleto || '').trim(),
-          departamento: String(row.Departamento || row.departamento || '').trim(),
-          puesto: String(row.Puesto || row.puesto || '').trim(),
+          nombreCompleto: String(row.Nombre || row.nombreCompleto || row.NombreCompleto || '').trim().toUpperCase(),
+          departamento: String(row.Departamento || row.departamento || '').trim().toUpperCase(),
+          puesto: String(row.Puesto || row.puesto || '').trim().toUpperCase(),
           fechaIngreso: row.FechaIngreso || row.fechaIngreso ? String(row.FechaIngreso || row.fechaIngreso).trim() : '',
           estatus: (row.Estatus || row.estatus || 'ACTIVO').toUpperCase()
         })).filter(c => c.noNomina && c.nombreCompleto);
@@ -94,6 +95,12 @@ export const PersonalModule: React.FC = () => {
     reader.readAsBinaryString(file);
   };
 
+  const listaFiltrada = colaboradores.filter(c => 
+    c.nombreCompleto.toLowerCase().includes(filtro.toLowerCase()) ||
+    c.noNomina.toLowerCase().includes(filtro.toLowerCase()) ||
+    (c.departamento && c.departamento.toLowerCase().includes(filtro.toLowerCase()))
+  );
+
   const handleExportExcel = () => {
     const data = colaboradores.map(c => ({
       'No. Nómina': c.noNomina,
@@ -103,7 +110,7 @@ export const PersonalModule: React.FC = () => {
       'Fecha de Ingreso': c.fechaIngreso || '-',
       'Estatus': c.estatus
     }));
-    exportToExcel(data, 'Reporte_Personal_Activo');
+    exportToExcel(data, 'IMPREDIMEX_Directorio_Personal');
   };
 
   const handleExportPDF = () => {
@@ -116,131 +123,138 @@ export const PersonalModule: React.FC = () => {
       c.fechaIngreso || '-',
       c.estatus
     ]);
-    exportToPDF('Directorio Oficial de Personal', headers, rows, 'Directorio_Personal');
+    exportToPDF('IMPREDIMEX — Directorio de Personal', headers, rows, 'Directorio_Personal');
   };
 
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #eaeaea', paddingBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
-        <h2 style={{ margin: 0, color: '#1a1a1a' }}>Directorio de Personal</h2>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button
-            onClick={handleExportExcel}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
-          >
-            <FileSpreadsheet size={16} /> Exportar Excel
-          </button>
-          <button
-            onClick={handleExportPDF}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 12px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
-          >
-            <FileText size={16} /> Exportar PDF
-          </button>
-        </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginTop: '20px' }}>
+    <div>
+      {/* Cajas de Captura y Carga */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px', marginBottom: '1rem' }}>
+        
         {/* Formulario Individual */}
-        <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', background: '#fff' }}>
-          <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <UserPlus size={18} /> Registro Individual
-          </h3>
+        <div className="card-industrial">
+          <div className="card-title-bar">
+            <div className="bar-accent"></div>
+            <div className="sec-title" style={{ margin: 0 }}>Registro Individual de Colaborador</div>
+          </div>
           <form onSubmit={handleManualSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <input
-              type="text" name="noNomina" placeholder="No. Nómina *" required
-              value={formData.noNomina} onChange={handleInputChange}
-              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-            />
-            <input
-              type="text" name="nombreCompleto" placeholder="Nombre Completo *" required
-              value={formData.nombreCompleto} onChange={handleInputChange}
-              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-            />
-            <input
-              type="text" name="departamento" placeholder="Departamento (ej. Impresión)"
-              value={formData.departamento} onChange={handleInputChange}
-              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-            />
-            <input
-              type="text" name="puesto" placeholder="Puesto (ej. Impresor)"
-              value={formData.puesto} onChange={handleInputChange}
-              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-            />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <input
+                type="text" name="noNomina" placeholder="No. Nómina *" required
+                value={formData.noNomina} onChange={handleInputChange}
+              />
+              <input
+                type="text" name="nombreCompleto" placeholder="Nombre Completo *" required
+                value={formData.nombreCompleto} onChange={handleInputChange}
+              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <input
+                type="text" name="departamento" placeholder="Departamento (ej. TINTAS)"
+                value={formData.departamento} onChange={handleInputChange}
+              />
+              <input
+                type="text" name="puesto" placeholder="Puesto (ej. OPERADOR)"
+                value={formData.puesto} onChange={handleInputChange}
+              />
+            </div>
             <input
               type="date" name="fechaIngreso"
               value={formData.fechaIngreso} onChange={handleInputChange}
-              style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
             />
-            <button
-              type="submit" disabled={loading}
-              style={{ padding: '10px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-            >
-              {loading ? 'Guardando...' : 'Guardar Colaborador'}
+            <button type="submit" disabled={loading} className="btn-industrial-primary" style={{ width: '100%', marginTop: '4px' }}>
+              <UserPlus size={16} /> {loading ? 'Guardando…' : 'Guardar Colaborador'}
             </button>
           </form>
         </div>
 
         {/* Carga Masiva */}
-        <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', background: '#fff' }}>
-          <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Upload size={18} /> Carga Masiva desde Excel
-          </h3>
-          <p style={{ fontSize: '13px', color: '#64748b' }}>
-            Columnas admitidas: <code>NoNomina</code>, <code>Nombre</code>, <code>Departamento</code>, <code>Puesto</code>, <code>FechaIngreso</code>.
+        <div className="card-industrial">
+          <div className="card-title-bar">
+            <div className="bar-accent"></div>
+            <div className="sec-title" style={{ margin: 0 }}>Carga Masiva desde Archivo Excel</div>
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.5', marginBottom: '14px' }}>
+            Columnas requeridas en la cabecera: <code>NoNomina</code>, <code>Nombre</code>, <code>Departamento</code>, <code>Puesto</code>, <code>FechaIngreso</code>.
           </p>
-          <div style={{ border: '2px dashed #cbd5e1', borderRadius: '6px', padding: '24px', textAlign: 'center', marginTop: '16px' }}>
+          <div style={{ border: '2px dashed var(--border-mid)', borderRadius: 'var(--radius-md)', padding: '24px', textAlign: 'center', background: 'rgba(255,255,255,.5)' }}>
             <input
               type="file" accept=".xlsx, .xls, .csv"
               onChange={handleFileUpload} disabled={loading}
               id="excel-upload" style={{ display: 'none' }}
             />
-            <label htmlFor="excel-upload" style={{ cursor: 'pointer', color: '#2563eb', fontWeight: 'bold' }}>
-              {loading ? 'Procesando archivo...' : 'Seleccionar archivo Excel'}
+            <label htmlFor="excel-upload" style={{ cursor: 'pointer', color: 'var(--brand-navy)', fontWeight: 'bold', fontSize: '13px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+              <Upload size={24} />
+              {loading ? 'Procesando archivo...' : 'Seleccionar plantilla Excel (.xlsx)'}
             </label>
           </div>
         </div>
       </div>
 
-      {/* Directorio de Colaboradores */}
-      <div style={{ marginTop: '24px' }}>
-        <h3 style={{ fontSize: '16px', margin: '0 0 10px 0' }}>Plantilla Registrada ({colaboradores.length})</h3>
+      {/* Tabla del Directorio */}
+      <div className="card-industrial">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '1rem', paddingBottom: '.75rem', borderBottom: '2px solid var(--brand-navy-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="bar-accent"></div>
+            <div className="sec-title" style={{ margin: 0 }}>Plantilla Registrada ({colaboradores.length})</div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <input
+              type="text" placeholder="Buscar por nombre o nómina…"
+              value={filtro} onChange={(e) => setFiltro(e.target.value)}
+              style={{ width: '220px', padding: '6px 10px', fontSize: '12px' }}
+            />
+            <button onClick={handleExportExcel} className="btn-industrial-success">
+              <FileSpreadsheet size={15} /> Excel
+            </button>
+            <button onClick={handleExportPDF} className="btn-industrial-danger">
+              <FileText size={15} /> PDF
+            </button>
+          </div>
+        </div>
+
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', background: '#fff', border: '1px solid #e0e0e0' }}>
+          <table className="table-industrial">
             <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                <th style={{ padding: '10px' }}>Nómina</th>
-                <th style={{ padding: '10px' }}>Nombre</th>
-                <th style={{ padding: '10px' }}>Departamento</th>
-                <th style={{ padding: '10px' }}>Puesto</th>
-                <th style={{ padding: '10px' }}>Ingreso</th>
-                <th style={{ padding: '10px' }}>Estatus</th>
-                <th style={{ padding: '10px' }}>Acción</th>
+              <tr>
+                <th>Nómina</th>
+                <th>Nombre</th>
+                <th>Departamento</th>
+                <th>Puesto</th>
+                <th>Ingreso</th>
+                <th>Estatus</th>
+                <th>Acción</th>
               </tr>
             </thead>
             <tbody>
-              {colaboradores.length === 0 ? (
+              {listaFiltrada.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
-                    No hay colaboradores registrados.
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-secondary)' }}>
+                    Sin registros que coincidan con la búsqueda.
                   </td>
                 </tr>
               ) : (
-                colaboradores.map((colab) => (
-                  <tr key={colab.noNomina} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                    <td style={{ padding: '10px', fontWeight: 'bold' }}>{colab.noNomina}</td>
-                    <td style={{ padding: '10px' }}>{colab.nombreCompleto}</td>
-                    <td style={{ padding: '10px' }}>{colab.departamento || '-'}</td>
-                    <td style={{ padding: '10px' }}>{colab.puesto || '-'}</td>
-                    <td style={{ padding: '10px' }}>{colab.fechaIngreso || '-'}</td>
-                    <td style={{ padding: '10px' }}>
-                      <span style={{ padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', background: colab.estatus === 'ACTIVO' ? '#dcfce7' : '#fee2e2', color: colab.estatus === 'ACTIVO' ? '#15803d' : '#b91c1c' }}>
+                listaFiltrada.map((colab) => (
+                  <tr key={colab.noNomina}>
+                    <td style={{ fontWeight: 'bold', color: 'var(--brand-navy)' }}>{colab.noNomina}</td>
+                    <td style={{ fontWeight: 600 }}>{colab.nombreCompleto}</td>
+                    <td>
+                      {colab.departamento ? (
+                        <span className="badge-industrial badge-navy">{colab.departamento}</span>
+                      ) : '-'}
+                    </td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{colab.puesto || '-'}</td>
+                    <td style={{ color: 'var(--text-secondary)' }}>{colab.fechaIngreso || '-'}</td>
+                    <td>
+                      <span className={`badge-industrial ${colab.estatus === 'ACTIVO' ? 'badge-ok' : 'badge-nok'}`}>
                         {colab.estatus}
                       </span>
                     </td>
-                    <td style={{ padding: '10px' }}>
+                    <td>
                       <button
                         onClick={() => deleteColaborador(colab.noNomina)}
-                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444', padding: '4px' }}
+                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-navy)', padding: '4px' }}
                         title="Eliminar colaborador"
                       >
                         <Trash2 size={16} />
