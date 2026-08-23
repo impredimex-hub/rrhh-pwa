@@ -37,8 +37,8 @@ export const PersonalModule: React.FC = () => {
       return;
     }
 
+    setLoading(true);
     try {
-      setLoading(true);
       await saveColaboradoresBatch([formData as Colaborador]);
       setFormData({
         noNomina: '',
@@ -49,14 +49,13 @@ export const PersonalModule: React.FC = () => {
         estatus: 'ACTIVO'
       });
       alert('Colaborador guardado con éxito');
-    } catch (error) {
-      alert('Error al guardar el colaborador');
+    } catch (error: any) {
+      alert('Error al guardar el colaborador: ' + (error?.message || 'Error desconocido'));
     } finally {
       setLoading(false);
     }
   };
 
-  // Conversor para fechas de Excel (números seriales o cadenas de texto)
   const formatearFechaExcel = (val: any): string => {
     if (!val) return '';
     if (typeof val === 'number') {
@@ -80,10 +79,11 @@ export const PersonalModule: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setLoading(true);
     const reader = new FileReader();
+
     reader.onload = async (event) => {
       try {
-        setLoading(true);
         const bstr = event.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary', cellDates: false });
         const wsName = wb.SheetNames[0];
@@ -91,7 +91,6 @@ export const PersonalModule: React.FC = () => {
         const rawData: any[] = XLSX.utils.sheet_to_json(ws);
 
         const colaboradoresProcesados: Colaborador[] = rawData.map((row) => {
-          // Búsqueda flexible de encabezados exactos del formato
           const nominaVal = row['# NOMINA'] || row['#NOMINA'] || row['NOMINA'] || row['NoNomina'] || row['No. Nomina'] || '';
           const nombreVal = row['NOMBRE'] || row['Nombre'] || row['NombreCompleto'] || '';
           const puestoVal = row['PUESTO'] || row['Puesto'] || '';
@@ -110,17 +109,24 @@ export const PersonalModule: React.FC = () => {
 
         if (colaboradoresProcesados.length === 0) {
           alert('No se encontraron registros válidos. Verifica que las columnas coincidan con: # NOMINA, NOMBRE, PUESTO, INGRESO, DEPARTAMENTO.');
-          return;
+        } else {
+          await saveColaboradoresBatch(colaboradoresProcesados);
+          alert(`Se importaron ${colaboradoresProcesados.length} colaboradores exitosamente.`);
         }
-
-        await saveColaboradoresBatch(colaboradoresProcesados);
-        alert(`Se importaron ${colaboradoresProcesados.length} colaboradores exitosamente.`);
-      } catch (error) {
-        alert('Error al procesar el archivo Excel.');
+      } catch (error: any) {
+        alert('Error al procesar el archivo Excel: ' + (error?.message || 'Error desconocido'));
       } finally {
         setLoading(false);
+        e.target.value = '';
       }
     };
+
+    reader.onerror = () => {
+      alert('Error de lectura del archivo.');
+      setLoading(false);
+      e.target.value = '';
+    };
+
     reader.readAsBinaryString(file);
   };
 
