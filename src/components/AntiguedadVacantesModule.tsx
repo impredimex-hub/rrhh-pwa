@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Award, Briefcase, Plus, Trash2, Calendar } from 'lucide-react';
+import { Award, Briefcase, Plus, Trash2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Colaborador, Vacante } from '../types/rrhh';
 import { subscribeColaboradores } from '../services/personalService';
 import { subscribeVacantes, saveVacante, deleteVacante } from '../services/vacanteService';
@@ -8,6 +8,8 @@ export const AntiguedadVacantesModule: React.FC = () => {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [vacantes, setVacantes] = useState<Vacante[]>([]);
   const [filtro, setFiltro] = useState('');
+  const [paginaActual, setPaginaActual] = useState(1);
+  const elementosPorPagina = 30;
 
   const [formVacante, setFormVacante] = useState<Vacante>({
     puesto: '',
@@ -26,6 +28,10 @@ export const AntiguedadVacantesModule: React.FC = () => {
       unsubVac();
     };
   }, []);
+
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [filtro]);
 
   const calcularAntiguedad = (fechaIngresoStr?: string) => {
     if (!fechaIngresoStr) return { anios: 0, meses: 0, esAniversarioMes: false };
@@ -77,12 +83,17 @@ export const AntiguedadVacantesModule: React.FC = () => {
   const listaFiltrada = colaboradores.filter(c =>
     c.nombreCompleto.toLowerCase().includes(filtro.toLowerCase()) ||
     c.noNomina.toLowerCase().includes(filtro.toLowerCase()) ||
-    (c.departamento && c.departamento.toLowerCase().includes(filtro.toLowerCase()))
+    (c.departamento && c.departamento.toLowerCase().includes(filtro.toLowerCase())) ||
+    (c.puesto && c.puesto.toLowerCase().includes(filtro.toLowerCase()))
   );
+
+  const totalPaginas = Math.ceil(listaFiltrada.length / elementosPorPagina) || 1;
+  const indexInicio = (paginaActual - 1) * elementosPorPagina;
+  const colaboradoresPaginados = listaFiltrada.slice(indexInicio, indexInicio + elementosPorPagina);
 
   return (
     <div>
-      {/* SECCIÓN 1: CONTROL DE ANTIGÜEDAD (Tipografía Reducida al 50% / Compacta) */}
+      {/* SECCIÓN 1: CONTROL DE ANTIGÜEDAD Y ANIVERSARIOS */}
       <div className="card-industrial">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '2px solid var(--brand-navy-light)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -110,14 +121,14 @@ export const AntiguedadVacantesModule: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {listaFiltrada.length === 0 ? (
+              {colaboradoresPaginados.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
                     No hay colaboradores registrados.
                   </td>
                 </tr>
               ) : (
-                listaFiltrada.map((colab) => {
+                colaboradoresPaginados.map((colab) => {
                   const { anios, meses, esAniversarioMes } = calcularAntiguedad(colab.fechaIngreso);
                   return (
                     <tr key={colab.noNomina} style={{ borderBottom: '1px solid var(--border-light)' }}>
@@ -145,6 +156,34 @@ export const AntiguedadVacantesModule: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Barra de Paginación */}
+        {totalPaginas > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--border-light)', fontSize: '10px', color: 'var(--text-secondary)' }}>
+            <div>
+              Mostrando {indexInicio + 1} - {Math.min(indexInicio + elementosPorPagina, listaFiltrada.length)} de {listaFiltrada.length} colaboradores
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                disabled={paginaActual === 1}
+                onClick={() => setPaginaActual(p => Math.max(p - 1, 1))}
+                style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '3px 8px', borderRadius: '4px', border: '1px solid var(--border-mid)', background: paginaActual === 1 ? '#f1f5f9' : '#fff', cursor: paginaActual === 1 ? 'not-allowed' : 'pointer', fontSize: '10px', color: 'var(--text-primary)' }}
+              >
+                <ChevronLeft size={12} /> Anterior
+              </button>
+              <span style={{ fontWeight: 'bold', color: 'var(--brand-navy)' }}>
+                {paginaActual} / {totalPaginas}
+              </span>
+              <button
+                disabled={paginaActual === totalPaginas}
+                onClick={() => setPaginaActual(p => Math.min(p + 1, totalPaginas))}
+                style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '3px 8px', borderRadius: '4px', border: '1px solid var(--border-mid)', background: paginaActual === totalPaginas ? '#f1f5f9' : '#fff', cursor: paginaActual === totalPaginas ? 'not-allowed' : 'pointer', fontSize: '10px', color: 'var(--text-primary)' }}
+              >
+                Siguiente <ChevronRight size={12} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* SECCIÓN 2: CONTROL DE VACANTES */}
