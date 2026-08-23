@@ -7,6 +7,7 @@ import { subscribeVacantes, saveVacante, deleteVacante } from '../services/vacan
 export const AntiguedadVacantesModule: React.FC = () => {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [vacantes, setVacantes] = useState<Vacante[]>([]);
+  const [filtro, setFiltro] = useState('');
 
   const [formVacante, setFormVacante] = useState<Vacante>({
     puesto: '',
@@ -49,14 +50,17 @@ export const AntiguedadVacantesModule: React.FC = () => {
     e.preventDefault();
     if (!formVacante.puesto.trim() || !formVacante.departamento.trim()) return;
 
+    const req = Number(formVacante.cantidadRequerida);
+    const cub = Number(formVacante.cantidadCubierta);
     const estatusCalculado: 'ABIERTA' | 'EN_PROCESO' | 'CUBIERTA' = 
-      Number(formVacante.cantidadCubierta) >= Number(formVacante.cantidadRequerida) ? 'CUBIERTA' :
-      Number(formVacante.cantidadCubierta) > 0 ? 'EN_PROCESO' : 'ABIERTA';
+      cub >= req ? 'CUBIERTA' : cub > 0 ? 'EN_PROCESO' : 'ABIERTA';
 
     saveVacante({
       ...formVacante,
-      cantidadRequerida: Number(formVacante.cantidadRequerida),
-      cantidadCubierta: Number(formVacante.cantidadCubierta),
+      puesto: formVacante.puesto.toUpperCase(),
+      departamento: formVacante.departamento.toUpperCase(),
+      cantidadRequerida: req,
+      cantidadCubierta: cub,
       estatus: estatusCalculado
     });
 
@@ -70,55 +74,68 @@ export const AntiguedadVacantesModule: React.FC = () => {
     });
   };
 
-  return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      
-      {/* SECCIÓN 1: CONTROL DE ANTIGÜEDAD */}
-      <div style={{ marginBottom: '32px' }}>
-        <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '2px solid #eaeaea', paddingBottom: '10px', color: '#1a1a1a' }}>
-          <Award size={24} color="#d97706" /> Control de Antigüedad y Aniversarios
-        </h2>
+  const listaFiltrada = colaboradores.filter(c =>
+    c.nombreCompleto.toLowerCase().includes(filtro.toLowerCase()) ||
+    c.noNomina.toLowerCase().includes(filtro.toLowerCase()) ||
+    (c.departamento && c.departamento.toLowerCase().includes(filtro.toLowerCase()))
+  );
 
-        <div style={{ overflowX: 'auto', marginTop: '16px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', border: '1px solid #e0e0e0', textAlign: 'left' }}>
+  return (
+    <div>
+      {/* SECCIÓN 1: CONTROL DE ANTIGÜEDAD (Tipografía Reducida al 50% / Compacta) */}
+      <div className="card-industrial">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '2px solid var(--brand-navy-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="bar-accent"></div>
+            <div className="sec-title" style={{ margin: 0 }}>Control de Antigüedad y Aniversarios</div>
+          </div>
+          <input
+            type="text" placeholder="Buscar colaborador…"
+            value={filtro} onChange={(e) => setFiltro(e.target.value)}
+            style={{ width: '220px', padding: '4px 8px', fontSize: '10px' }}
+          />
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9.5px', lineHeight: '1.2' }}>
             <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                <th style={{ padding: '10px' }}>Nómina</th>
-                <th style={{ padding: '10px' }}>Nombre</th>
-                <th style={{ padding: '10px' }}>Departamento</th>
-                <th style={{ padding: '10px' }}>Puesto</th>
-                <th style={{ padding: '10px' }}>Fecha Ingreso</th>
-                <th style={{ padding: '10px' }}>Antigüedad</th>
-                <th style={{ padding: '10px' }}>Alerta de Aniversario</th>
+              <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
+                <th style={{ padding: '5px 6px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}># Nómina</th>
+                <th style={{ padding: '5px 6px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Nombre</th>
+                <th style={{ padding: '5px 6px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Departamento</th>
+                <th style={{ padding: '5px 6px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Puesto</th>
+                <th style={{ padding: '5px 6px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Ingreso</th>
+                <th style={{ padding: '5px 6px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Antigüedad</th>
+                <th style={{ padding: '5px 6px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Alerta de Aniversario</th>
               </tr>
             </thead>
             <tbody>
-              {colaboradores.length === 0 ? (
+              {listaFiltrada.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
-                    No hay colaboradores en el directorio.
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
+                    No hay colaboradores registrados.
                   </td>
                 </tr>
               ) : (
-                colaboradores.map((colab) => {
+                listaFiltrada.map((colab) => {
                   const { anios, meses, esAniversarioMes } = calcularAntiguedad(colab.fechaIngreso);
                   return (
-                    <tr key={colab.noNomina} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '10px', fontWeight: 'bold' }}>{colab.noNomina}</td>
-                      <td style={{ padding: '10px' }}>{colab.nombreCompleto}</td>
-                      <td style={{ padding: '10px' }}>{colab.departamento}</td>
-                      <td style={{ padding: '10px' }}>{colab.puesto}</td>
-                      <td style={{ padding: '10px' }}>{colab.fechaIngreso || '-'}</td>
-                      <td style={{ padding: '10px', fontWeight: '500' }}>
-                        {anios} años, {meses} meses
+                    <tr key={colab.noNomina} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                      <td style={{ padding: '4px 6px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>{colab.noNomina}</td>
+                      <td style={{ padding: '4px 6px', fontWeight: 600 }}>{colab.nombreCompleto}</td>
+                      <td style={{ padding: '4px 6px' }}>{colab.departamento || '-'}</td>
+                      <td style={{ padding: '4px 6px', color: 'var(--text-secondary)' }}>{colab.puesto || '-'}</td>
+                      <td style={{ padding: '4px 6px', color: 'var(--text-secondary)' }}>{colab.fechaIngreso || '-'}</td>
+                      <td style={{ padding: '4px 6px', fontWeight: 600, color: 'var(--brand-navy-dark)' }}>
+                        {anios} a, {meses} m
                       </td>
-                      <td style={{ padding: '10px' }}>
+                      <td style={{ padding: '4px 6px' }}>
                         {esAniversarioMes ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#fef3c7', color: '#b45309', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold' }}>
-                            <Calendar size={14} /> Aniversario este mes ({anios} años)
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'var(--orange-light)', color: '#7A4500', padding: '2px 5px', borderRadius: '3px', fontSize: '8.5px', fontWeight: 'bold' }}>
+                            <Calendar size={10} /> Aniversario ({anios} años)
                           </span>
                         ) : (
-                          <span style={{ color: '#94a3b8', fontSize: '12px' }}>Sin evento cercano</span>
+                          <span style={{ color: 'var(--text-light)', fontSize: '8.5px' }}>Sin evento cercano</span>
                         )}
                       </td>
                     </tr>
@@ -131,95 +148,87 @@ export const AntiguedadVacantesModule: React.FC = () => {
       </div>
 
       {/* SECCIÓN 2: CONTROL DE VACANTES */}
-      <div>
-        <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '2px solid #eaeaea', paddingBottom: '10px', color: '#1a1a1a' }}>
-          <Briefcase size={24} color="#2563eb" /> Tablero de Vacantes por Departamento
-        </h2>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginTop: '16px' }}>
-          <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', background: '#f8fafc' }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Plus size={18} /> Abrir Nueva Vacante
-            </h3>
-            <form onSubmit={handleCrearVacante} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <input
-                type="text" placeholder="Departamento (ej. Impresión)" required value={formVacante.departamento}
-                onChange={(e) => setFormVacante({ ...formVacante, departamento: e.target.value })}
-                style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-              />
-              <input
-                type="text" placeholder="Puesto (ej. Ayudante General)" required value={formVacante.puesto}
-                onChange={(e) => setFormVacante({ ...formVacante, puesto: e.target.value })}
-                style={{ padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
-              />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#475569', fontWeight: 'bold' }}>Requeridas</label>
-                  <input
-                    type="number" min="1" required value={formVacante.cantidadRequerida}
-                    onChange={(e) => setFormVacante({ ...formVacante, cantidadRequerida: Number(e.target.value) })}
-                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', color: '#475569', fontWeight: 'bold' }}>Cubiertas</label>
-                  <input
-                    type="number" min="0" required value={formVacante.cantidadCubierta}
-                    onChange={(e) => setFormVacante({ ...formVacante, cantidadCubierta: Number(e.target.value) })}
-                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
-                  />
-                </div>
-              </div>
-              <button
-                type="submit"
-                style={{ padding: '10px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                Registrar Vacante
-              </button>
-            </form>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+        
+        {/* Formulario */}
+        <div className="card-industrial">
+          <div className="card-title-bar">
+            <div className="bar-accent"></div>
+            <div className="sec-title" style={{ margin: 0 }}>Abrir Nueva Vacante</div>
           </div>
+          <form onSubmit={handleCrearVacante} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <input
+              type="text" placeholder="Departamento (ej. FLEXOGRAFÍA)" required value={formVacante.departamento}
+              onChange={(e) => setFormVacante({ ...formVacante, departamento: e.target.value })}
+            />
+            <input
+              type="text" placeholder="Puesto (ej. AYUDANTE GENERAL)" required value={formVacante.puesto}
+              onChange={(e) => setFormVacante({ ...formVacante, puesto: e.target.value })}
+            />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--brand-navy)', fontWeight: 'bold' }}>REQUERIDAS</label>
+                <input
+                  type="number" min="1" required value={formVacante.cantidadRequerida}
+                  onChange={(e) => setFormVacante({ ...formVacante, cantidadRequerida: Number(e.target.value) })}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--brand-navy)', fontWeight: 'bold' }}>CUBIERTAS</label>
+                <input
+                  type="number" min="0" required value={formVacante.cantidadCubierta}
+                  onChange={(e) => setFormVacante({ ...formVacante, cantidadCubierta: Number(e.target.value) })}
+                />
+              </div>
+            </div>
+            <button type="submit" className="btn-industrial-primary" style={{ width: '100%', marginTop: '6px' }}>
+              <Plus size={16} /> Registrar Vacante
+            </button>
+          </form>
+        </div>
 
-          <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', background: '#fff' }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px' }}>Estado de Plazas ({vacantes.length})</h3>
-            {vacantes.length === 0 ? (
-              <p style={{ color: '#64748b', fontSize: '14px', textAlign: 'center', padding: '20px 0' }}>
-                No hay vacantes abiertas actualmente.
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {vacantes.map((v) => {
-                  const colorBadge = 
-                    v.estatus === 'CUBIERTA' ? { bg: '#dcfce7', text: '#15803d' } :
-                    v.estatus === 'EN_PROCESO' ? { bg: '#fef3c7', text: '#b45309' } :
-                    { bg: '#fee2e2', text: '#b91c1c' };
+        {/* Tablero */}
+        <div className="card-industrial">
+          <div className="card-title-bar">
+            <div className="bar-accent"></div>
+            <div className="sec-title" style={{ margin: 0 }}>Estado de Plazas ({vacantes.length})</div>
+          </div>
+          {vacantes.length === 0 ? (
+            <div style={{ color: 'var(--text-secondary)', fontSize: '13px', textAlign: 'center', padding: '2rem 0' }}>
+              No hay vacantes abiertas actualmente.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {vacantes.map((v) => {
+                const badgeCls = 
+                  v.estatus === 'CUBIERTA' ? 'badge-ok' :
+                  v.estatus === 'EN_PROCESO' ? 'badge-warn' : 'badge-nok';
 
-                  return (
-                    <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#f8fafc' }}>
-                      <div>
-                        <div style={{ fontWeight: 'bold', color: '#0f172a' }}>{v.puesto}</div>
-                        <div style={{ fontSize: '12px', color: '#64748b' }}>{v.departamento} • {v.cantidadCubierta}/{v.cantidadRequerida} plazas</div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', background: colorBadge.bg, color: colorBadge.text }}>
-                          {v.estatus}
-                        </span>
-                        <button
-                          onClick={() => v.id && deleteVacante(v.id)}
-                          style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444', padding: '4px' }}
-                          title="Eliminar vacante"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                return (
+                  <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', background: '#fff' }}>
+                    <div>
+                      <div style={{ fontWeight: 'bold', color: 'var(--brand-navy-dark)', fontSize: '13px' }}>{v.puesto}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{v.departamento} • {v.cantidadCubierta}/{v.cantidadRequerida} plazas</div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className={`badge-industrial ${badgeCls}`}>
+                        {v.estatus}
+                      </span>
+                      <button
+                        onClick={() => v.id && deleteVacante(v.id)}
+                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-navy)', padding: '4px' }}
+                        title="Eliminar vacante"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
-
     </div>
   );
 };
