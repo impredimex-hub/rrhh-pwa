@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Users, Award, ClipboardList, GraduationCap, Wifi, WifiOff } from 'lucide-react';
+import { Users, Award, ClipboardList, GraduationCap, BookOpen, Wifi, WifiOff } from 'lucide-react';
 import { PersonalModule } from './components/PersonalModule';
 import { AntiguedadVacantesModule } from './components/AntiguedadVacantesModule';
 import { IncidenciasModule } from './components/IncidenciasModule';
 import { CapacitacionModule } from './components/CapacitacionModule';
+import { CursosModule } from './components/CursosModule';
 
 function App() {
-  const [pestanaActiva, setPestanaActiva] = useState<'personal' | 'antiguedad' | 'incidencias' | 'capacitacion'>('personal');
+  const [pestanaActiva, setPestanaActiva] = useState<'personal' | 'antiguedad' | 'incidencias' | 'capacitacion' | 'cursos'>('personal');
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
 
   useEffect(() => {
@@ -27,6 +28,7 @@ function App() {
     { id: 'antiguedad', label: 'Antigüedad y Vacantes', icon: Award },
     { id: 'incidencias', label: 'Incidencias', icon: ClipboardList },
     { id: 'capacitacion', label: 'Capacitación', icon: GraduationCap },
+    { id: 'cursos', label: 'Cursos', icon: BookOpen },
   ];
 
   return (
@@ -125,6 +127,7 @@ function App() {
           {pestanaActiva === 'antiguedad' && <AntiguedadVacantesModule />}
           {pestanaActiva === 'incidencias' && <IncidenciasModule />}
           {pestanaActiva === 'capacitacion' && <CapacitacionModule />}
+          {pestanaActiva === 'cursos' && <CursosModule />}
         </main>
 
         <footer style={{ textAlign: 'center', padding: '1.2rem', fontSize: '11px', color: 'var(--text-light)', borderTop: '1px solid var(--border-light)', marginTop: '2rem' }}>
