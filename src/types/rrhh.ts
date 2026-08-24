@@ -5,9 +5,9 @@ export interface Colaborador {
   departamento: string;
   puesto: string;
   fechaIngreso: string;
-  fechaBaja?: string | null;
-  estatus: 'ACTIVO' | 'BAJA' | 'INCAPACIDAD';
-  createdAt?: any;
+  estatus: 'ACTIVO' | 'BAJA';
+  antiguedadAnios?: number;
+  antiguedadMeses?: number;
 }
 
 export interface Vacante {
@@ -20,25 +20,30 @@ export interface Vacante {
   fechaCreacion: string;
 }
 
+export type TipoIncidencia = 'FALTA_INJUSTIFICADA' | 'INCIDENCIA_RIT' | 'INCAPACIDAD';
+
 export interface Incidencia {
   id?: string;
   colaboradorId: string;
   noNomina: string;
   nombreCompleto: string;
-  tipo: 'VACACIONES' | 'FALTA_JUSTIFICADA' | 'FALTA_INJUSTIFICADA' | 'INCAPACIDAD';
+  tipo: TipoIncidencia;
   fechaInicio: string;
   fechaFin: string;
   diasTotales: number;
+  motivo?: string;
   estatus: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO';
 }
 
 export interface CursoCapacitacion {
   id?: string;
   titulo: string;
-  instructor: string;
+  instructor?: string;
+  departamentosObjetivo: string[];
+  puestosObjetivo?: string[];
   fechaInicio: string;
   fechaFin: string;
-  departamentosObjetivo: string[];
-  puestosObjetivo: string[];
+  horaInicio?: string;
+  horaFin?: string;
   estatus: 'PROGRAMADO' | 'EN_CURSO' | 'FINALIZADO';
 }
