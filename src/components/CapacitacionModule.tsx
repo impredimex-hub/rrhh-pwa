@@ -21,6 +21,8 @@ export const CapacitacionModule: React.FC = () => {
     instructor: '',
     fechaInicio: '',
     fechaFin: '',
+    horaInicio: '09:00',
+    horaFin: '11:00',
     estatus: 'PROGRAMADO'
   });
 
@@ -33,12 +35,10 @@ export const CapacitacionModule: React.FC = () => {
     };
   }, []);
 
-  // Lista dinámica de departamentos únicos extraídos de la plantilla
   const departamentosDisponibles = Array.from(
     new Set(colaboradores.map(c => (c.departamento || '').trim().toUpperCase()).filter(Boolean))
   ).sort();
 
-  // Lista dinámica de puestos correspondientes a los departamentos seleccionados
   const puestosDisponibles = Array.from(
     new Set(
       colaboradores
@@ -52,10 +52,9 @@ export const CapacitacionModule: React.FC = () => {
   ).sort();
 
   const toggleDepto = (depto: string) => {
-    setDeptosSeleccionados(prev => {
-      const nuevo = prev.includes(depto) ? prev.filter(d => d !== depto) : [...prev, depto];
-      return nuevo;
-    });
+    setDeptosSeleccionados(prev => 
+      prev.includes(depto) ? prev.filter(d => d !== depto) : [...prev, depto]
+    );
   };
 
   const togglePuesto = (puesto: string) => {
@@ -70,23 +69,26 @@ export const CapacitacionModule: React.FC = () => {
 
     const cursoData: CursoCapacitacion = {
       ...(cursoEditando ? { id: cursoEditando.id } : {}),
-      titulo: form.titulo.toUpperCase(),
-      instructor: form.instructor ? form.instructor.toUpperCase() : 'INTERNO / POR ASIGNAR',
+      titulo: form.titulo.toUpperCase().trim(),
+      instructor: form.instructor ? form.instructor.toUpperCase().trim() : 'INTERNO / POR ASIGNAR',
       departamentosObjetivo: deptosSeleccionados.length > 0 ? deptosSeleccionados : ['GENERAL'],
       puestosObjetivo: puestosSeleccionados,
       fechaInicio: form.fechaInicio,
       fechaFin: form.fechaFin,
+      horaInicio: form.horaInicio || '09:00',
+      horaFin: form.horaFin || '10:00',
       estatus: (form.estatus as any) || 'PROGRAMADO'
     };
 
     saveCurso(cursoData);
 
-    // Resetear formulario
     setForm({
       titulo: '',
       instructor: '',
       fechaInicio: '',
       fechaFin: '',
+      horaInicio: '09:00',
+      horaFin: '11:00',
       estatus: 'PROGRAMADO'
     });
     setDeptosSeleccionados([]);
@@ -101,6 +103,8 @@ export const CapacitacionModule: React.FC = () => {
       instructor: curso.instructor,
       fechaInicio: curso.fechaInicio,
       fechaFin: curso.fechaFin,
+      horaInicio: curso.horaInicio || '09:00',
+      horaFin: curso.horaFin || '11:00',
       estatus: curso.estatus
     });
     setDeptosSeleccionados(curso.departamentosObjetivo || []);
@@ -115,6 +119,8 @@ export const CapacitacionModule: React.FC = () => {
       instructor: '',
       fechaInicio: '',
       fechaFin: '',
+      horaInicio: '09:00',
+      horaFin: '11:00',
       estatus: 'PROGRAMADO'
     });
     setDeptosSeleccionados([]);
@@ -133,19 +139,21 @@ export const CapacitacionModule: React.FC = () => {
       'PUESTOS OBJETIVO': c.puestosObjetivo?.length ? c.puestosObjetivo.join(', ') : 'TODOS',
       'FECHA INICIO': c.fechaInicio,
       'FECHA FIN': c.fechaFin,
+      'HORARIO': `${c.horaInicio || '09:00'} - ${c.horaFin || '10:00'}`,
       'ESTATUS': c.estatus
     }));
     exportToExcel(data, 'IMPREDIMEX_Plan_Capacitacion');
   };
 
   const handleExportPDF = () => {
-    const headers = ['Curso / Certificación', 'Instructor', 'Departamentos', 'Puestos', 'Periodo', 'Estatus'];
+    const headers = ['Curso / Certificación', 'Instructor', 'Departamentos', 'Puestos', 'Periodo', 'Horario', 'Estatus'];
     const rows = cursos.map(c => [
       c.titulo,
       c.instructor || '-',
       c.departamentosObjetivo?.join(', ') || 'GENERAL',
       c.puestosObjetivo?.length ? c.puestosObjetivo.join(', ') : 'TODOS',
       `${c.fechaInicio} al ${c.fechaFin}`,
+      `${c.horaInicio || '09:00'} a ${c.horaFin || '10:00'}`,
       c.estatus
     ]);
     exportToPDF('IMPREDIMEX — Plan de Capacitación y Adiestramiento', headers, rows, 'Plan_Capacitacion');
@@ -185,7 +193,7 @@ export const CapacitacionModule: React.FC = () => {
               />
             </div>
 
-            {/* Filtro desplegable: Departamentos Objetivo */}
+            {/* Departamentos Objetivo */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
               <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>DEPARTAMENTOS OBJETIVO</label>
               <div
@@ -238,7 +246,7 @@ export const CapacitacionModule: React.FC = () => {
               )}
             </div>
 
-            {/* Filtro desplegable: Puestos Objetivo */}
+            {/* Puestos Objetivo */}
             {deptosSeleccionados.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
                 <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>PUESTOS OBJETIVO (OPCIONAL)</label>
@@ -289,6 +297,7 @@ export const CapacitacionModule: React.FC = () => {
               </div>
             )}
 
+            {/* Fechas de inicio y fin */}
             <div style={{ display: 'flex', gap: '10px' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>FECHA INICIO *</label>
@@ -306,6 +315,28 @@ export const CapacitacionModule: React.FC = () => {
                   required
                   value={form.fechaFin}
                   onChange={(e) => setForm({ ...form, fechaFin: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Horarios de inicio y fin */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>HORA INICIO</label>
+                <input
+                  type="text"
+                  placeholder="ej. 09:00"
+                  value={form.horaInicio}
+                  onChange={(e) => setForm({ ...form, horaInicio: e.target.value })}
+                />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>HORA FIN</label>
+                <input
+                  type="text"
+                  placeholder="ej. 11:30"
+                  value={form.horaFin}
+                  onChange={(e) => setForm({ ...form, horaFin: e.target.value })}
                 />
               </div>
             </div>
@@ -375,7 +406,7 @@ export const CapacitacionModule: React.FC = () => {
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Instructor</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Departamentos</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Puestos</th>
-                <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Periodo</th>
+                <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Periodo y Horario</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Estatus</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Acciones</th>
               </tr>
@@ -411,7 +442,10 @@ export const CapacitacionModule: React.FC = () => {
                       )}
                     </td>
                     <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>
-                      {curso.fechaInicio} al {curso.fechaFin}
+                      <div>{curso.fechaInicio} al {curso.fechaFin}</div>
+                      <div style={{ fontSize: '8.5px', color: 'var(--brand-navy)', fontWeight: 'bold', marginTop: '2px' }}>
+                        {curso.horaInicio || '09:00'} - {curso.horaFin || '10:00'}
+                      </div>
                     </td>
                     <td style={{ padding: '5px 8px' }}>
                       <select
