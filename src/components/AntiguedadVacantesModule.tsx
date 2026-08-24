@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Award, Briefcase, Plus, Trash2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Colaborador, Vacante } from '../types/rrhh';
-import { subscribeColaboradores } from '../services/personalService';
+import { subscribeColaboradores, ordenarPorNomina } from '../services/personalService';
 import { subscribeVacantes, saveVacante, deleteVacante } from '../services/vacanteService';
 
 export const AntiguedadVacantesModule: React.FC = () => {
@@ -21,7 +21,7 @@ export const AntiguedadVacantesModule: React.FC = () => {
   });
 
   useEffect(() => {
-    const unsubColab = subscribeColaboradores((data) => setColaboradores(data));
+    const unsubColab = subscribeColaboradores((data) => setColaboradores(ordenarPorNomina(data)));
     const unsubVac = subscribeVacantes((data) => setVacantes(data));
     return () => {
       unsubColab();
@@ -80,11 +80,13 @@ export const AntiguedadVacantesModule: React.FC = () => {
     });
   };
 
-  const listaFiltrada = colaboradores.filter(c =>
-    c.nombreCompleto.toLowerCase().includes(filtro.toLowerCase()) ||
-    c.noNomina.toLowerCase().includes(filtro.toLowerCase()) ||
-    (c.departamento && c.departamento.toLowerCase().includes(filtro.toLowerCase())) ||
-    (c.puesto && c.puesto.toLowerCase().includes(filtro.toLowerCase()))
+  const listaFiltrada = ordenarPorNomina(
+    colaboradores.filter(c =>
+      c.nombreCompleto.toLowerCase().includes(filtro.toLowerCase()) ||
+      c.noNomina.toLowerCase().includes(filtro.toLowerCase()) ||
+      (c.departamento && c.departamento.toLowerCase().includes(filtro.toLowerCase())) ||
+      (c.puesto && c.puesto.toLowerCase().includes(filtro.toLowerCase()))
+    )
   );
 
   const totalPaginas = Math.ceil(listaFiltrada.length / elementosPorPagina) || 1;
@@ -188,7 +190,6 @@ export const AntiguedadVacantesModule: React.FC = () => {
       {/* SECCIÓN 2: CONTROL DE VACANTES */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '16px', marginTop: '1rem' }}>
         
-        {/* Formulario */}
         <div className="card-industrial">
           <div className="card-title-bar">
             <div className="bar-accent"></div>
@@ -225,7 +226,6 @@ export const AntiguedadVacantesModule: React.FC = () => {
           </form>
         </div>
 
-        {/* Tablero */}
         <div className="card-industrial">
           <div className="card-title-bar">
             <div className="bar-accent"></div>
