@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { GraduationCap, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, FileSpreadsheet, FileText } from 'lucide-react';
 import type { CursoCapacitacion } from '../types/rrhh';
 import { subscribeCursos, saveCurso, deleteCurso } from '../services/capacitacionService';
+import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 export const CapacitacionModule: React.FC = () => {
   const [cursos, setCursos] = useState<CursoCapacitacion[]>([]);
@@ -32,7 +33,7 @@ export const CapacitacionModule: React.FC = () => {
 
     saveCurso({
       titulo: form.titulo.toUpperCase(),
-      instructor: form.instructor || 'Interno / Por Asignar',
+      instructor: form.instructor ? form.instructor.toUpperCase() : 'INTERNO / POR ASIGNAR',
       departamentosObjetivo: deptos,
       puestosObjetivo: form.puestosObjetivo || [],
       fechaInicio: form.fechaInicio,
@@ -56,9 +57,34 @@ export const CapacitacionModule: React.FC = () => {
     saveCurso({ ...curso, estatus: nuevoEstatus });
   };
 
+  const handleExportExcel = () => {
+    const data = cursos.map(c => ({
+      'CURSO / CERTIFICACIÓN': c.titulo,
+      'INSTRUCTOR / ENTIDAD': c.instructor || '-',
+      'DEPARTAMENTOS': c.departamentosObjetivo?.join(', ') || 'GENERAL',
+      'FECHA INICIO': c.fechaInicio,
+      'FECHA FIN': c.fechaFin,
+      'ESTATUS': c.estatus
+    }));
+    exportToExcel(data, 'IMPREDIMEX_Plan_Capacitacion');
+  };
+
+  const handleExportPDF = () => {
+    const headers = ['Curso / Certificación', 'Instructor', 'Departamentos', 'Periodo', 'Estatus'];
+    const rows = cursos.map(c => [
+      c.titulo,
+      c.instructor || '-',
+      c.departamentosObjetivo?.join(', ') || 'GENERAL',
+      `${c.fechaInicio} al ${c.fechaFin}`,
+      c.estatus
+    ]);
+    exportToPDF('IMPREDIMEX — Plan de Capacitación y Adiestramiento', headers, rows, 'Plan_Capacitacion');
+  };
+
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '16px', marginBottom: '1rem' }}>
+        
         {/* Formulario */}
         <div className="card-industrial">
           <div className="card-title-bar">
@@ -66,25 +92,37 @@ export const CapacitacionModule: React.FC = () => {
             <div className="sec-title" style={{ margin: 0 }}>Programar Nuevo Curso</div>
           </div>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <input
-              type="text"
-              placeholder="Nombre del Curso / Certificación *"
-              required
-              value={form.titulo}
-              onChange={(e) => setForm({ ...form, titulo: e.target.value })}
-            />
-            <input
-              type="text"
-              placeholder="Instructor o Entidad Capacitadora"
-              value={form.instructor}
-              onChange={(e) => setForm({ ...form, instructor: e.target.value })}
-            />
-            <input
-              type="text"
-              placeholder="Departamentos objetivo (ej: Impresión, Calidad)"
-              value={deptoTexto}
-              onChange={(e) => setDeptoTexto(e.target.value)}
-            />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>NOMBRE DEL CURSO / CERTIFICACIÓN *</label>
+              <input
+                type="text"
+                placeholder="Ej. BPM Y SEGURIDAD INDUSTRIAL"
+                required
+                value={form.titulo}
+                onChange={(e) => setForm({ ...form, titulo: e.target.value })}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>INSTRUCTOR O ENTIDAD CAPACITADORA</label>
+              <input
+                type="text"
+                placeholder="Ej. CALIDAD / CONSULTOR EXTERNO"
+                value={form.instructor}
+                onChange={(e) => setForm({ ...form, instructor: e.target.value })}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>DEPARTAMENTOS OBJETIVO (SEPARADOS POR COMA)</label>
+              <input
+                type="text"
+                placeholder="Ej. IMPRESIÓN, TINTAS, CALIDAD"
+                value={deptoTexto}
+                onChange={(e) => setDeptoTexto(e.target.value)}
+              />
+            </div>
+
             <div style={{ display: 'flex', gap: '10px' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>FECHA INICIO *</label>
@@ -137,9 +175,19 @@ export const CapacitacionModule: React.FC = () => {
 
       {/* Matriz */}
       <div className="card-industrial">
-        <div className="card-title-bar">
-          <div className="bar-accent"></div>
-          <div className="sec-title" style={{ margin: 0 }}>Matriz de Capacitaciones ({cursos.length})</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '2px solid var(--brand-navy-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="bar-accent"></div>
+            <div className="sec-title" style={{ margin: 0 }}>Matriz de Capacitaciones ({cursos.length})</div>
+          </div>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button onClick={handleExportExcel} className="btn-industrial-success" style={{ height: '30px' }}>
+              <FileSpreadsheet size={13} /> Excel
+            </button>
+            <button onClick={handleExportPDF} className="btn-industrial-danger" style={{ height: '30px' }}>
+              <FileText size={13} /> PDF
+            </button>
+          </div>
         </div>
 
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
@@ -151,7 +199,7 @@ export const CapacitacionModule: React.FC = () => {
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Departamentos</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Periodo</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Estatus</th>
-                <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Acciones</th>
+                <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Acción</th>
               </tr>
             </thead>
             <tbody>
@@ -184,7 +232,7 @@ export const CapacitacionModule: React.FC = () => {
                           height: '24px',
                           padding: '2px 6px',
                           borderRadius: '4px',
-                          fontSize: '9px',
+                          fontSize: '8.5px',
                           fontWeight: 'bold',
                           border: 'none',
                           background: curso.estatus === 'FINALIZADO' ? 'var(--green-light)' : curso.estatus === 'EN_CURSO' ? 'var(--orange-light)' : 'var(--brand-navy-light)',
