@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileSpreadsheet, FileText, ChevronLeft, ChevronRight, SlidersHorizontal, Check } from 'lucide-react';
 import type { Colaborador, CursoCapacitacion } from '../types/rrhh';
-import { subscribeColaboradores } from '../services/personalService';
+import { subscribeColaboradores, ordenarPorNomina } from '../services/personalService';
 import { subscribeCursos } from '../services/capacitacionService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
@@ -13,6 +13,7 @@ export const CursosModule: React.FC = () => {
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroDepto, setFiltroDepto] = useState('');
   const [filtroPuesto, setFiltroPuesto] = useState('');
+  const [filtroCurso, setFiltroCurso] = useState(''); // ID del curso seleccionado
   
   // Paginación
   const [paginaActual, setPaginaActual] = useState(1);
@@ -23,7 +24,7 @@ export const CursosModule: React.FC = () => {
   const [menuColumnasAbierto, setMenuColumnasAbierto] = useState(false);
 
   useEffect(() => {
-    const unsubColab = subscribeColaboradores((data) => setColaboradores(data));
+    const unsubColab = subscribeColaboradores((data) => setColaboradores(ordenarPorNomina(data)));
     const unsubCursos = subscribeCursos((data) => setCursos(data));
     return () => {
       unsubColab();
@@ -31,7 +32,7 @@ export const CursosModule: React.FC = () => {
     };
   }, []);
 
-  // Inicializar visibilidad de columnas cuando cambien los cursos
+  // Inicializar columnas visibles por defecto
   useEffect(() => {
     const columnasBase: Record<string, boolean> = {
       noNomina: true,
@@ -49,11 +50,40 @@ export const CursosModule: React.FC = () => {
     setColumnasVisibles(prev => ({ ...columnasBase, ...prev }));
   }, [cursos]);
 
+  // Cuando se selecciona un curso específico en el filtro:
+  // Se ocultan las columnas de los otros cursos y se muestran solo las del curso elegido
+  useEffect(() => {
+    if (filtroCurso) {
+      setColumnasVisibles(prev => {
+        const nuevo: Record<string, boolean> = { ...prev };
+        cursos.forEach(cur => {
+          if (cur.id) {
+            const esSeleccionado = cur.id === filtroCurso;
+            nuevo[`curso_${cur.id}`] = esSeleccionado;
+            nuevo[`fecha_${cur.id}`] = esSeleccionado;
+          }
+        });
+        return nuevo;
+      });
+    } else {
+      // Si se selecciona "Todos los Cursos", se reactivan todas las columnas de cursos
+      setColumnasVisibles(prev => {
+        const nuevo: Record<string, boolean> = { ...prev };
+        cursos.forEach(cur => {
+          if (cur.id) {
+            nuevo[`curso_${cur.id}`] = true;
+            nuevo[`fecha_${cur.id}`] = true;
+          }
+        });
+        return nuevo;
+      });
+    }
+  }, [filtroCurso, cursos]);
+
   useEffect(() => {
     setPaginaActual(1);
-  }, [filtroTexto, filtroDepto, filtroPuesto]);
+  }, [filtroTexto, filtroDepto, filtroPuesto, filtroCurso]);
 
-  // Departamentos y puestos disponibles para los dropdowns
   const departamentosDisponibles = Array.from(
     new Set(colaboradores.map(c => (c.departamento || '').trim().toUpperCase()).filter(Boolean))
   ).sort();
@@ -67,7 +97,6 @@ export const CursosModule: React.FC = () => {
     )
   ).sort();
 
-  // Calcular duración en horas entre dos horarios
   const calcularDuracion = (hInicio?: string, hFin?: string): string => {
     if (!hInicio || !hFin) return '1h';
     const [h1, m1] = hInicio.split(':').map(Number);
@@ -82,7 +111,6 @@ export const CursosModule: React.FC = () => {
     return mins > 0 ? `${horas}h ${mins}m` : `${horas}h`;
   };
 
-  // Determinar si un colaborador está asignado a un curso
   const estaAsignado = (colab: Colaborador, curso: CursoCapacitacion): boolean => {
     const depto = (colab.departamento || '').toUpperCase().trim();
     const puesto = (colab.puesto || '').toUpperCase().trim();
@@ -96,7 +124,6 @@ export const CursosModule: React.FC = () => {
     return deptoCoincide && puestoCoincide;
   };
 
-  // Obtener estado: 'Programado' o 'No asistencia'
   const obtenerEstadoCurso = (colab: Colaborador, curso: CursoCapacitacion): 'Programado' | 'No asistencia' | null => {
     if (!estaAsignado(colab, curso)) return null;
 
@@ -106,7 +133,6 @@ export const CursosModule: React.FC = () => {
     const fechaFinCurso = new Date(curso.fechaFin);
     fechaFinCurso.setHours(23, 59, 59, 999);
 
-    // Si ya pasó la fecha compromiso
     if (hoy > fechaFinCurso || curso.estatus === 'FINALIZADO') {
       return 'No asistencia';
     }
@@ -121,54 +147,102 @@ export const CursosModule: React.FC = () => {
     }));
   };
 
-  // Filtrado de la plantilla
-  const listaFiltrada = colaboradores.filter(c => {
-    const coincideTexto = 
-      c.nombreCompleto.toLowerCase().includes(filtroTexto.toLowerCase()) ||
-      c.noNomina.toLowerCase().includes(filtroTexto.toLowerCase());
+  // Filtrado compuesto con ordenamiento numérico
+  const listaFiltrada = ordenarPorNomina(
+    colaboradores.filter(c => {
+      const coincideTexto = 
+        c.nombreCompleto.toLowerCase().includes(filtroTexto.toLowerCase()) ||
+        c.noNomina.toLowerCase().includes(filtroTexto.toLowerCase());
 
-    const coincideDepto = !filtroDepto || (c.departamento || '').trim().toUpperCase() === filtroDepto;
-    const coincidePuesto = !filtroPuesto || (c.puesto || '').trim().toUpperCase() === filtroPuesto;
+      const coincideDepto = !filtroDepto || (c.departamento || '').trim().toUpperCase() === filtroDepto;
+      const coincidePuesto = !filtroPuesto || (c.puesto || '').trim().toUpperCase() === filtroPuesto;
 
-    return coincideTexto && coincideDepto && coincidePuesto;
-  });
+      // Si hay un filtro de curso activo, solo incluir colaboradores asignados a ese curso
+      let coincideCurso = true;
+      if (filtroCurso) {
+        const cursoSeleccionado = cursos.find(cur => cur.id === filtroCurso);
+        if (cursoSeleccionado) {
+          coincideCurso = estaAsignado(c, cursoSeleccionado);
+        }
+      }
+
+      return coincideTexto && coincideDepto && coincidePuesto && coincideCurso;
+    })
+  );
 
   const totalPaginas = Math.ceil(listaFiltrada.length / elementosPorPagina) || 1;
   const indexInicio = (paginaActual - 1) * elementosPorPagina;
   const colaboradoresPaginados = listaFiltrada.slice(indexInicio, indexInicio + elementosPorPagina);
 
+  // Exportar a Excel respetando columnas visibles y filtros activos
   const handleExportExcel = () => {
     const data = listaFiltrada.map(c => {
-      const rowData: Record<string, any> = {
-        '# NOMINA': c.noNomina,
-        'NOMBRE': c.nombreCompleto,
-        'DEPARTAMENTO': c.departamento || '-',
-        'PUESTO': c.puesto || '-',
-      };
+      const rowData: Record<string, any> = {};
+
+      if (columnasVisibles.noNomina !== false) rowData['# NOMINA'] = c.noNomina;
+      if (columnasVisibles.nombre !== false) rowData['NOMBRE'] = c.nombreCompleto;
+      if (columnasVisibles.departamento !== false) rowData['DEPARTAMENTO'] = c.departamento || '-';
+      if (columnasVisibles.puesto !== false) rowData['PUESTO'] = c.puesto || '-';
 
       cursos.forEach(curso => {
-        const est = obtenerEstadoCurso(c, curso);
-        rowData[curso.titulo] = est || '-';
-        rowData[`FECHA ${curso.titulo}`] = `${curso.fechaInicio} | ${curso.horaInicio || '09:00'}-${curso.horaFin || '10:00'} (${calcularDuracion(curso.horaInicio, curso.horaFin)})`;
+        if (columnasVisibles[`curso_${curso.id}`] !== false) {
+          const est = obtenerEstadoCurso(c, curso);
+          rowData[curso.titulo] = est || '-';
+        }
+        if (columnasVisibles[`fecha_${curso.id}`] !== false) {
+          const est = obtenerEstadoCurso(c, curso);
+          rowData[`FECHA (${curso.titulo})`] = est 
+            ? `${curso.fechaInicio} | ${curso.horaInicio || '09:00'}-${curso.horaFin || '10:00'} (${calcularDuracion(curso.horaInicio, curso.horaFin)})`
+            : '-';
+        }
       });
 
-      rowData['ESTATUS'] = c.estatus;
+      if (columnasVisibles.estatus !== false) rowData['ESTATUS'] = c.estatus;
+
       return rowData;
     });
 
     exportToExcel(data, 'IMPREDIMEX_Matriz_Cursos');
   };
 
+  // Exportar a PDF respetando columnas visibles y filtros activos
   const handleExportPDF = () => {
-    const headers = ['# Nómina', 'Nombre', 'Departamento', 'Puesto', ...cursos.map(c => c.titulo), 'Estatus'];
-    const rows = listaFiltrada.map(c => [
-      c.noNomina,
-      c.nombreCompleto,
-      c.departamento || '-',
-      c.puesto || '-',
-      ...cursos.map(cur => obtenerEstadoCurso(c, cur) || '-'),
-      c.estatus
-    ]);
+    const headers: string[] = [];
+    if (columnasVisibles.noNomina !== false) headers.push('# Nómina');
+    if (columnasVisibles.nombre !== false) headers.push('Nombre');
+    if (columnasVisibles.departamento !== false) headers.push('Departamento');
+    if (columnasVisibles.puesto !== false) headers.push('Puesto');
+
+    cursos.forEach(curso => {
+      if (columnasVisibles[`curso_${curso.id}`] !== false) headers.push(curso.titulo);
+      if (columnasVisibles[`fecha_${curso.id}`] !== false) headers.push(`Fecha (${curso.titulo})`);
+    });
+
+    if (columnasVisibles.estatus !== false) headers.push('Estatus');
+
+    const rows = listaFiltrada.map(c => {
+      const rowArr: (string | number)[] = [];
+
+      if (columnasVisibles.noNomina !== false) rowArr.push(c.noNomina);
+      if (columnasVisibles.nombre !== false) rowArr.push(c.nombreCompleto);
+      if (columnasVisibles.departamento !== false) rowArr.push(c.departamento || '-');
+      if (columnasVisibles.puesto !== false) rowArr.push(c.puesto || '-');
+
+      cursos.forEach(curso => {
+        const est = obtenerEstadoCurso(c, curso);
+        if (columnasVisibles[`curso_${curso.id}`] !== false) {
+          rowArr.push(est || '-');
+        }
+        if (columnasVisibles[`fecha_${curso.id}`] !== false) {
+          rowArr.push(est ? `${curso.fechaInicio} ${curso.horaInicio || '09:00'}` : '-');
+        }
+      });
+
+      if (columnasVisibles.estatus !== false) rowArr.push(c.estatus);
+
+      return rowArr;
+    });
+
     exportToPDF('IMPREDIMEX — Asignación de Cursos por Colaborador', headers, rows, 'Matriz_Cursos');
   };
 
@@ -176,21 +250,26 @@ export const CursosModule: React.FC = () => {
     <div>
       <div className="card-industrial">
         
-        {/* Encabezado y Barra de Filtros */}
+        {/* Encabezado y Filtros */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '2px solid var(--brand-navy-light)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div className="bar-accent"></div>
-            <div className="sec-title" style={{ margin: 0 }}>Control de Cursos Asignados por Colaborador ({colaboradores.length})</div>
+            <div className="sec-title" style={{ margin: 0 }}>Control de Cursos Asignados por Colaborador ({listaFiltrada.length})</div>
           </div>
 
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
             
-            {/* Filtro Texto */}
-            <input
-              type="text" placeholder="Buscar colaborador…"
-              value={filtroTexto} onChange={(e) => setFiltroTexto(e.target.value)}
-              style={{ width: '130px', height: '30px', padding: '4px 8px', fontSize: '10px' }}
-            />
+            {/* Filtro Curso */}
+            <select
+              value={filtroCurso}
+              onChange={(e) => setFiltroCurso(e.target.value)}
+              style={{ width: '130px', height: '30px', padding: '2px 6px', fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)', border: '1px solid var(--brand-navy)' }}
+            >
+              <option value="">Todos los Cursos</option>
+              {cursos.map(c => (
+                <option key={c.id} value={c.id}>{c.titulo}</option>
+              ))}
+            </select>
 
             {/* Filtro Departamento */}
             <select
@@ -219,7 +298,14 @@ export const CursosModule: React.FC = () => {
               ))}
             </select>
 
-            {/* Botón Selector de Columnas */}
+            {/* Filtro Texto */}
+            <input
+              type="text" placeholder="Buscar colaborador…"
+              value={filtroTexto} onChange={(e) => setFiltroTexto(e.target.value)}
+              style={{ width: '120px', height: '30px', padding: '4px 8px', fontSize: '10px' }}
+            />
+
+            {/* Selector de Columnas */}
             <div style={{ position: 'relative' }}>
               <button
                 onClick={() => setMenuColumnasAbierto(!menuColumnasAbierto)}
@@ -231,12 +317,11 @@ export const CursosModule: React.FC = () => {
               </button>
 
               {menuColumnasAbierto && (
-                <div style={{ position: 'absolute', right: 0, top: '100%', zIndex: 100, background: '#fff', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-md)', width: '220px', maxHeight: '250px', overflowY: 'auto', padding: '8px', marginTop: '4px' }}>
+                <div style={{ position: 'absolute', right: 0, top: '100%', zIndex: 100, background: '#fff', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-md)', width: '230px', maxHeight: '250px', overflowY: 'auto', padding: '8px', marginTop: '4px' }}>
                   <div style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)', marginBottom: '6px', borderBottom: '1px solid var(--border-light)', paddingBottom: '4px' }}>
                     VISIBILIDAD DE COLUMNAS
                   </div>
 
-                  {/* Columnas fijas */}
                   {[
                     { key: 'noNomina', label: '# Nómina' },
                     { key: 'nombre', label: 'Nombre' },
@@ -256,7 +341,6 @@ export const CursosModule: React.FC = () => {
                     </div>
                   ))}
 
-                  {/* Columnas dinámicas de cursos */}
                   {cursos.map(cur => (
                     <React.Fragment key={cur.id}>
                       <div
@@ -293,7 +377,7 @@ export const CursosModule: React.FC = () => {
           </div>
         </div>
 
-        {/* Tabla Dinámica con Cursos y Fechas */}
+        {/* Tabla */}
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9.5px', lineHeight: '1.2' }}>
             <thead>
@@ -303,7 +387,6 @@ export const CursosModule: React.FC = () => {
                 {columnasVisibles.departamento !== false && <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Departamento</th>}
                 {columnasVisibles.puesto !== false && <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Puesto</th>}
 
-                {/* Encabezados Dinámicos por Curso */}
                 {cursos.map(cur => (
                   <React.Fragment key={cur.id}>
                     {columnasVisibles[`curso_${cur.id}`] !== false && (
@@ -355,7 +438,6 @@ export const CursosModule: React.FC = () => {
                       <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>{colab.puesto || '-'}</td>
                     )}
 
-                    {/* Celdas dinámicas por curso */}
                     {cursos.map(cur => {
                       const est = obtenerEstadoCurso(colab, cur);
                       const duracion = calcularDuracion(cur.horaInicio, cur.horaFin);
