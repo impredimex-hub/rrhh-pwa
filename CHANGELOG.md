@@ -7,6 +7,31 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.1.0] — 2026-09-05
+
+### Cambiado
+
+- **El directorio de personal pasa a leer y escribir en `impredimex-suite`.**
+  Con esto RRHH queda como la única aplicación que escribe el padrón del que
+  dependen los inicios de sesión de las cinco apps, y las reglas publicadas
+  anoche —que exigen `ADMIN` en `roles.rrhh`— empiezan a proteger algo que la
+  aplicación sí usa.
+- Los módulos de incidencias, capacitación, cursos y vacantes **no se movieron**:
+  siguen en el proyecto `rrhh-pwa`, que es donde están sus datos reales.
+
+### Notas
+
+La migración que anticipaba la SPEC-009 no hizo falta. El proyecto propio de
+RRHH tenía tres colaboradores de prueba, no un padrón paralelo; los 121 de la
+suite se habían cargado directo desde Excel. Verificado que esas tres nóminas ya
+existían en la suite con sus datos correctos, el cambio se redujo al origen de
+la base de datos.
+
+Quedan tres documentos huérfanos en `rrhh-pwa/colaboradores`. Conviene
+eliminarlos a mano para no dejar dos listas con el mismo nombre.
+
+---
+
 ## [2.0.0] — 2026-09-05
 
 Primera etapa de la integración con la suite Impredimex: control de acceso.

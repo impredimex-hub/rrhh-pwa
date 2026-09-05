@@ -128,28 +128,15 @@ Personal autorizado de Recursos Humanos.
 
 # SPEC-003 — Directorio de personal
 
-**Estado:** parcialmente implementado — el cambio de proyecto queda para la
-segunda etapa (ver SPEC-009)
+**Estado:** implementado
 **Actor:** `ADMIN` para escribir; cualquier papel para leer
 
 ### Precondiciones
 - Sesión iniciada
 
-### Etapas
-El destino del padrón cambia en dos tiempos, y el orden no se puede invertir:
-
-1. **Primera etapa (esta versión).** La aplicación gana login, papeles y
-   salvaguardas, pero **sigue escribiendo en la colección `colaboradores` de su
-   propio proyecto**, que es donde están los datos vigentes.
-2. **Segunda etapa.** Una vez ejecutada la migración de la SPEC-009, se apunta
-   al proyecto de la suite.
-
-Apuntar a la suite antes de migrar haría que RRHH editara una copia vieja
-mientras los datos reales se quedan en el proyecto anterior.
-
 ### Flujo principal
-1. Sistema se suscribe a la colección `colaboradores` del proyecto vigente
-   según la etapa
+1. Sistema se suscribe a la colección `colaboradores` del proyecto
+   **impredimex-suite**
 2. Sistema muestra la lista ordenada numéricamente por nómina, con búsqueda y
    paginación
 3. `ADMIN` puede dar de alta, editar, dar de baja o importar
@@ -328,34 +315,33 @@ depende de las reglas sino de los datos que la app graba.
 
 # SPEC-009 — Migración del padrón a la suite
 
-**Estado:** pendiente
-**Nuevo en la v2** — se ejecuta una sola vez
+**Estado:** implementado
 
-### Antecedente
-RRHH se construyó antes que la suite y escribe en la colección `colaboradores`
-de **su propio proyecto**. La suite tiene otra colección con el mismo nombre,
-poblada por una carga inicial tomada de RRHH, a la que después se le agregaron
-`apps` y `roles`. Las dos listas llevan meses divergiendo.
+### Qué resultó ser
+Esta spec se escribió esperando una reconciliación delicada entre dos listas
+divergentes. Al revisar los datos reales, ese trabajo no existía.
 
-### Flujo
-1. Exportar ambas colecciones
-2. Comparar y producir tres listas: quién está solo en RRHH, quién está solo en
-   la suite, y en quiénes no coinciden nombre, puesto, fecha o departamento
-3. Revisar a mano las diferencias; ahí es donde deben aparecer las nóminas 2396
-   y 2398
-4. Actualizar los documentos de la suite con los datos de RRHH, **con merge**
-5. Verificar que los 121 conserven `apps` y `roles`
-6. Recalcular `nombreNormalizado` en todos
-7. Apuntar la aplicación al proyecto de la suite para el padrón
+El proyecto propio de RRHH tenía **tres** colaboradores —86, 852 y 885—, todos
+con el formato viejo: `updatedAt` en inglés, sin `nombreNormalizado`, sin `apps`
+ni `roles`. Eran registros de prueba de cuando se construyó la aplicación.
+
+Los 121 de la suite nunca salieron de esa aplicación: se cargaron directo desde
+un archivo de Excel el 3 de septiembre de 2026, con una herramienta aparte. Por
+eso las dos colecciones nunca estuvieron sincronizadas ni tenían por qué estarlo.
+
+Verificado que las tres nóminas ya existían en la suite con sus datos correctos,
+la migración se redujo a cambiar el origen de la base en `personalService.ts`.
 
 ### Reglas de negocio
-- **La suite manda en `apps` y `roles`; RRHH manda en los datos de personal.**
-  Ninguna de las dos listas se sobrescribe entera.
-- **Nadie se borra durante la migración.** Quien aparezca solo en una lista se
-  revisa a mano antes de decidir.
-- **Se corrige 2396 y 2398 antes de terminar.** EPP ya graba el nombre dentro de
-  cada registro, así que cada revisión hecha con un nombre equivocado queda
-  sellada así para siempre.
+- **El padrón queda solo en la suite.** Los tres registros del proyecto
+  `rrhh-pwa` dejan de leerse y se eliminan a mano, para que nadie encuentre
+  después una segunda colección `colaboradores` y dude de cuál es la buena.
+- **Los demás módulos no se mueven.** Incidencias, capacitación, cursos y
+  vacantes siguen en el proyecto propio, con datos reales. Es la regla 4 de la
+  suite: la cuota del plan gratuito es por proyecto.
+- **La corrección de las nóminas 2396 y 2398 sigue pendiente**, y ahora es un
+  trabajo aparte que se hace desde la propia aplicación, ya no parte de una
+  migración.
 
 ---
 
@@ -382,7 +368,7 @@ poblada por una carga inicial tomada de RRHH, a la que después se le agregaron
 | # | Asunto | Estado |
 |---|---|---|
 | 1 | Sin ningún control de acceso | **Se resuelve** con la SPEC-001 |
-| 2 | El padrón vive en el proyecto equivocado | **Se resuelve** con la SPEC-009 |
+| 2 | El padrón vive en el proyecto equivocado | **Resuelto** |
 | 3 | Eliminar borra sin confirmación y se lleva los permisos | **Resuelto** |
 | 4 | La importación revive bajas en silencio | **Resuelto** |
 | 5 | `nombreNormalizado` no se recalcula | **Resuelto** |
