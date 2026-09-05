@@ -1,5 +1,13 @@
 import { collection, doc, writeBatch, deleteDoc, updateDoc, query, onSnapshot, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase/config';
+// El padrón vive en el proyecto compartido de la suite, no en el propio de
+// RRHH. Es la única lista de personal válida de las cinco aplicaciones, y esta
+// es la única app que la escribe.
+//
+// Lo pesado de RRHH —incidencias, cursos, capacitación, vacantes— se queda en
+// `firebase/config`, o sea en el proyecto rrhh-pwa. Es deliberado: el plan
+// gratuito da cuota por proyecto, y concentrar las cinco apps en uno la
+// colapsaría. La suite solo carga con identidad y directorio.
+import { suiteDb as db } from './suite';
 import type { Colaborador } from '../types/rrhh';
 import { normalizarNombre } from '../utils/catalogos';
 
