@@ -2,10 +2,25 @@ export interface Colaborador {
   id?: string;
   noNomina: string;
   nombreCompleto: string;
+  /**
+   * Nombre sin acentos y en mayúsculas. Lo usan las otras apps de la suite
+   * para buscar. Se recalcula al guardar; si queda viejo, esas búsquedas dejan
+   * de encontrar a la persona sin dar ningún error.
+   */
+  nombreNormalizado?: string;
   departamento: string;
   puesto: string;
   fechaIngreso: string;
-  estatus: 'ACTIVO' | 'BAJA';
+  /**
+   * Opcional a propósito: al importar desde Excel se omite para que el
+   * documento conserve el estatus que ya tenía y una baja no reviva sola.
+   */
+  estatus?: 'ACTIVO' | 'BAJA';
+  /**
+   * Heredados de una versión anterior. La antigüedad se calcula al vuelo desde
+   * `fechaIngreso`; guardarla la deja desactualizada cada mes.
+   * @deprecated
+   */
   antiguedadAnios?: number;
   antiguedadMeses?: number;
 }
