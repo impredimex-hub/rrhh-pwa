@@ -1,14 +1,27 @@
 import { useState, useEffect } from 'react';
-import { Users, Award, ClipboardList, GraduationCap, BookOpen, WifiOff } from 'lucide-react';
+import { Users, Award, ClipboardList, GraduationCap, BookOpen, WifiOff, LogOut } from 'lucide-react';
 import { PersonalModule } from './components/PersonalModule';
 import { AntiguedadVacantesModule } from './components/AntiguedadVacantesModule';
 import { IncidenciasModule } from './components/IncidenciasModule';
 import { CapacitacionModule } from './components/CapacitacionModule';
 import { CursosModule } from './components/CursosModule';
+import { LoginScreen } from './components/LoginScreen';
+import { SesionContext } from './services/SesionContext';
+import { armarSesion, vigilarSesion, salir, ErrorDeAcceso, type Sesion } from './services/suite';
+
+const ETIQUETA_PAPEL: Record<string, string> = {
+  ADMIN: 'Administrador',
+  CAPTURA: 'Captura',
+  CONSULTA: 'Consulta'
+};
 
 function App() {
   const [pestanaActiva, setPestanaActiva] = useState<'personal' | 'antiguedad' | 'incidencias' | 'capacitacion' | 'cursos'>('personal');
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+
+  const [sesion, setSesion] = useState<Sesion | null>(null);
+  const [verificando, setVerificando] = useState(true);
+  const [avisoAcceso, setAvisoAcceso] = useState('');
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -23,6 +36,50 @@ function App() {
     };
   }, []);
 
+  // Vigila la sesión de Firebase. Cubre tanto el inicio de sesión desde la
+  // pantalla de acceso como la restauración al recargar la página.
+  useEffect(() => {
+    return vigilarSesion(async user => {
+      if (!user) {
+        setSesion(null);
+        setVerificando(false);
+        return;
+      }
+      try {
+        setSesion(await armarSesion(user));
+        setAvisoAcceso('');
+      } catch (e) {
+        // Autenticado pero sin permiso para esta app: se cierra la sesión.
+        setSesion(null);
+        setAvisoAcceso(e instanceof ErrorDeAcceso ? e.message : 'No se pudo verificar tu acceso.');
+        await salir().catch(() => {});
+      } finally {
+        setVerificando(false);
+      }
+    });
+  }, []);
+
+  if (verificando) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#E8EEF8', color: '#5A6A80', fontSize: '13px' }}>
+        Verificando tu sesión…
+      </div>
+    );
+  }
+
+  if (!sesion) {
+    return (
+      <>
+        {avisoAcceso && (
+          <div style={{ background: '#C8102E', color: '#fff', padding: '10px 14px', fontSize: '12.5px', textAlign: 'center', fontWeight: 600 }}>
+            {avisoAcceso}
+          </div>
+        )}
+        <LoginScreen />
+      </>
+    );
+  }
+
   const navItems = [
     { id: 'personal', label: 'Directorio', icon: Users },
     { id: 'antiguedad', label: 'Antigüedad y Vacantes', icon: Award },
@@ -32,6 +89,7 @@ function App() {
   ];
 
   return (
+    <SesionContext.Provider value={sesion}>
     <div style={{ minHeight: '100vh', backgroundColor: '#f8f9ff', paddingBottom: '30px' }}>
       {/* Offline Alert Strip */}
       {!isOnline && (
@@ -65,15 +123,29 @@ function App() {
             </div>
           </div>
 
-          <div style={{ fontSize: '11px', color: '#8A9AB0', textAlign: 'right', lineHeight: '1.4' }}>
-            {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+            <div style={{ textAlign: 'right', lineHeight: 1.4 }}>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--brand-navy-dark)' }} title={sesion.nombre}>
+                {sesion.nomina}
+              </div>
+              <div style={{ fontSize: '11px', color: '#8A9AB0' }}>
+                {ETIQUETA_PAPEL[sesion.papel] ?? sesion.papel}
+              </div>
+            </div>
+            <button
+              onClick={() => { salir().finally(() => window.location.reload()); }}
+              title="Cerrar sesión"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'transparent', border: '1px solid rgba(0,32,96,.15)', borderRadius: '8px', padding: '7px 11px', fontSize: '11.5px', fontWeight: 600, fontFamily: 'inherit', color: 'var(--brand-navy)', cursor: 'pointer' }}
+            >
+              <LogOut size={13} /> Salir
+            </button>
           </div>
         </div>
       </header>
 
       {/* Main Container */}
       <div style={{ maxWidth: '1050px', margin: '0 auto', padding: '0 1rem' }}>
-        
+
         {/* Floating Tabs Bar */}
         <div style={{
           display: 'flex',
@@ -135,6 +207,7 @@ function App() {
         </footer>
       </div>
     </div>
+    </SesionContext.Provider>
   );
 }
 
