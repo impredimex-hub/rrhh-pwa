@@ -1,4 +1,4 @@
-import { collection, doc, writeBatch, deleteDoc, updateDoc, query, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, writeBatch, deleteDoc, updateDoc, getDoc, setDoc, query, onSnapshot, serverTimestamp } from 'firebase/firestore';
 // El padrón vive en el proyecto compartido de la suite, no en el propio de
 // RRHH. Es la única lista de personal válida de las cinco aplicaciones, y esta
 // es la única app que la escribe.
@@ -103,6 +103,48 @@ export const cambiarEstatus = async (noNomina: string, estatus: 'ACTIVO' | 'BAJA
     actualizadoEn: serverTimestamp(),
     actualizadoPor: autor
   });
+};
+
+/**
+ * Cambia el número de nómina de una persona.
+ *
+ * No es una edición como las demás: la nómina es el identificador del
+ * documento, así que hay que crear uno nuevo y borrar el anterior. Se copia
+ * **todo** lo que tenía —incluidos `apps`, `roles` y `creadoEn`—, porque si no
+ * esa persona perdería el acceso a las aplicaciones de la suite.
+ *
+ * Lo que esta función **no** puede hacer es mover la cuenta de Firebase Auth,
+ * que es `<nomina>@impredimex.local`. Desde el navegador no se puede borrar ni
+ * renombrar la cuenta de otra persona. Hay que rehacerla a mano en la consola,
+ * o esa persona no podrá volver a entrar a ninguna aplicación.
+ */
+export const cambiarNomina = async (
+  nominaVieja: string,
+  datosNuevos: Colaborador,
+  autor: string
+) => {
+  const vieja = String(nominaVieja).trim();
+  const nueva = String(datosNuevos.noNomina).trim();
+  if (vieja === nueva) return;
+
+  const refVieja = doc(db, COLLECTION_NAME, vieja);
+  const refNueva = doc(db, COLLECTION_NAME, nueva);
+
+  const [snapVieja, snapNueva] = await Promise.all([getDoc(refVieja), getDoc(refNueva)]);
+  if (!snapVieja.exists()) throw new Error('No se encontró la nómina ' + vieja);
+  if (snapNueva.exists())  throw new Error('La nómina ' + nueva + ' ya está ocupada por otra persona.');
+
+  const previo = snapVieja.data() || {};
+
+  // Primero se crea el documento nuevo y solo después se borra el viejo. Si
+  // algo falla en medio queda duplicado y se resuelve a mano; al revés se
+  // perdería a la persona.
+  await setDoc(refNueva, {
+    ...previo,                                   // conserva apps, roles y creadoEn
+    ...construirDocumento(datosNuevos, autor, false),
+    nominaAnterior: vieja                        // deja rastro del cambio
+  });
+  await deleteDoc(refVieja);
 };
 
 /**
