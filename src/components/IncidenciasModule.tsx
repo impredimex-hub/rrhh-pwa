@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ClipboardList, Plus, Trash2, CheckCircle2, FileSpreadsheet, FileText } from 'lucide-react';
-import type { Colaborador, Incidencia } from '../types/rrhh';
+import type { Colaborador, Incidencia, TipoIncidencia } from '../types/rrhh';
+import { ETIQUETA_INCIDENCIA } from '../types/rrhh';
 import { subscribeColaboradores } from '../services/personalService';
 import { subscribeIncidencias, saveIncidencia, deleteIncidencia } from '../services/incidenciaService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
@@ -69,7 +70,7 @@ export const IncidenciasModule: React.FC = () => {
     const data = incidencias.map(i => ({
       '# Nómina': i.noNomina,
       'Colaborador': i.nombreCompleto,
-      'Tipo de Incidencia': i.tipo === 'INCIDENCIA_RIT' ? 'Incidencia RIT' : i.tipo.replace('_', ' '),
+      'Tipo de Incidencia': ETIQUETA_INCIDENCIA[i.tipo] || i.tipo,
       'Fecha Inicio': i.fechaInicio,
       'Fecha Fin': i.fechaFin,
       'Días Totales': i.diasTotales,
@@ -83,7 +84,7 @@ export const IncidenciasModule: React.FC = () => {
     const rows = incidencias.map(i => [
       i.noNomina,
       i.nombreCompleto,
-      i.tipo === 'INCIDENCIA_RIT' ? 'Incidencia RIT' : i.tipo.replace('_', ' '),
+      ETIQUETA_INCIDENCIA[i.tipo] || i.tipo,
       `${i.fechaInicio} al ${i.fechaFin}`,
       `${i.diasTotales} d`,
       i.estatus
@@ -124,9 +125,9 @@ export const IncidenciasModule: React.FC = () => {
                 value={form.tipo}
                 onChange={(e) => setForm({ ...form, tipo: e.target.value as any })}
               >
-                <option value="FALTA_INJUSTIFICADA">Falta injustificada</option>
-                <option value="INCIDENCIA_RIT">Incidencia RIT</option>
-                <option value="INCAPACIDAD">Incapacidad</option>
+                {(Object.keys(ETIQUETA_INCIDENCIA) as TipoIncidencia[]).map(t => (
+                  <option key={t} value={t}>{ETIQUETA_INCIDENCIA[t]}</option>
+                ))}
               </select>
             </div>
 
@@ -229,7 +230,7 @@ export const IncidenciasModule: React.FC = () => {
                       <td style={{ padding: '5px 8px', fontWeight: 600 }}>{inc.nombreCompleto}</td>
                       <td style={{ padding: '5px 8px' }}>
                         <span style={{ display: 'inline-block', background: badgeCls === 'badge-warn' ? 'var(--orange-light)' : badgeCls === 'badge-navy' ? 'var(--brand-navy-light)' : 'var(--red-light)', color: badgeCls === 'badge-warn' ? '#7A4500' : badgeCls === 'badge-navy' ? 'var(--brand-navy)' : 'var(--brand-red)', fontSize: '8.5px', padding: '2px 5px', borderRadius: '3px', fontWeight: 'bold' }}>
-                          {inc.tipo === 'INCIDENCIA_RIT' ? 'Incidencia RIT' : inc.tipo.replace('_', ' ')}
+                          {ETIQUETA_INCIDENCIA[inc.tipo] || inc.tipo}
                         </span>
                       </td>
                       <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>

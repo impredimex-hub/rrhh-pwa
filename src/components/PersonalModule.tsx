@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, Upload, Trash2, FileSpreadsheet, FileText, ChevronLeft, ChevronRight, UserMinus, UserCheck, AlertTriangle, Eye } from 'lucide-react';
+import { UserPlus, Upload, Trash2, FileSpreadsheet, FileText, ChevronLeft, ChevronRight, UserMinus, UserCheck, AlertTriangle, Eye, Pencil, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { Colaborador } from '../types/rrhh';
-import { saveColaboradoresBatch, subscribeColaboradores, deleteColaborador, cambiarEstatus, ordenarPorNomina } from '../services/personalService';
+import { saveColaboradoresBatch, subscribeColaboradores, deleteColaborador, cambiarEstatus, cambiarNomina, ordenarPorNomina } from '../services/personalService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { DEPARTAMENTOS, reconocerDepartamento } from '../utils/catalogos';
 import { usePermisos, useSesion } from '../services/SesionContext';
@@ -38,6 +38,9 @@ export const PersonalModule: React.FC = () => {
   const [previa, setPrevia] = useState<PreviaImportacion | null>(null);
   const [reactivarBajas, setReactivarBajas] = useState(false);
   const [porEliminar, setPorEliminar] = useState<Colaborador | null>(null);
+  // Nómina que se está editando. Null significa alta nueva.
+  const [editando, setEditando] = useState<string | null>(null);
+  const [porRenombrar, setPorRenombrar] = useState<{de:string; a:string} | null>(null);
 
   const [formData, setFormData] = useState<Partial<Colaborador>>({
     noNomina: '',
@@ -64,6 +67,21 @@ export const PersonalModule: React.FC = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const editar = (colab: Colaborador) => {
+    setEditando(String(colab.noNomina).trim());
+    setFormData({
+      noNomina: colab.noNomina, nombreCompleto: colab.nombreCompleto,
+      departamento: colab.departamento, puesto: colab.puesto,
+      fechaIngreso: colab.fechaIngreso, estatus: colab.estatus
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelarEdicion = () => {
+    setEditando(null);
+    setFormData({ noNomina:'', nombreCompleto:'', departamento:'', puesto:'', fechaIngreso:'', estatus:'ACTIVO' });
+  };
+
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!puedeEditarPadron) return;
@@ -76,6 +94,14 @@ export const PersonalModule: React.FC = () => {
       return;
     }
 
+    // Cambiar la nómina no es una edición más: es mover el documento y deja
+    // la cuenta de acceso apuntando al número viejo. Se confirma aparte.
+    const nuevaNomina = String(formData.noNomina).trim();
+    if (editando && editando !== nuevaNomina) {
+      setPorRenombrar({ de: editando, a: nuevaNomina });
+      return;
+    }
+
     setLoading(true);
     try {
       const yaExiste = colaboradores.some(c => String(c.noNomina).trim() === String(formData.noNomina).trim());
@@ -85,6 +111,7 @@ export const PersonalModule: React.FC = () => {
         yaExiste ? new Set() : new Set([String(formData.noNomina).trim()])
       );
       setFormData({ noNomina: '', nombreCompleto: '', departamento: '', puesto: '', fechaIngreso: '', estatus: 'ACTIVO' });
+      setEditando(null);
       alert('Colaborador guardado con éxito');
     } catch (error: any) {
       alert('Error al guardar: ' + (error?.message || 'Error desconocido'));
@@ -230,6 +257,21 @@ export const PersonalModule: React.FC = () => {
     }
   };
 
+  const confirmarRenombrado = async () => {
+    if (!porRenombrar) return;
+    setLoading(true);
+    try {
+      await cambiarNomina(porRenombrar.de, formData as Colaborador, autor);
+      setPorRenombrar(null);
+      cancelarEdicion();
+      alert('Nómina cambiada de ' + porRenombrar.de + ' a ' + porRenombrar.a +
+            '.\n\nFalta rehacer su cuenta de acceso en la consola de Firebase; ' +
+            'mientras tanto esa persona no puede entrar a ninguna aplicación.');
+    } catch (error: any) {
+      alert('No se pudo cambiar: ' + (error?.message || 'Error desconocido'));
+    } finally { setLoading(false); }
+  };
+
   const confirmarEliminacion = async () => {
     if (!porEliminar) return;
     setLoading(true);
@@ -312,7 +354,18 @@ export const PersonalModule: React.FC = () => {
           <div className="card-industrial">
             <div className="card-title-bar">
               <div className="bar-accent"></div>
-              <div className="sec-title" style={{ margin: 0 }}>Registro Individual de Colaborador</div>
+              <div className="sec-title" style={{ margin: 0 }}>
+                {editando ? 'Editando la nómina ' + editando : 'Registro Individual de Colaborador'}
+              </div>
+              {editando && (
+                <button type="button" onClick={cancelarEdicion}
+                  style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px',
+                    background: 'transparent', border: '1px solid var(--border-mid)', borderRadius: '6px',
+                    padding: '3px 9px', fontSize: '11px', fontFamily: 'inherit', cursor: 'pointer',
+                    color: 'var(--text-secondary)' }}>
+                  <X size={12} /> Cancelar
+                </button>
+              )}
             </div>
             <form onSubmit={handleManualSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', gap: '10px' }}>
@@ -330,10 +383,12 @@ export const PersonalModule: React.FC = () => {
                 {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
               <button type="submit" disabled={loading} className="btn-industrial-primary" style={{ marginTop: '4px' }}>
-                <UserPlus size={16} /> {loading ? 'Guardando…' : 'Guardar Colaborador'}
+                <UserPlus size={16} /> {loading ? 'Guardando…' : (editando ? 'Guardar cambios' : 'Guardar Colaborador')}
               </button>
               <div style={{ fontSize: '10.5px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                Guardar con una nómina que ya existe actualiza a esa persona. Un alta nueva nace sin acceso a ninguna aplicación.
+                {editando
+                  ? 'Puedes corregir cualquier dato, incluida la nómina. Cambiarla mueve el registro y requiere rehacer su cuenta de acceso.'
+                  : 'Guardar con una nómina que ya existe actualiza a esa persona. Un alta nueva nace sin acceso a ninguna aplicación.'}
               </div>
             </form>
           </div>
@@ -417,6 +472,13 @@ export const PersonalModule: React.FC = () => {
                     </td>
                     {puedeEditarPadron && (
                       <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}>
+                        <button
+                          onClick={() => editar(colab)}
+                          style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-navy)', padding: '2px 4px' }}
+                          title="Editar datos"
+                        >
+                          <Pencil size={13} />
+                        </button>
                         <button
                           onClick={() => alternarEstatus(colab)}
                           style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-navy)', padding: '2px 4px' }}
@@ -524,6 +586,41 @@ export const PersonalModule: React.FC = () => {
               <button onClick={confirmarImportacion} disabled={loading}
                 style={{ flex: 1.4, padding: '11px', borderRadius: '9px', border: 'none', background: '#003580', color: '#fff', fontWeight: 700, fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}>
                 {loading ? 'Guardando…' : 'Importar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cambio de nómina: no es una edición más */}
+      {porRenombrar && (
+        <div style={capaModal} onClick={() => !loading && setPorRenombrar(null)}>
+          <div style={{ ...cajaModal, maxWidth: '470px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: 700, color: 'var(--brand-navy)', marginBottom: '.7rem' }}>
+              <AlertTriangle size={18} /> Cambiar el número de nómina
+            </div>
+            <div style={{ fontSize: '12.5px', color: 'var(--brand-navy-dark)', lineHeight: 1.6, marginBottom: '.8rem' }}>
+              De <strong>{porRenombrar.de}</strong> a <strong>{porRenombrar.a}</strong>, para <strong>{formData.nombreCompleto}</strong>.
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6, background: 'var(--bg-light)', borderRadius: '8px', padding: '10px 12px', marginBottom: '1rem' }}>
+              La nómina es el identificador del registro, así que se mueve a uno nuevo conservando
+              sus permisos de todas las aplicaciones.
+              <br /><br />
+              <strong>Su cuenta de acceso NO se mueve.</strong> Sigue siendo
+              {' '}{porRenombrar.de}@impredimex.local, así que hasta que se rehaga en la consola de
+              Firebase esta persona no podrá entrar a ninguna aplicación.
+              <br /><br />
+              Los registros históricos de EPP, Mantenimiento y Calidad conservan la nómina anterior,
+              porque guardan copia y no referencia.
+            </div>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setPorRenombrar(null)} disabled={loading}
+                style={{ flex: 1.4, padding: '11px', borderRadius: '9px', border: 'none', background: 'var(--brand-navy)', color: '#fff', fontWeight: 700, fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={confirmarRenombrado} disabled={loading}
+                style={{ flex: 1, padding: '11px', borderRadius: '9px', border: '1px solid var(--brand-navy)', background: '#fff', color: 'var(--brand-navy)', fontWeight: 600, fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}>
+                {loading ? 'Cambiando…' : 'Cambiar'}
               </button>
             </div>
           </div>
