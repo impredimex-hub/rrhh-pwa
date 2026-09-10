@@ -35,7 +35,28 @@ export interface Vacante {
   fechaCreacion: string;
 }
 
-export type TipoIncidencia = 'FALTA_INJUSTIFICADA' | 'INCIDENCIA_RIT' | 'INCAPACIDAD';
+export type TipoIncidencia =
+  | 'FALTA_INJUSTIFICADA'
+  | 'RETARDO'
+  | 'INCIDENCIA_RIT'
+  | 'INCAPACIDAD'
+  | 'INCUMPLIMIENTO_BPM'
+  | 'INCUMPLIMIENTO_EPP'
+  | 'INCUMPLIMIENTO_PROCESO'
+  | 'INCUMPLIMIENTO_AUDITORIA';
+
+/** Etiqueta legible de cada tipo. Se usa en el formulario, en la tabla y en
+ *  las exportaciones, para que digan lo mismo en los tres lados. */
+export const ETIQUETA_INCIDENCIA: Record<TipoIncidencia, string> = {
+  FALTA_INJUSTIFICADA:      'Falta injustificada',
+  RETARDO:                  'Retardo',
+  INCIDENCIA_RIT:           'Incidencia RIT',
+  INCAPACIDAD:              'Incapacidad',
+  INCUMPLIMIENTO_BPM:       'Incumplimiento de BPM',
+  INCUMPLIMIENTO_EPP:       'Incumplimiento de EPP',
+  INCUMPLIMIENTO_PROCESO:   'Incumplimiento de proceso',
+  INCUMPLIMIENTO_AUDITORIA: 'Incumplimiento de auditoría'
+};
 
 export interface Incidencia {
   id?: string;
