@@ -58,17 +58,21 @@ export const ETIQUETA_INCIDENCIA: Record<TipoIncidencia, string> = {
   INCUMPLIMIENTO_AUDITORIA: 'Incumplimiento de auditoría'
 };
 
+/** v2.1: se retiran fechaInicio/fechaFin/diasTotales/estatus (el estatus nunca
+ *  tuvo más de un valor posible, "APROBADO"; no era un flujo real). En su
+ *  lugar, observaciones libres y una suspensión explícita: si `suspension` es
+ *  verdadero, `fechasSuspension` guarda los días exactos elegidos en el
+ *  calendario y su longitud siempre coincide con `diasSuspension`. */
 export interface Incidencia {
   id?: string;
   colaboradorId: string;
   noNomina: string;
   nombreCompleto: string;
   tipo: TipoIncidencia;
-  fechaInicio: string;
-  fechaFin: string;
-  diasTotales: number;
-  motivo?: string;
-  estatus: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO';
+  observaciones?: string;
+  suspension: boolean;
+  diasSuspension?: number;      // solo cuando suspension = true
+  fechasSuspension?: string[];  // 'YYYY-MM-DD'; longitud == diasSuspension
 }
 
 export interface CursoCapacitacion {
