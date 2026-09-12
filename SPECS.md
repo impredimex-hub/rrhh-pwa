@@ -363,6 +363,50 @@ la migración se redujo a cambiar el origen de la base en `personalService.ts`.
 
 ---
 
+# SPEC-011 — Registro de incidencias
+
+**Estado:** implementado
+**Actor:** `ADMIN` y `CAPTURA` para capturar; `CONSULTA` para ver y exportar
+
+### Flujo principal
+1. El usuario selecciona al colaborador, el tipo de incidencia y, si aplica,
+   escribe observaciones libres.
+2. Si la incidencia implica una suspensión, marca la casilla **Suspensión**.
+   Eso pide primero el número de días y después abre un calendario donde se
+   eligen esos días uno por uno; no tienen que ser consecutivos.
+3. Al guardar, la incidencia queda con la nómina y el nombre del colaborador
+   copiados tal como estaban en ese momento (regla general de la SPEC-007).
+
+### Postcondiciones
+- Se crea un documento en `incidencias` (proyecto `rrhh-pwa`) con `tipo`,
+  `observaciones`, `suspension` y, si aplica, `diasSuspension` y
+  `fechasSuspension` (una fecha `YYYY-MM-DD` por cada día elegido).
+- El botón **Guardar Incidencia** queda deshabilitado mientras el número de
+  fechas elegidas no coincida exactamente con `diasSuspension`.
+
+### Reglas de negocio
+- **No hay fecha de inicio y fin genéricas.** La v2.1 las retira: la única
+  fecha que la aplicación captura es la de una suspensión real, y son fechas
+  puntuales elegidas a mano, no un rango.
+- **El estatus de aprobación se retira.** La versión anterior guardaba un
+  campo `estatus` que solo podía valer `APROBADO`: no había ningún flujo que
+  lo cambiara, así que no describía nada real.
+- **El historial muestra # Nómina, Nombre, Tipo, Suspensión, Observaciones y
+  Acción.** La columna Suspensión lista las fechas elegidas si la incidencia
+  las tiene, o un guion si no.
+- **El indicador de "días acumulados" del resumen ahora cuenta solo días de
+  suspensión.** El total genérico que existía antes perdió sentido al quitarse
+  el rango de fechas: ya no hay un número de días asociado a una falta o un
+  retardo, así que sumar «días» de todas las incidencias por igual ya no
+  describía nada real.
+
+### Flujos alternativos
+- Si se cambia el número de días de una suspensión ya en captura, las fechas
+  elegidas se borran y hay que volver a marcarlas: evita que queden fechas de
+  más o de menos sin que el usuario se dé cuenta.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |
@@ -379,7 +423,7 @@ la migración se redujo a cambiar el origen de la base en `personalService.ts`.
 | 9b | `tsc` no corría limpio: faltaban los tipos de Vite y `main.tsx` importaba con extensión | **Resuelto** |
 | 10 | Los permisos sobreviven solo gracias al `merge` | **Resuelto**: la escritura usa una lista blanca de campos explícita |
 | 11 | Repositorio público | Pendiente hasta migrar el hosting |
-| 12 | Los módulos de incidencias, cursos y vacantes siguen sin especificar | Pendiente |
+| 12 | Los módulos de incidencias, cursos y vacantes siguen sin especificar | Incidencias documentado en la SPEC-011; cursos y vacantes, pendiente |
 
 ---
 

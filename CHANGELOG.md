@@ -7,6 +7,35 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.2.0] — 2026-09-12
+
+### Cambiado
+
+- **Registro de incidencias: fuera fecha inicio/fecha fin, entran
+  observaciones y una suspensión explícita.** El formulario ya no pide un
+  rango de fechas genérico. En su lugar hay un campo de observaciones libres
+  y una casilla **Suspensión**: al marcarla, primero pregunta el número de
+  días y después abre un calendario para elegir esos días exactos, uno por
+  uno (SPEC-011).
+- **El historial de incidencias cambia de columnas.** Sale Periodo, Días y
+  Estatus; entra Suspensión (las fechas elegidas, si las hay) y Observaciones.
+  Excel y PDF exportan las mismas columnas nuevas.
+- **El estatus de aprobación se retira.** Solo tomaba el valor `APROBADO` y
+  ningún flujo lo cambiaba; no era información real.
+- El indicador «Días Totales Ausentados» del resumen pasa a llamarse **Días
+  de Suspensión Acumulados** y solo cuenta días de suspensiones reales, no
+  todas las incidencias por igual.
+
+### Notas
+
+Los registros anteriores a esta versión no tienen `observaciones` ni
+`suspension`: se siguen mostrando, con esas columnas en blanco. La consulta ya
+no ordena por `fechaInicio` en Firestore —ese campo desaparece— sino que trae
+todo y ordena por `createdAt` en el cliente, precisamente para no dejar fuera
+en silencio ningún registro viejo que no tuviera ese campo.
+
+---
+
 ## [2.1.0] — 2026-09-05
 
 ### Cambiado
