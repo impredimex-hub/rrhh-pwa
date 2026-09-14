@@ -22,8 +22,13 @@ export function usePermisos() {
     papel,
     /** Solo ADMIN escribe el padrón: sostiene el login de las cinco apps. */
     puedeEditarPadron: papel === 'ADMIN',
-    /** ADMIN y CAPTURA alimentan incidencias, cursos, capacitación y vacantes. */
-    puedeCapturar: papel === 'ADMIN' || papel === 'CAPTURA',
+    /**
+     * Solo ADMIN captura. Antes CAPTURA también podía alimentar incidencias,
+     * cursos, capacitación y vacantes; a partir de la v2.3 la captura queda
+     * reservada a administradores y CAPTURA se comporta igual que CONSULTA
+     * dentro de esta aplicación.
+     */
+    puedeCapturar: papel === 'ADMIN',
     /** Todos pueden exportar: es descarga bajo demanda y no modifica nada. */
     puedeExportar: true
   };
