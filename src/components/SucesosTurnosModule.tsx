@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, FileSpreadsheet, FileText, Edit2, Copy, ClipboardPaste, Eraser, X, ChevronLeft, ShieldCheck, Eye } from 'lucide-react';
+import { Plus, Trash2, FileSpreadsheet, FileText, Edit2, Copy, ClipboardPaste, Eraser, X, ChevronLeft, ShieldCheck, Eye, Check } from 'lucide-react';
 import type {
   Colaborador, Suceso, TipoSuceso, RolTurnos, PeriodoRol, ClaveTurno, AsignacionTurno
 } from '../types/rrhh';
@@ -7,6 +7,7 @@ import { ETIQUETA_SUCESO, HORARIO_TURNO } from '../types/rrhh';
 import { subscribeColaboradores, asignarDepartamentosTurnos } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
 import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda } from '../services/turnoService';
+import { subscribeAsistenciasRango, obtenerAsistenciasRango } from '../services/asistenciaService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
@@ -161,6 +162,7 @@ export const SucesosTurnosModule: React.FC = () => {
 
   const [editandoRol, setEditandoRol] = useState<RolTurnos | null>(null);
   const [guardandoRol, setGuardandoRol] = useState(false);
+  const [asistencias, setAsistencias] = useState<Set<string>>(new Set());
   const [portapapeles, setPortapapeles] = useState<AsignacionTurno | null>(null);
 
   /* ── Panel de permisos (solo ADMIN) ── */
@@ -216,6 +218,31 @@ export const SucesosTurnosModule: React.FC = () => {
     () => editandoRol ? diasDelPeriodo(editandoRol.fechaInicio, editandoRol.periodo) : [],
     [editandoRol]
   );
+
+  // Solo se consulta el rango del rol abierto. Se depende de la primera y la
+  // última fecha, no del objeto entero, para no rehacer la consulta cada vez
+  // que se toca una celda.
+  const primerDia = dias[0] || '';
+  const ultimoDia = dias[dias.length - 1] || '';
+
+  useEffect(() => {
+    if (!primerDia || !ultimoDia) { setAsistencias(new Set()); return; }
+    const u = subscribeAsistenciasRango(primerDia, ultimoDia, setAsistencias);
+    return () => u();
+  }, [primerDia, ultimoDia]);
+
+  /**
+   * Estado de asistencia de una celda.
+   *
+   * Solo se evalúa donde hay turno asignado y en fechas que ya ocurrieron: un
+   * descanso no es una falta, y un rol de la próxima semana no puede tener a
+   * nadie ausente todavía.
+   */
+  const estadoAsistencia = (noNomina: string, fecha: string, hayTurno: boolean) => {
+    if (!hayTurno) return 'NA' as const;
+    if (fecha > hoyISO()) return 'NA' as const;
+    return asistencias.has(`${noNomina}|${fecha}`) ? ('SI' as const) : ('NO' as const);
+  };
 
   const personasDelRol = useMemo(() => {
     if (!editandoRol) return [];
@@ -334,11 +361,24 @@ export const SucesosTurnosModule: React.FC = () => {
     }
   };
 
-  const exportarRolExcel = (rol: RolTurnos) => {
+  const exportarRolExcel = async (rol: RolTurnos) => {
     const ds = diasDelPeriodo(rol.fechaInicio, rol.periodo);
     const personas = activos
       .filter(c => (c.departamento || '').trim().toUpperCase() === rol.departamento)
       .sort((a, b) => Number(a.noNomina) - Number(b.noNomina));
+
+    // La exportación corre sobre un rol de la lista, no sobre el abierto, así
+    // que sus asistencias se piden aquí. Si la consulta falla se avisa en vez
+    // de exportar un archivo donde todos aparecerían ausentes.
+    let asis: Set<string>;
+    try {
+      asis = await obtenerAsistenciasRango(ds[0] || '', ds[ds.length - 1] || '');
+    } catch {
+      alert('No se pudieron leer las asistencias. El archivo no se generó para no reportar faltas equivocadas.');
+      return;
+    }
+
+    const hoy = hoyISO();
 
     exportToExcel(personas.map(p => {
       const fila: Record<string, string> = {
@@ -348,7 +388,11 @@ export const SucesosTurnosModule: React.FC = () => {
       };
       ds.forEach(f => {
         const a = rol.asignaciones[claveCelda(p.noNomina, f)];
-        fila[f] = !a ? '' : a.turno === 'LIB' ? `LIB ${a.horaInicio || ''}-${a.horaFin || ''}` : a.turno;
+        if (!a) { fila[f] = ''; return; }
+        const turno = a.turno === 'LIB' ? `LIB ${a.horaInicio || ''}-${a.horaFin || ''}` : a.turno;
+        // Un día futuro todavía no tiene asistencia que reportar.
+        if (f > hoy) { fila[f] = turno; return; }
+        fila[f] = `${turno} · ${asis.has(`${p.noNomina}|${f}`) ? 'Asistió' : 'No asistió'}`;
       });
       return fila;
     }), `IMPREDIMEX_Turnos_${rol.nombre.replace(/[^\w]+/g, '_')}`);
@@ -501,6 +545,9 @@ export const SucesosTurnosModule: React.FC = () => {
             <span style={{ fontSize: '9.5px', background: '#F3F6FA', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '3px 9px', color: 'var(--text-secondary)' }}>
               Celda vacía = descanso
             </span>
+            <span style={{ fontSize: '9.5px', background: '#F3F6FA', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '3px 9px', color: 'var(--text-secondary)' }}>
+              La asistencia la confirma la revisión de EPP
+            </span>
           </div>
 
           {portapapeles && (
@@ -574,6 +621,21 @@ export const SucesosTurnosModule: React.FC = () => {
                                 {a.horaInicio}–{a.horaFin}
                               </span>
                             )}
+                            {(() => {
+                              const est = estadoAsistencia(p.noNomina, f, !!a);
+                              if (est === 'NA') return null;
+                              return est === 'SI' ? (
+                                <span title="Asistió — confirmado por revisión de EPP"
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '8.5px', fontWeight: 700, color: 'var(--green-dark)', marginTop: '2px' }}>
+                                  <Check size={9} /> Asistió
+                                </span>
+                              ) : (
+                                <span title="No asistió — no hubo revisión de EPP ese día"
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '8.5px', fontWeight: 700, color: 'var(--brand-red)', marginTop: '2px' }}>
+                                  <X size={9} /> No asistió
+                                </span>
+                              );
+                            })()}
                             <div style={{ display: 'flex', gap: '2px', marginTop: '2px' }}>
                               {a && !soloLectura && (
                                 <button onClick={() => copiarCelda(p.noNomina, f)} title="Copiar turno"
