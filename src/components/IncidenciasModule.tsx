@@ -55,6 +55,7 @@ export const IncidenciasModule: React.FC = () => {
   const [incidencias, setIncidencias] = useState<Incidencia[]>([]);
   const [form, setForm] = useState<FormIncidencia>(FORM_VACIO);
   const [mesVista, setMesVista] = useState(new Date());
+  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     const unsubColab = subscribeColaboradores((data) => setColaboradores(data));
@@ -102,13 +103,18 @@ export const IncidenciasModule: React.FC = () => {
     setMesVista((d) => new Date(d.getFullYear(), d.getMonth() + delta, 1));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.noNomina || !form.tipo) return;
     if (suspensionIncompleta) return;
+    if (guardando) return;
 
     const colaborador = colaboradores.find((c) => c.noNomina === form.noNomina);
 
+    // Los campos de suspensión se agregan solo si aplican. No se pueden
+    // mandar con valor undefined: Firestore rechaza el documento completo si
+    // encuentra uno, y antes eso hacía que una incidencia sin suspensión
+    // fallara al guardar mientras el formulario se limpiaba igual.
     const nuevaIncidencia: Incidencia = {
       colaboradorId: form.noNomina,
       noNomina: form.noNomina,
@@ -116,14 +122,24 @@ export const IncidenciasModule: React.FC = () => {
       tipo: form.tipo,
       observaciones: form.observaciones.trim(),
       suspension: form.suspension,
-      diasSuspension: form.suspension ? form.diasSuspension : undefined,
       fechasSuspension: form.suspension ? [...form.fechasSuspension] : []
     };
+    if (form.suspension && form.diasSuspension) {
+      nuevaIncidencia.diasSuspension = form.diasSuspension;
+    }
 
-    saveIncidencia(nuevaIncidencia);
-
-    setForm(FORM_VACIO);
-    setMesVista(new Date());
+    setGuardando(true);
+    try {
+      await saveIncidencia(nuevaIncidencia);
+      // Solo se limpia si de verdad quedó guardada.
+      setForm(FORM_VACIO);
+      setMesVista(new Date());
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo guardar la incidencia. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const handleExportExcel = () => {
@@ -303,10 +319,10 @@ export const IncidenciasModule: React.FC = () => {
             <button
               type="submit"
               className="btn-industrial-primary"
-              disabled={suspensionIncompleta}
-              style={{ marginTop: '6px', opacity: suspensionIncompleta ? 0.5 : 1, cursor: suspensionIncompleta ? 'not-allowed' : 'pointer' }}
+              disabled={suspensionIncompleta || guardando}
+              style={{ marginTop: '6px', opacity: (suspensionIncompleta || guardando) ? 0.5 : 1, cursor: (suspensionIncompleta || guardando) ? 'not-allowed' : 'pointer' }}
             >
-              <Plus size={16} /> Guardar Incidencia
+              <Plus size={16} /> {guardando ? 'Guardando…' : 'Guardar Incidencia'}
             </button>
           </form>
         </div>
