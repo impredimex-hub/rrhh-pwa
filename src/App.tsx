@@ -201,10 +201,6 @@ function App() {
           {pestanaActiva === 'capacitacion' && <CapacitacionModule />}
           {pestanaActiva === 'cursos' && <CursosModule />}
         </main>
-
-        <footer style={{ textAlign: 'center', padding: '1.2rem', fontSize: '11px', color: 'var(--text-light)', borderTop: '1px solid var(--border-light)', marginTop: '2rem' }}>
-          <strong style={{ color: 'var(--brand-navy)' }}>IMPREDIMEX</strong> — Impresión y Diseño de México S.A. de C.V. &nbsp;·&nbsp; Sistema Integral de Recursos Humanos
-        </footer>
       </div>
     </div>
     </SesionContext.Provider>
