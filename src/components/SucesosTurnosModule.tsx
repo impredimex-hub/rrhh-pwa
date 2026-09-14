@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, FileSpreadsheet, FileText, Edit2, Copy, ClipboardPaste, Eraser, X, ChevronLeft } from 'lucide-react';
+import { Plus, Trash2, FileSpreadsheet, FileText, Edit2, Copy, ClipboardPaste, Eraser, X, ChevronLeft, ShieldCheck, Eye } from 'lucide-react';
 import type {
   Colaborador, Suceso, TipoSuceso, RolTurnos, PeriodoRol, ClaveTurno, AsignacionTurno
 } from '../types/rrhh';
 import { ETIQUETA_SUCESO, HORARIO_TURNO } from '../types/rrhh';
-import { subscribeColaboradores } from '../services/personalService';
+import { subscribeColaboradores, asignarDepartamentosTurnos } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
 import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda } from '../services/turnoService';
 import { usePermisos, useSesion } from '../services/SesionContext';
@@ -57,8 +57,31 @@ export const SucesosTurnosModule: React.FC = () => {
   );
 
   /** Solo quien lo creó, o un administrador, puede tocar un rol. */
+  /**
+   * Departamentos que esta sesión puede programar. Un ADMIN los puede todos;
+   * el resto, solo los que tenga asignados en el padrón. Sin asignación, la
+   * lista queda vacía y esa persona únicamente consulta.
+   */
+  const misDepartamentos = useMemo(() => {
+    if (esAdmin) return departamentos;
+    if (!sesion) return [];
+    const yo = colaboradores.find(c => c.noNomina === sesion.nomina);
+    const asignados = (yo?.departamentosTurnos || []).map(d => d.trim().toUpperCase());
+    // Se cruza contra los departamentos que existen hoy: si uno se renombró o
+    // se quedó sin personal, no tiene caso ofrecerlo.
+    return departamentos.filter(d => asignados.includes(d));
+  }, [esAdmin, sesion, colaboradores, departamentos]);
+
+  const puedeCrearRol = misDepartamentos.length > 0;
+
+  /**
+   * El permiso es por departamento, no por autoría: quien puede programar un
+   * área puede corregir cualquier rol de esa área, lo haya creado o no. Es lo
+   * que hace falta cuando tres supervisores cubren la misma línea o alguien
+   * falta y hay que ajustar su rol.
+   */
   const puedeTocarRol = (rol: RolTurnos) =>
-    esAdmin || (!!sesion && rol.creadoPorNomina === sesion.nomina);
+    esAdmin || misDepartamentos.includes((rol.departamento || '').trim().toUpperCase());
 
   /* ══════════════════ SUCESOS ══════════════════ */
 
@@ -140,9 +163,48 @@ export const SucesosTurnosModule: React.FC = () => {
   const [guardandoRol, setGuardandoRol] = useState(false);
   const [portapapeles, setPortapapeles] = useState<AsignacionTurno | null>(null);
 
+  /* ── Panel de permisos (solo ADMIN) ── */
+  const [panelPermisos, setPanelPermisos] = useState(false);
+  const [buscaPermisos, setBuscaPermisos] = useState('');
+  const [guardandoPermiso, setGuardandoPermiso] = useState('');
+
+  const alternarDepartamento = async (c: Colaborador, depto: string) => {
+    if (!esAdmin || guardandoPermiso) return;
+    const actuales = (c.departamentosTurnos || []).map(d => d.trim().toUpperCase());
+    const siguientes = actuales.includes(depto)
+      ? actuales.filter(d => d !== depto)
+      : [...actuales, depto].sort();
+    setGuardandoPermiso(c.noNomina);
+    try {
+      await asignarDepartamentosTurnos(c.noNomina, siguientes, sesion?.nomina || '');
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo guardar el permiso. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      setGuardandoPermiso('');
+    }
+  };
+
+  /** Quien ya tiene algún departamento asignado, primero; luego el resto. */
+  const personasPermisos = useMemo(() => {
+    const t = buscaPermisos.trim().toUpperCase();
+    const base = t
+      ? activos.filter(c =>
+          (c.nombreCompleto || '').toUpperCase().includes(t) ||
+          (c.noNomina || '').includes(t) ||
+          (c.departamento || '').toUpperCase().includes(t))
+      : activos;
+    return [...base].sort((a, b) => {
+      const na = (a.departamentosTurnos || []).length ? 0 : 1;
+      const nb = (b.departamentosTurnos || []).length ? 0 : 1;
+      if (na !== nb) return na - nb;
+      return (a.nombreCompleto || '').localeCompare(b.nombreCompleto || '');
+    });
+  }, [activos, buscaPermisos]);
+
   const nuevoRol = (): RolTurnos => ({
     nombre: '',
-    departamento: departamentos[0] || '',
+    departamento: misDepartamentos[0] || '',
     periodo: 'SEMANAL',
     fechaInicio: hoyISO(),
     asignaciones: {},
@@ -254,7 +316,7 @@ export const SucesosTurnosModule: React.FC = () => {
 
   const guardarRol = async () => {
     if (!editandoRol) return;
-    if (editandoRol.id && !puedeTocarRol(editandoRol)) return;
+    if (!puedeTocarRol(editandoRol)) return;
     if (!editandoRol.nombre.trim()) { alert('El rol necesita un nombre.'); return; }
     if (!editandoRol.fechaInicio) { alert('El rol necesita una fecha de inicio.'); return; }
     if (!editandoRol.departamento) { alert('El rol necesita un departamento.'); return; }
@@ -292,13 +354,88 @@ export const SucesosTurnosModule: React.FC = () => {
     }), `IMPREDIMEX_Turnos_${rol.nombre.replace(/[^\w]+/g, '_')}`);
   };
 
+  /* ══════════════════ VISTA: permisos de programación ══════════════════ */
+
+  if (panelPermisos && esAdmin) {
+    return (
+      <div className="card-industrial">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
+          <button
+            onClick={() => { setPanelPermisos(false); setBuscaPermisos(''); }}
+            style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-navy)', display: 'flex', alignItems: 'center', padding: 0 }}
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <div className="sec-title" style={{ margin: 0 }}>Quién puede programar turnos</div>
+        </div>
+
+        <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.45 }}>
+          Marca los departamentos que cada persona puede programar. Quien no tenga
+          ninguno marcado solo consulta. Tú, como administrador, puedes programar
+          todos sin necesidad de aparecer aquí. Cada marca se guarda al instante.
+        </p>
+
+        <input
+          type="text" placeholder="Buscar por nombre, nómina o departamento…"
+          value={buscaPermisos} onChange={e => setBuscaPermisos(e.target.value)}
+          style={{ width: '100%', boxSizing: 'border-box', marginBottom: '10px' }}
+        />
+
+        {departamentos.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '1.5rem 0', color: 'var(--text-secondary)', fontSize: '12px' }}>
+            No hay departamentos en el padrón todavía.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {personasPermisos.map(c => {
+              const suyos = (c.departamentosTurnos || []).map(d => d.trim().toUpperCase());
+              const ocupado = guardandoPermiso === c.noNomina;
+              return (
+                <div key={c.noNomina} style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '9px 11px', background: suyos.length ? 'var(--brand-navy-light)' : '#fff', opacity: ocupado ? 0.55 : 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: '11.5px', color: 'var(--brand-navy-dark)' }}>
+                    {c.nombreCompleto}
+                  </div>
+                  <div style={{ fontSize: '9.5px', color: 'var(--text-light)', marginBottom: '6px' }}>
+                    #{c.noNomina} · {c.departamento || 'sin departamento'} · {c.puesto || 'sin puesto'}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                    {departamentos.map(d => {
+                      const activo = suyos.includes(d);
+                      return (
+                        <button
+                          key={d}
+                          onClick={() => alternarDepartamento(c, d)}
+                          disabled={ocupado}
+                          style={{
+                            fontSize: '9.5px', fontWeight: activo ? 700 : 400,
+                            padding: '3px 9px', borderRadius: '20px',
+                            border: '1px solid ' + (activo ? 'var(--brand-navy)' : 'var(--border-light)'),
+                            background: activo ? 'var(--brand-navy)' : '#fff',
+                            color: activo ? '#fff' : 'var(--text-secondary)',
+                            cursor: ocupado ? 'wait' : 'pointer', fontFamily: 'inherit'
+                          }}
+                        >
+                          {d}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   /* ══════════════════ VISTA: editor de rol ══════════════════ */
 
   if (editandoRol) {
     // Un rol ya guardado que no es propio se abre solo para mirarlo: sin
     // botón de guardar y con la cuadrícula deshabilitada, para que nadie
     // capture un periodo entero y descubra al final que no puede guardarlo.
-    const soloLectura = !!editandoRol.id && !puedeTocarRol(editandoRol);
+    const soloLectura = !puedeTocarRol(editandoRol);
 
     return (
       <div>
@@ -317,7 +454,7 @@ export const SucesosTurnosModule: React.FC = () => {
 
           {soloLectura && (
             <div style={{ background: '#E8EEF8', border: '1px solid rgba(0,53,128,.15)', borderRadius: '10px', padding: '10px 14px', marginBottom: '10px', fontSize: '11.5px', color: '#003580' }}>
-              Estás viendo un rol creado por {editandoRol.creadoPorNombre || 'otra persona'}. Solo quien lo creó o un administrador puede modificarlo.
+              Estás viendo un rol de {editandoRol.departamento || 'otro departamento'}, creado por {editandoRol.creadoPorNombre || 'otra persona'}. Solo quien tiene asignado ese departamento, o un administrador, puede modificarlo.
             </div>
           )}
 
@@ -332,7 +469,13 @@ export const SucesosTurnosModule: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <label style={SUB}>DEPARTAMENTO *</label>
               <select value={editandoRol.departamento} onChange={e => cambiarCabecera('departamento', e.target.value)} disabled={soloLectura}>
-                {departamentos.map(d => <option key={d} value={d}>{d}</option>)}
+                {/* Si es un rol ajeno en modo lectura, su departamento puede no
+                    estar entre los míos; se agrega para que el campo no se vea
+                    vacío. */}
+                {(misDepartamentos.includes(editandoRol.departamento) || !editandoRol.departamento
+                    ? misDepartamentos
+                    : [editandoRol.departamento, ...misDepartamentos]
+                ).map(d => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -545,10 +688,30 @@ export const SucesosTurnosModule: React.FC = () => {
               <div className="bar-accent"></div>
               <div className="sec-title" style={{ margin: 0 }}>Rol de Turnos ({roles.length})</div>
             </div>
-            <button onClick={() => setEditandoRol(nuevoRol())} className="btn-industrial-primary" style={{ height: '30px' }}>
-              <Plus size={14} /> Nuevo
-            </button>
+            <div style={{ display: 'flex', gap: '5px' }}>
+              {esAdmin && (
+                <button
+                  onClick={() => setPanelPermisos(true)}
+                  title="Quién puede programar turnos"
+                  style={{ height: '30px', display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '0 10px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(0,32,96,.15)', background: '#fff', color: 'var(--brand-navy)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  <ShieldCheck size={13} /> Permisos
+                </button>
+              )}
+              {puedeCrearRol && (
+                <button onClick={() => setEditandoRol(nuevoRol())} className="btn-industrial-primary" style={{ height: '30px' }}>
+                  <Plus size={14} /> Nuevo
+                </button>
+              )}
+            </div>
           </div>
+
+          {!puedeCrearRol && (
+            <div style={{ background: '#E8EEF8', border: '1px solid rgba(0,53,128,.15)', borderRadius: '10px', padding: '9px 12px', marginBottom: '9px', fontSize: '11px', color: '#003580', display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <Eye size={14} />
+              Puedes consultar y exportar los roles, pero no crearlos.
+            </div>
+          )}
 
           {roles.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '1.5rem 0', color: 'var(--text-secondary)', fontSize: '12px' }}>
