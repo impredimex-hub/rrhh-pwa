@@ -156,3 +156,23 @@ export const cambiarNomina = async (
 export const deleteColaborador = async (noNomina: string) => {
   await deleteDoc(doc(db, COLLECTION_NAME, String(noNomina).trim()));
 };
+
+/**
+ * Departamentos cuyos roles de turnos puede programar una persona (SPEC-013).
+ *
+ * Va aparte de `construirDocumento` a propósito: ese es el camino de la
+ * importación y de la edición del padrón, y si este campo viajara ahí, un
+ * Excel sin la columna lo borraría en cada carga. Aquí se escribe solo cuando
+ * alguien lo cambia deliberadamente desde la pantalla de permisos.
+ */
+export const asignarDepartamentosTurnos = async (
+  noNomina: string,
+  departamentos: string[],
+  autor: string
+) => {
+  await updateDoc(doc(db, COLLECTION_NAME, String(noNomina).trim()), {
+    departamentosTurnos: departamentos,
+    actualizadoEn: serverTimestamp(),
+    actualizadoPor: autor
+  });
+};
