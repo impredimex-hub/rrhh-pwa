@@ -6,7 +6,7 @@ import type {
 import { ETIQUETA_SUCESO, HORARIO_TURNO } from '../types/rrhh';
 import { subscribeColaboradores, asignarDepartamentosTurnos } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
-import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda } from '../services/turnoService';
+import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino } from '../services/turnoService';
 import { subscribeAsistenciasRango, obtenerAsistenciasRango } from '../services/asistenciaService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
@@ -163,6 +163,13 @@ export const SucesosTurnosModule: React.FC = () => {
   const [editandoRol, setEditandoRol] = useState<RolTurnos | null>(null);
   const [guardandoRol, setGuardandoRol] = useState(false);
   const [asistencias, setAsistencias] = useState<Set<string>>(new Set());
+  // Sin esto, un rol abierto en pantalla nunca se enteraría de que el turno
+  // terminó: React solo repinta cuando cambia el estado.
+  const [ahora, setAhora] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setAhora(new Date()), 60000);
+    return () => clearInterval(t);
+  }, []);
   const [portapapeles, setPortapapeles] = useState<AsignacionTurno | null>(null);
 
   /* ── Panel de permisos (solo ADMIN) ── */
@@ -234,14 +241,18 @@ export const SucesosTurnosModule: React.FC = () => {
   /**
    * Estado de asistencia de una celda.
    *
-   * Solo se evalúa donde hay turno asignado y en fechas que ya ocurrieron: un
-   * descanso no es una falta, y un rol de la próxima semana no puede tener a
-   * nadie ausente todavía.
+   * Un descanso no se evalúa: no hay jornada que cumplir. Y la falta solo se
+   * afirma cuando el turno ya terminó, porque antes de esa hora la ausencia de
+   * revisión no significa nada: alguien de T2 entra a las 14:00 y darlo por
+   * ausente en la mañana sería inventar una falta.
+   *
+   * El «Asistió», en cambio, aparece en cuanto se hace la revisión. Solo se
+   * hace esperar al dato que puede equivocarse.
    */
-  const estadoAsistencia = (noNomina: string, fecha: string, hayTurno: boolean) => {
-    if (!hayTurno) return 'NA' as const;
-    if (fecha > hoyISO()) return 'NA' as const;
-    return asistencias.has(`${noNomina}|${fecha}`) ? ('SI' as const) : ('NO' as const);
+  const estadoAsistencia = (noNomina: string, fecha: string, a?: AsignacionTurno) => {
+    if (!a) return 'NA' as const;
+    if (asistencias.has(`${noNomina}|${fecha}`)) return 'SI' as const;
+    return turnoYaTermino(fecha, a, ahora) ? ('NO' as const) : ('NA' as const);
   };
 
   const personasDelRol = useMemo(() => {
@@ -378,7 +389,6 @@ export const SucesosTurnosModule: React.FC = () => {
       return;
     }
 
-    const hoy = hoyISO();
 
     exportToExcel(personas.map(p => {
       const fila: Record<string, string> = {
@@ -390,9 +400,11 @@ export const SucesosTurnosModule: React.FC = () => {
         const a = rol.asignaciones[claveCelda(p.noNomina, f)];
         if (!a) { fila[f] = ''; return; }
         const turno = a.turno === 'LIB' ? `LIB ${a.horaInicio || ''}-${a.horaFin || ''}` : a.turno;
-        // Un día futuro todavía no tiene asistencia que reportar.
-        if (f > hoy) { fila[f] = turno; return; }
-        fila[f] = `${turno} · ${asis.has(`${p.noNomina}|${f}`) ? 'Asistió' : 'No asistió'}`;
+        // Misma regla que la pantalla: el «Asistió» en cuanto hay revisión, y
+        // la falta solo si el turno ya terminó. Un turno en curso sale sin
+        // marca, para no reportar como falta una jornada que no ha acabado.
+        if (asis.has(`${p.noNomina}|${f}`)) { fila[f] = `${turno} · Asistió`; return; }
+        fila[f] = turnoYaTermino(f, a) ? `${turno} · No asistió` : turno;
       });
       return fila;
     }), `IMPREDIMEX_Turnos_${rol.nombre.replace(/[^\w]+/g, '_')}`);
@@ -546,7 +558,7 @@ export const SucesosTurnosModule: React.FC = () => {
               Celda vacía = descanso
             </span>
             <span style={{ fontSize: '9.5px', background: '#F3F6FA', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '3px 9px', color: 'var(--text-secondary)' }}>
-              La asistencia la confirma la revisión de EPP
+              ✓ asistió · ✗ no asistió, al terminar el turno
             </span>
           </div>
 
@@ -602,40 +614,40 @@ export const SucesosTurnosModule: React.FC = () => {
                         const a = editandoRol.asignaciones[k];
                         return (
                           <td key={f} style={{ padding: '4px 5px', borderBottom: '1px solid var(--border-light)', borderRight: '1px solid var(--border-light)', verticalAlign: 'top' }}>
-                            <select
-                              value={a?.turno || ''}
-                              onChange={e => asignarTurno(p.noNomina, f, e.target.value)}
-                              disabled={soloLectura}
-                              style={{
-                                width: '100%', minWidth: '84px', height: '26px', padding: '2px 4px', fontSize: '10px',
-                                borderRadius: '6px', border: '1px solid ' + (a ? 'var(--brand-navy)' : 'var(--border-light)'),
-                                background: a ? 'var(--brand-navy-light)' : '#fff',
-                                fontWeight: a ? 700 : 400, color: 'var(--text-primary)', fontFamily: 'inherit'
-                              }}
-                            >
-                              <option value="">—</option>
-                              {CLAVES_TURNO.map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <select
+                                value={a?.turno || ''}
+                                onChange={e => asignarTurno(p.noNomina, f, e.target.value)}
+                                disabled={soloLectura}
+                                style={{
+                                  flex: 1, minWidth: '62px', height: '26px', padding: '2px 4px', fontSize: '10px',
+                                  borderRadius: '6px', border: '1px solid ' + (a ? 'var(--brand-navy)' : 'var(--border-light)'),
+                                  background: a ? 'var(--brand-navy-light)' : '#fff',
+                                  fontWeight: a ? 700 : 400, color: 'var(--text-primary)', fontFamily: 'inherit'
+                                }}
+                              >
+                                <option value="">—</option>
+                                {CLAVES_TURNO.map(t => <option key={t} value={t}>{t}</option>)}
+                              </select>
+                              {(() => {
+                                const est = estadoAsistencia(p.noNomina, f, a);
+                                if (est === 'NA') return null;
+                                return est === 'SI' ? (
+                                  <Check size={13} strokeWidth={3} style={{ color: 'var(--green-dark)', flexShrink: 0 }}>
+                                    <title>Asistió</title>
+                                  </Check>
+                                ) : (
+                                  <X size={13} strokeWidth={3} style={{ color: 'var(--brand-red)', flexShrink: 0 }}>
+                                    <title>No asistió</title>
+                                  </X>
+                                );
+                              })()}
+                            </div>
                             {a?.turno === 'LIB' && (
                               <span style={{ display: 'block', fontSize: '9px', color: 'var(--brand-navy)', fontWeight: 600, marginTop: '2px' }}>
                                 {a.horaInicio}–{a.horaFin}
                               </span>
                             )}
-                            {(() => {
-                              const est = estadoAsistencia(p.noNomina, f, !!a);
-                              if (est === 'NA') return null;
-                              return est === 'SI' ? (
-                                <span title="Asistió — confirmado por revisión de EPP"
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '8.5px', fontWeight: 700, color: 'var(--green-dark)', marginTop: '2px' }}>
-                                  <Check size={9} /> Asistió
-                                </span>
-                              ) : (
-                                <span title="No asistió — no hubo revisión de EPP ese día"
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', fontSize: '8.5px', fontWeight: 700, color: 'var(--brand-red)', marginTop: '2px' }}>
-                                  <X size={9} /> No asistió
-                                </span>
-                              );
-                            })()}
                             <div style={{ display: 'flex', gap: '2px', marginTop: '2px' }}>
                               {a && !soloLectura && (
                                 <button onClick={() => copiarCelda(p.noNomina, f)} title="Copiar turno"
