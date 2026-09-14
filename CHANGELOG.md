@@ -7,6 +7,25 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.2.1] — 2026-09-13
+
+### Corregido
+
+- **Una incidencia sin suspensión no se guardaba.** El formulario se limpiaba
+  como si hubiera funcionado, pero el registro nunca llegaba al historial. La
+  causa: la versión 2.2.0 mandaba `diasSuspension` con valor `undefined`
+  cuando la casilla de suspensión no estaba marcada, y Firestore rechaza el
+  documento completo si encuentra un campo así. Ahora ese campo solo se
+  incluye cuando hay suspensión.
+- **Un fallo al guardar ya no pasa desapercibido.** Antes el formulario se
+  limpiaba sin esperar la respuesta de Firestore, así que cualquier error
+  quedaba invisible. Ahora se espera el guardado, el formulario solo se
+  limpia si el registro quedó guardado de verdad, y si algo falla se avisa en
+  pantalla. El botón muestra «Guardando…» y queda deshabilitado mientras
+  tanto, lo que de paso evita registros duplicados por doble toque.
+
+---
+
 ## [2.2.0] — 2026-09-12
 
 ### Cambiado
