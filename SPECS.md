@@ -546,6 +546,62 @@ así que no pueden sostenerlo.
 
 ---
 
+# SPEC-014 — Asistencia confirmada por EPP
+
+**Estado:** implementado
+**Aplicaciones:** EPP escribe, RRHH lee
+
+### Por qué
+Una revisión de EPP no se le puede hacer a alguien que no vino. La inspección
+es, por sí misma, prueba de que la persona estuvo presente. Y como la revisión
+es obligatoria para todo el personal, su ausencia significa que esa persona no
+se presentó.
+
+### Cómo viaja el dato
+EPP guarda sus inspecciones en Realtime Database de su propio proyecto, que
+desde RRHH no se ve. El puente es la colección `asistencia` del proyecto
+**`impredimex-suite`**, el único terreno que las dos aplicaciones ya comparten.
+
+Al guardar una revisión, EPP escribe un documento con id `AAAA-MM-DD_nómina`:
+`fecha`, `noNomina`, `nombreCompleto`, `departamento`, `origen: 'EPP'` y `ts`.
+RRHH consulta esa colección por rango de fechas y marca su cuadrícula.
+
+### Reglas de negocio
+- **El documento va sin foto, sin firma y sin el detalle del EPP.** Leer los
+  registros completos desde RRHH acabaría con la cuota del plan gratuito: esos
+  registros llevan imágenes en base64.
+- **Un documento por persona y día.** Una segunda revisión el mismo día
+  sobrescribe, no duplica.
+- **Solo se evalúan celdas con turno asignado.** Un descanso no es una falta.
+- **Solo se evalúan fechas que ya ocurrieron.** Un rol de la próxima semana no
+  puede tener a nadie ausente todavía.
+- **RRHH solo lee.** La asistencia nunca se marca a mano desde el rol de
+  turnos: si se pudiera, dejaría de ser lo que la revisión constató.
+- **La consulta va por rango**, no trayendo la colección entera. `asistencia`
+  crece con cada revisión de cada persona, todos los días.
+
+### Modos de fallo, y por qué se avisan
+Si la escritura falla en EPP, la inspección **sí** se guarda —es lo prioritario—
+pero se muestra una advertencia. Si la lectura falla en RRHH, se registra el
+error y la exportación se cancela con aviso.
+
+La razón es la misma en los dos casos: en silencio, el sistema reportaría como
+ausente a gente que sí vino. Un fallo visible es molesto; uno callado genera
+faltas falsas en un tema que toca nómina y disciplina.
+
+### Requisito de configuración
+La colección `asistencia` del proyecto de la suite necesita su regla: **EPP
+escribe, RRHH lee**. Sin ella, la advertencia de arriba aparecerá en cada
+revisión y RRHH no marcará a nadie.
+
+### Deuda
+La asistencia se infiere de que exista una revisión. Si un supervisor no alcanza
+a hacerla, esa persona aparece como ausente aunque haya venido. Es el precio
+aceptado a cambio de no capturar la asistencia dos veces, y descansa sobre la
+regla de que la revisión de EPP es obligatoria para todos.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |

@@ -7,6 +7,29 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.7.0] — 2026-09-14
+
+### Agregado
+
+- **La asistencia llega desde EPP (SPEC-014).** Cada celda del rol de turnos
+  con turno asignado muestra **Asistió** o **No asistió** según haya habido o no
+  una revisión de EPP de esa persona ese día. La exportación a Excel incluye lo
+  mismo.
+- El dato viaja por la colección `asistencia` del proyecto de la suite, que EPP
+  escribe al guardar cada inspección. RRHH solo lee.
+
+### Notas
+
+Solo se evalúan celdas **con turno asignado** y fechas **que ya ocurrieron**: un
+descanso no es una falta y un rol de la próxima semana no puede tener a nadie
+ausente. La asistencia no se puede marcar a mano; si se pudiera, dejaría de ser
+lo que la revisión constató.
+
+Requiere la regla de la colección `asistencia` en el proyecto de la suite. Sin
+ella, EPP avisará en cada revisión y RRHH no marcará a nadie.
+
+---
+
 ## [2.6.0] — 2026-09-14
 
 ### Agregado
