@@ -145,6 +145,20 @@ export const HORARIO_TURNO: Record<ClaveTurno, string> = {
   LIB: 'Horario libre'
 };
 
+/**
+ * Hora de salida de cada turno, en minutos desde la medianoche del día del rol.
+ * Los que pasan de 1440 terminan al día siguiente: un T3 del día 14 acaba a
+ * las 06:00 del 15, y hasta ese momento no se puede juzgar su asistencia.
+ */
+export const FIN_TURNO: Record<Exclude<ClaveTurno, 'LIB'>, number> = {
+  T1:  14 * 60,            // 14:00 del mismo día
+  T2:  21 * 60 + 30,       // 21:30 del mismo día
+  T3:  24 * 60 + 6 * 60,   // 06:00 del día siguiente
+  D12: 18 * 60,            // 18:00 del mismo día
+  N12: 24 * 60 + 6 * 60,   // 06:00 del día siguiente
+  G8:  18 * 60             // 18:00 del mismo día
+};
+
 export type PeriodoRol = 'SEMANAL' | 'QUINCENAL' | 'MENSUAL';
 
 /**
