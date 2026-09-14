@@ -263,7 +263,7 @@ Personal autorizado de Recursos Humanos.
 # SPEC-007 — Módulos propios de RRHH
 
 **Estado:** implementado
-**Actor:** `ADMIN` y `CAPTURA` para escribir; `CONSULTA` para leer
+**Actor:** `ADMIN` para escribir; `CAPTURA` y `CONSULTA` para leer
 
 ### Alcance
 Incidencias, capacitación, cursos, antigüedad y vacantes.
@@ -277,6 +277,15 @@ Incidencias, capacitación, cursos, antigüedad y vacantes.
   nómina **y** el nombre tal como estaban al capturarla, para que el histórico
   no cambie si después se corrige el padrón.
 - **La antigüedad se calcula al vuelo** desde `fechaIngreso`. No se guarda.
+- **Solo `ADMIN` captura (v2.3).** Quien no lo sea no ve formularios de alta,
+  botones de eliminar ni edición en línea en ningún módulo: ve un aviso de
+  modo consulta. `CAPTURA` perdió la escritura aquí y se comporta como
+  `CONSULTA`; el papel sigue vigente en las demás aplicaciones de la suite.
+- **Consultar, filtrar, paginar y exportar quedan abiertos a todos.** Una
+  descarga a Excel o PDF no modifica nada, así que no se restringe.
+- **Ocultar el formulario no es el control de acceso.** Lo que impide de
+  verdad la escritura son las reglas de la SPEC-008; la interfaz solo evita
+  que alguien intente algo que la base le va a rechazar.
 
 ---
 
@@ -404,6 +413,83 @@ la migración se redujo a cambiar el origen de la base en `personalService.ts`.
 - Si se cambia el número de días de una suspensión ya en captura, las fechas
   elegidas se borran y hay que volver a marcarlas: evita que queden fechas de
   más o de menos sin que el usuario se dé cuenta.
+
+---
+
+# SPEC-012 — Sucesos y rol de turnos
+
+**Estado:** implementado
+**Actor:** cualquier sesión, sea o no `ADMIN`
+
+### Alcance
+Pestaña **Sucesos y Turnos**. Es la excepción deliberada a la SPEC-007: aquí
+la captura está abierta a todos, porque quien levanta un reporte de piso o
+arma un rol es precisamente quien está en el turno, no un administrador.
+
+### Sucesos
+
+1. Quien reporta elige fecha, colaborador y tipo de suceso, y puede describirlo.
+2. Al guardar, el suceso conserva nómina, nombre y departamento del colaborador
+   **y** la nómina y el nombre de quien lo reportó, copiados en ese momento.
+
+Catálogo: no se presentó a laborar, abandonó el turno, llegada tarde, cambio de
+turno, accidente o incidente, otro.
+
+- **Un suceso siempre va ligado a una persona.** No existen sucesos generales.
+- **Un suceso no es una incidencia.** No afecta nómina, suspensiones ni el
+  historial de la SPEC-011: es bitácora de lo ocurrido, nada más.
+- **Solo `ADMIN` puede borrar un suceso.** Un reporte no se deshace porque a
+  quien lo levantó le haya incomodado después.
+- Todos pueden filtrar la bitácora y exportarla a Excel y PDF.
+
+### Rol de turnos
+
+Réplica del módulo de turnos de la aplicación de Mantenimiento (su SPEC-016),
+reescrita para React y Firestore. Sirve para saber dónde está ubicado el
+personal, no para calcular nómina.
+
+1. Se captura nombre, **departamento**, periodo y fecha de inicio.
+2. El sistema genera una cuadrícula: una fila por persona activa de ese
+   departamento, una columna por día del periodo.
+3. Se asigna un turno por celda.
+
+| Clave | Horario | | Periodo | Días |
+|---|---|---|---|---|
+| `T1` | 06:00 – 14:00 | | Semanal | 7 |
+| `T2` | 14:00 – 21:30 | | Quincenal | 14 |
+| `T3` | 21:30 – 06:00 | | Mensual | el mes completo (28–31) |
+| `D12` | 06:00 – 18:00 |
+| `N12` | 18:00 – 06:00 |
+| `G8` | 08:00 – 18:00 |
+| `LIB` | horario libre, se capturan entrada y salida |
+
+Una celda vacía significa descanso. Los domingos se resaltan.
+
+### Reglas de negocio
+- **El departamento se elige al crear el rol** y determina qué personas salen
+  en la cuadrícula. Solo aparece personal activo.
+- **Cualquiera puede crear un rol; solo quien lo creó o un `ADMIN` puede
+  editarlo o borrarlo.** Los demás lo abren en modo lectura, con la cuadrícula
+  deshabilitada y sin botón de guardar, para que nadie capture un periodo
+  entero y descubra al final que no podía guardarlo.
+- **Cambiar periodo o fecha de inicio conserva solo las asignaciones cuyas
+  fechas siguen dentro del rango**; las que quedan fuera se descartan, porque
+  arrastrarlas haría reaparecer turnos de días que ya no son del rol.
+- **Cambiar de departamento vacía las asignaciones**, ya que la lista de
+  personas deja de ser la misma.
+- **Con `LIB` se piden entrada y salida** en formato `HH:MM` de 24 horas, y se
+  validan.
+- **El portapapeles guarda una copia independiente.** Editar la celda de origen
+  no altera las que ya se pegaron. Vive solo durante la edición.
+- **Las fechas se generan con aritmética de calendario**, no sumando
+  milisegundos: con el horario de verano un día dura 23 o 25 horas dos veces al
+  año y el periodo repetiría o se saltaría un día.
+- Cada rol se exporta a Excel con una fila por persona y una columna por día.
+
+### Deuda
+Igual que el resto de esta aplicación, la restricción de quién puede editar un
+rol vive en la interfaz. Las reglas del proyecto de RRHH usan sesión anónima y
+no distinguen usuarios (SPEC-008), así que no pueden sostenerla.
 
 ---
 

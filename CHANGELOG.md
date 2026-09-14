@@ -7,6 +7,89 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.5.0] — 2026-09-13
+
+### Cambiado
+
+- **Encabezado alineado con el resto de la suite**, tomando como referencia el
+  de Control de Proceso: marca y nombre de la aplicación centrados, debajo el
+  nombre y el puesto de quien entró, y a la derecha el número de nómina en un
+  círculo azul junto al botón circular de cerrar sesión. El punto verde y el
+  «En línea» se conservan, ahora debajo de ese botón.
+- **La sesión ahora incluye el puesto**, que antes no traía. Se lee del mismo
+  documento del padrón que ya se consultaba al entrar, así que no agrega
+  ninguna lectura extra. Si el padrón no tiene puesto para esa persona, se
+  muestra su papel en la aplicación en lugar de dejar el renglón vacío.
+
+---
+
+## [2.4.0] — 2026-09-13
+
+### Agregado
+
+- **Pestaña «Sucesos y Turnos», abierta a todos.** Es la excepción deliberada
+  al bloqueo de la v2.3: aquí capturan igual administradores y no
+  administradores, porque quien levanta un reporte de piso o arma un rol es
+  quien está en el turno (SPEC-012).
+- **Bitácora de sucesos.** Se reporta fecha, colaborador y tipo —no se presentó
+  a laborar, abandonó el turno, llegada tarde, cambio de turno, accidente,
+  otro— con descripción opcional. Cada registro guarda quién lo reportó. Se
+  filtra y se exporta a Excel y PDF. Borrar un suceso queda reservado a
+  `ADMIN`.
+- **Rol de turnos**, réplica del módulo de la aplicación de Mantenimiento:
+  cuadrícula de personas contra días, mismo catálogo (`T1`, `T2`, `T3`, `D12`,
+  `N12`, `G8`, `LIB`), periodos semanal, quincenal y mensual, copiar y pegar
+  turnos —por celda o fila completa—, limpiar fila, domingos resaltados y
+  exportación a Excel. El departamento se elige al crear el rol y determina qué
+  personas salen en la cuadrícula.
+
+### Notas
+
+Un suceso **no** es una incidencia: no afecta nómina, suspensiones ni el
+historial de incidencias. Son bitácoras distintas a propósito.
+
+Cualquiera crea un rol de turnos, pero editarlo o borrarlo solo puede hacerlo
+quien lo creó o un administrador; los demás lo abren en modo lectura. Esa
+restricción vive en la interfaz, no en las reglas de Firestore, por la misma
+razón explicada en la v2.3.
+
+---
+
+## [2.3.0] — 2026-09-13
+
+### Cambiado
+
+- **Solo los administradores pueden capturar.** En incidencias, capacitación
+  y vacantes desaparecen los formularios de alta, los botones de eliminar y
+  la edición en línea para todo el que no sea `ADMIN`. En su lugar aparece un
+  aviso de que está viendo la información en modo consulta.
+- **Consultar, filtrar y exportar siguen abiertos para todos.** Las tablas,
+  los buscadores, la paginación y las descargas a Excel y PDF no cambian: son
+  lectura y no modifican nada.
+- **El papel `CAPTURA` queda sin efecto dentro de esta aplicación.** Hasta la
+  v2.2 podía alimentar incidencias, cursos y vacantes; ahora se comporta igual
+  que `CONSULTA`. El papel sigue existiendo en el padrón y en las otras
+  aplicaciones de la suite, que no se tocan.
+
+### Notas
+
+Este cambio es de interfaz. Lo que impide de verdad una escritura son las
+reglas de Firestore, que viven en la consola de Firebase y no en este
+repositorio: hay que actualizarlas también, o alguien con el papel
+`CAPTURA` seguirá pudiendo escribir por fuera de la aplicación.
+
+---
+
+## [2.2.2] — 2026-09-13
+
+### Cambiado
+
+- **Se quita el pie de página de la aplicación.** Con él se va también la
+  línea separadora que lo encabezaba, que solo existía para ese texto. El pie
+  era único y compartido por todas las pestañas, así que desaparece en todas.
+
+---
+
 ## [2.2.1] — 2026-09-13
 
 ### Corregido
