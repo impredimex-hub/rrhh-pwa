@@ -57,6 +57,8 @@ export interface Sesion {
   nomina: string;
   nombre: string;
   departamento: string;
+  /** Se muestra en el encabezado. Puede venir vacío si el padrón no lo tiene. */
+  puesto: string;
   papel: PapelRRHH;
 }
 
@@ -128,6 +130,7 @@ export async function armarSesion(user: User): Promise<Sesion> {
     nomina,
     nombre: (c.nombreCompleto as string) || nomina,
     departamento: (c.departamento as string) || '',
+    puesto: (c.puesto as string) || '',
     papel
   };
 }
