@@ -12,6 +12,13 @@ export interface Colaborador {
   puesto: string;
   fechaIngreso: string;
   /**
+   * Departamentos cuyos roles de turnos puede crear y editar esta persona
+   * (SPEC-013). Vacío o ausente significa que solo consulta. No lo escribe la
+   * importación de Excel ni la edición normal del padrón: solo la pantalla de
+   * permisos, para que un archivo mal armado no borre permisos en silencio.
+   */
+  departamentosTurnos?: string[];
+  /**
    * Opcional a propósito: al importar desde Excel se omite para que el
    * documento conserve el estatus que ya tenía y una baja no reviva sola.
    */
