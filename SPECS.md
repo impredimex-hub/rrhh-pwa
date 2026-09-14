@@ -493,6 +493,59 @@ no distinguen usuarios (SPEC-008), así que no pueden sostenerla.
 
 ---
 
+# SPEC-013 — Quién puede programar turnos
+
+**Estado:** implementado
+**Actor:** `ADMIN` asigna; cualquiera puede resultar asignado
+
+### Por qué
+La SPEC-012 dejó la creación de roles abierta a todos. En la práctica cada área
+tiene a quien le toca programarla, y un rol capturado por quien no conoce la
+línea es peor que no tener rol.
+
+### Cómo funciona
+- Cada colaborador puede tener `departamentosTurnos`: la lista de departamentos
+  cuyos roles puede crear y editar. Vacío o ausente significa que solo consulta.
+- `ADMIN` puede programar **todos** los departamentos sin aparecer en ninguna
+  lista, y es el único que puede asignar permisos a los demás.
+- La asignación se hace desde la pantalla **Permisos**, dentro de la pestaña de
+  Sucesos y Turnos, visible solo para `ADMIN`. Cada marca se guarda al
+  instante.
+
+### Reglas de negocio
+- **El permiso es por departamento, no por autoría.** Quien puede programar un
+  área puede corregir cualquier rol de esa área, lo haya creado o no. Es lo que
+  hace falta cuando varios supervisores cubren la misma línea, o cuando alguien
+  falta y su rol hay que ajustarlo igual. Esto **reemplaza** la regla de la
+  SPEC-012, donde mandaba quien lo había creado.
+- **Consultar y exportar siguen abiertos a todos.** El candado es solo sobre
+  crear y editar.
+- **Un rol que no se puede editar se abre en modo lectura**, con la cuadrícula
+  deshabilitada y sin botón de guardar.
+- **El selector de departamento solo ofrece los permitidos**, así que no es
+  posible crear un rol de un área ajena ni por descuido.
+- **La lista de departamentos sale del padrón**, no de un catálogo escrito a
+  mano: si mañana nace un área, aparece sola.
+- **Los permisos asignados se cruzan contra los departamentos que existen hoy.**
+  Si un área se renombra o se queda sin personal, deja de ofrecerse aunque el
+  permiso siga guardado; no se borra, por si el área vuelve.
+
+### Por qué el campo vive en el padrón y no en el código
+Un archivo de configuración obligaría a editar y recompilar cada vez que alguien
+entra, sale o cambia de área, y ataría los permisos a nombres o nóminas escritos
+a mano. En el padrón, `ADMIN` los cambia solo.
+
+`departamentosTurnos` **no** viaja en `construirDocumento`: si lo hiciera, una
+importación de Excel sin esa columna borraría todos los permisos en cada carga.
+Solo lo escribe `asignarDepartamentosTurnos`, desde la pantalla de permisos.
+
+### Deuda
+Igual que el resto de la aplicación, el candado vive en la interfaz. Las reglas
+del proyecto de RRHH usan sesión anónima y no distinguen usuarios (SPEC-008),
+así que no pueden sostenerlo.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |

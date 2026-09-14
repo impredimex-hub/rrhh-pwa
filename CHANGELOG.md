@@ -7,6 +7,36 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.6.0] — 2026-09-14
+
+### Agregado
+
+- **Candados en el rol de turnos (SPEC-013).** Crear y editar roles deja de
+  estar abierto a todos: cada persona puede tener asignados los departamentos
+  que le toca programar, y quien no tenga ninguno solo consulta y exporta. El
+  administrador puede programar todos sin aparecer en ninguna lista.
+- **Pantalla «Permisos»**, dentro de Sucesos y Turnos y visible solo para
+  `ADMIN`: lista al personal activo, con los departamentos como botones que se
+  marcan y desmarcan. Se guarda al instante, sin botón de confirmar. Aparecen
+  primero quienes ya tienen algún permiso, y hay buscador.
+
+### Cambiado
+
+- **El permiso ahora es por departamento, no por autoría.** Antes solo quien
+  creaba un rol —o un administrador— podía editarlo. Ahora puede hacerlo
+  cualquiera con ese departamento asignado, lo haya creado o no: es lo que hace
+  falta cuando varios supervisores cubren la misma línea o alguien falta.
+- El selector de departamento al crear un rol solo ofrece los permitidos.
+
+### Notas
+
+El campo `departamentosTurnos` vive en el padrón, y a propósito **no** forma
+parte de los campos que escribe la importación de Excel: si lo fuera, un archivo
+sin esa columna borraría todos los permisos en cada carga. Sobrevive también a
+la edición normal de un colaborador y a un cambio de número de nómina.
+
+---
+
 ## [2.5.0] — 2026-09-13
 
 ### Cambiado
