@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Calendar, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import type { Colaborador, Vacante } from '../types/rrhh';
 import { subscribeColaboradores, ordenarPorNomina } from '../services/personalService';
 import { subscribeVacantes, saveVacante, deleteVacante } from '../services/vacanteService';
+import { usePermisos } from '../services/SesionContext';
 
 export const AntiguedadVacantesModule: React.FC = () => {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [vacantes, setVacantes] = useState<Vacante[]>([]);
   const [filtro, setFiltro] = useState('');
+  const { puedeCapturar } = usePermisos();
   const [paginaActual, setPaginaActual] = useState(1);
   const elementosPorPagina = 30;
 
@@ -54,6 +56,7 @@ export const AntiguedadVacantesModule: React.FC = () => {
 
   const handleCrearVacante = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!puedeCapturar) return;
     if (!formVacante.puesto.trim() || !formVacante.departamento.trim()) return;
 
     const req = Number(formVacante.cantidadRequerida);
@@ -190,6 +193,14 @@ export const AntiguedadVacantesModule: React.FC = () => {
       {/* SECCIÓN 2: CONTROL DE VACANTES */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '16px', marginTop: '1rem' }}>
         
+        {!puedeCapturar && (
+          <div style={{ background: '#E8EEF8', border: '1px solid rgba(0,53,128,.15)', borderRadius: '10px', padding: '10px 14px', fontSize: '11.5px', color: '#003580', display: 'flex', alignItems: 'center', gap: '8px', alignSelf: 'start' }}>
+            <Eye size={15} />
+            Estás viendo las vacantes en modo consulta. La apertura de plazas la hace un administrador de Recursos Humanos.
+          </div>
+        )}
+
+        {puedeCapturar && (
         <div className="card-industrial">
           <div className="card-title-bar">
             <div className="bar-accent"></div>
@@ -225,6 +236,7 @@ export const AntiguedadVacantesModule: React.FC = () => {
             </button>
           </form>
         </div>
+        )}
 
         <div className="card-industrial">
           <div className="card-title-bar">
@@ -251,6 +263,7 @@ export const AntiguedadVacantesModule: React.FC = () => {
                       <span style={{ background: badgeBg, color: badgeColor, padding: '2px 6px', borderRadius: '3px', fontSize: '9px', fontWeight: 'bold' }}>
                         {v.estatus}
                       </span>
+                      {puedeCapturar && (
                       <button
                         onClick={() => v.id && deleteVacante(v.id)}
                         style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-navy)', padding: '2px' }}
@@ -258,6 +271,7 @@ export const AntiguedadVacantesModule: React.FC = () => {
                       >
                         <Trash2 size={13} />
                       </button>
+                      )}
                     </div>
                   </div>
                 );

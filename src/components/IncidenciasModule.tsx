@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, FileSpreadsheet, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, FileSpreadsheet, FileText, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import type { Colaborador, Incidencia, TipoIncidencia } from '../types/rrhh';
 import { ETIQUETA_INCIDENCIA } from '../types/rrhh';
 import { subscribeColaboradores } from '../services/personalService';
 import { subscribeIncidencias, saveIncidencia, deleteIncidencia } from '../services/incidenciaService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
+import { usePermisos } from '../services/SesionContext';
 
 const DIAS_SEMANA = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
@@ -56,6 +57,7 @@ export const IncidenciasModule: React.FC = () => {
   const [form, setForm] = useState<FormIncidencia>(FORM_VACIO);
   const [mesVista, setMesVista] = useState(new Date());
   const [guardando, setGuardando] = useState(false);
+  const { puedeCapturar } = usePermisos();
 
   useEffect(() => {
     const unsubColab = subscribeColaboradores((data) => setColaboradores(data));
@@ -105,6 +107,7 @@ export const IncidenciasModule: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!puedeCapturar) return;
     if (!form.noNomina || !form.tipo) return;
     if (suspensionIncompleta) return;
     if (guardando) return;
@@ -174,9 +177,17 @@ export const IncidenciasModule: React.FC = () => {
 
   return (
     <div>
+      {!puedeCapturar && (
+        <div style={{ background: '#E8EEF8', border: '1px solid rgba(0,53,128,.15)', borderRadius: '10px', padding: '10px 14px', marginBottom: '1rem', fontSize: '11.5px', color: '#003580', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Eye size={15} />
+          Estás viendo las incidencias en modo consulta. El registro lo hace un administrador de Recursos Humanos.
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '16px', marginBottom: '1rem' }}>
 
         {/* Formulario */}
+        {puedeCapturar && (
         <div className="card-industrial">
           <div className="card-title-bar">
             <div className="bar-accent"></div>
@@ -326,6 +337,7 @@ export const IncidenciasModule: React.FC = () => {
             </button>
           </form>
         </div>
+        )}
 
         {/* Resumen */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -372,13 +384,15 @@ export const IncidenciasModule: React.FC = () => {
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Tipo</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Suspensión</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Observaciones</th>
+                {puedeCapturar && (
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Acción</th>
+                )}
               </tr>
             </thead>
             <tbody>
               {incidencias.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
+                  <td colSpan={puedeCapturar ? 6 : 5} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
                     No hay incidencias registradas.
                   </td>
                 </tr>
@@ -403,6 +417,7 @@ export const IncidenciasModule: React.FC = () => {
                       <td style={{ padding: '5px 8px', color: 'var(--text-secondary)', whiteSpace: 'normal' }}>
                         {inc.observaciones || '—'}
                       </td>
+                      {puedeCapturar && (
                       <td style={{ padding: '5px 8px' }}>
                         <button
                           onClick={() => inc.id && deleteIncidencia(inc.id)}
@@ -412,6 +427,7 @@ export const IncidenciasModule: React.FC = () => {
                           <Trash2 size={13} />
                         </button>
                       </td>
+                      )}
                     </tr>
                   );
                 })

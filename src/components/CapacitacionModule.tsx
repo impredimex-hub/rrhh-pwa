@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, FileSpreadsheet, FileText, ChevronDown, Check } from 'lucide-react';
+import { Plus, Trash2, Edit2, FileSpreadsheet, FileText, ChevronDown, Check, Eye } from 'lucide-react';
 import type { Colaborador, CursoCapacitacion } from '../types/rrhh';
 import { subscribeColaboradores } from '../services/personalService';
 import { subscribeCursos, saveCurso, deleteCurso } from '../services/capacitacionService';
+import { usePermisos } from '../services/SesionContext';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 export const CapacitacionModule: React.FC = () => {
@@ -25,6 +26,7 @@ export const CapacitacionModule: React.FC = () => {
     horaFin: '11:00',
     estatus: 'PROGRAMADO'
   });
+  const { puedeCapturar } = usePermisos();
 
   useEffect(() => {
     const unsubColab = subscribeColaboradores((data) => setColaboradores(data));
@@ -65,6 +67,7 @@ export const CapacitacionModule: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!puedeCapturar) return;
     if (!form.titulo || !form.fechaInicio || !form.fechaFin) return;
 
     const cursoData: CursoCapacitacion = {
@@ -128,6 +131,7 @@ export const CapacitacionModule: React.FC = () => {
   };
 
   const handleCambiarEstatus = (curso: CursoCapacitacion, nuevoEstatus: 'PROGRAMADO' | 'EN_CURSO' | 'FINALIZADO') => {
+    if (!puedeCapturar) return;
     saveCurso({ ...curso, estatus: nuevoEstatus });
   };
 
@@ -161,9 +165,17 @@ export const CapacitacionModule: React.FC = () => {
 
   return (
     <div>
+      {!puedeCapturar && (
+        <div style={{ background: '#E8EEF8', border: '1px solid rgba(0,53,128,.15)', borderRadius: '10px', padding: '10px 14px', marginBottom: '1rem', fontSize: '11.5px', color: '#003580', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Eye size={15} />
+          Estás viendo el plan de capacitación en modo consulta. La programación de cursos la hace un administrador de Recursos Humanos.
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '16px', marginBottom: '1rem' }}>
         
         {/* Formulario */}
+        {puedeCapturar && (
         <div className="card-industrial">
           <div className="card-title-bar">
             <div className="bar-accent"></div>
@@ -361,6 +373,7 @@ export const CapacitacionModule: React.FC = () => {
             </div>
           </form>
         </div>
+        )}
 
         {/* Resumen */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -408,13 +421,15 @@ export const CapacitacionModule: React.FC = () => {
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Puestos</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Periodo y Horario</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Estatus</th>
+                {puedeCapturar && (
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Acciones</th>
+                )}
               </tr>
             </thead>
             <tbody>
               {cursos.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
+                  <td colSpan={puedeCapturar ? 7 : 6} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
                     No hay cursos programados actualmente.
                   </td>
                 </tr>
@@ -451,6 +466,7 @@ export const CapacitacionModule: React.FC = () => {
                       <select
                         value={curso.estatus}
                         onChange={(e) => handleCambiarEstatus(curso, e.target.value as any)}
+                        disabled={!puedeCapturar}
                         style={{
                           height: '24px',
                           padding: '2px 6px',
@@ -460,7 +476,8 @@ export const CapacitacionModule: React.FC = () => {
                           border: 'none',
                           background: curso.estatus === 'FINALIZADO' ? 'var(--green-light)' : curso.estatus === 'EN_CURSO' ? 'var(--orange-light)' : 'var(--brand-navy-light)',
                           color: curso.estatus === 'FINALIZADO' ? 'var(--green-dark)' : curso.estatus === 'EN_CURSO' ? '#7A4500' : 'var(--brand-navy)',
-                          cursor: 'pointer'
+                          cursor: puedeCapturar ? 'pointer' : 'default',
+                          appearance: puedeCapturar ? 'auto' : 'none'
                         }}
                       >
                         <option value="PROGRAMADO">PROGRAMADO</option>
@@ -468,6 +485,7 @@ export const CapacitacionModule: React.FC = () => {
                         <option value="FINALIZADO">FINALIZADO</option>
                       </select>
                     </td>
+                    {puedeCapturar && (
                     <td style={{ padding: '5px 8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <button
@@ -486,6 +504,7 @@ export const CapacitacionModule: React.FC = () => {
                         </button>
                       </div>
                     </td>
+                    )}
                   </tr>
                 ))
               )}

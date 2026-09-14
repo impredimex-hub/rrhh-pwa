@@ -228,6 +228,7 @@ export const PersonalModule: React.FC = () => {
   };
 
   const confirmarImportacion = async () => {
+    if (!puedeEditarPadron) return;
     if (!previa) return;
     setLoading(true);
     try {
@@ -273,6 +274,7 @@ export const PersonalModule: React.FC = () => {
   };
 
   const confirmarEliminacion = async () => {
+    if (!puedeEditarPadron) return;
     if (!porEliminar) return;
     setLoading(true);
     try {
