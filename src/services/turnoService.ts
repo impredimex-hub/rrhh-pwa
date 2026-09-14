@@ -1,6 +1,7 @@
 import { collection, doc, setDoc, deleteDoc, query, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import type { RolTurnos, PeriodoRol } from '../types/rrhh';
+import type { RolTurnos, PeriodoRol, AsignacionTurno } from '../types/rrhh';
+import { FIN_TURNO } from '../types/rrhh';
 
 const COLLECTION_NAME = 'rolesTurnos';
 
@@ -64,3 +65,51 @@ export const diasDelPeriodo = (fechaInicio: string, periodo: PeriodoRol): string
 
 /** Clave de una celda de la cuadrícula. */
 export const claveCelda = (noNomina: string, fechaISO: string) => `${noNomina}|${fechaISO}`;
+
+/**
+ * ¿Ya terminó este turno?
+ *
+ * La asistencia no se puede juzgar antes de que acabe la jornada: alguien de
+ * T2 entra a las 14:00, y darlo por ausente a las nueve de la mañana sería
+ * afirmar una falta que todavía no puede existir. Solo cuando pasó la hora de
+ * salida la ausencia de revisión significa algo.
+ *
+ * Contempla los turnos que cruzan la medianoche (T3 y N12 acaban a las 06:00
+ * del día siguiente) y, en LIB, las horas capturadas a mano.
+ */
+export const turnoYaTermino = (
+  fechaISO: string,
+  asignacion: AsignacionTurno,
+  ahora: Date = new Date()
+): boolean => {
+  if (!fechaISO || !asignacion) return false;
+  const [a, m, d] = fechaISO.split('-').map(Number);
+  if (!a || !m || !d) return false;
+
+  let minutosFin: number;
+
+  if (asignacion.turno === 'LIB') {
+    const ini = aMinutos(asignacion.horaInicio);
+    const fin = aMinutos(asignacion.horaFin);
+    // Sin horas capturadas no hay forma de saber cuándo acaba: se trata como
+    // no terminado, que es el lado que no inventa faltas.
+    if (ini === null || fin === null) return false;
+    // Una salida anterior o igual a la entrada significa que cruza la noche.
+    minutosFin = fin > ini ? fin : fin + 24 * 60;
+  } else {
+    minutosFin = FIN_TURNO[asignacion.turno];
+    if (minutosFin === undefined) return false;
+  }
+
+  // Aritmética de calendario, no suma de milisegundos: el constructor de Date
+  // normaliza el desbordamiento de minutos y respeta el horario de verano.
+  const fin = new Date(a, m - 1, d, 0, minutosFin, 0, 0);
+  return ahora.getTime() >= fin.getTime();
+};
+
+const aMinutos = (hhmm?: string): number | null => {
+  if (!hhmm) return null;
+  const [h, mi] = hhmm.split(':').map(Number);
+  if (isNaN(h) || isNaN(mi)) return null;
+  return h * 60 + mi;
+};
