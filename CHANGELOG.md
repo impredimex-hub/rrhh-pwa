@@ -7,6 +7,31 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.7.1] — 2026-09-14
+
+### Corregido
+
+- **La falta ya no se afirma antes de que termine el turno.** La versión 2.7.0
+  miraba solo la fecha, así que alguien de `T2` —que entra a las 14:00—
+  aparecía como «No asistió» desde la madrugada, antes de que empezara su
+  jornada. Ahora la celda no dice nada hasta que pasó la hora de salida.
+- **Se contemplan los turnos que cruzan la medianoche.** Un `T3` o un `N12` del
+  día 14 terminan a las 06:00 del 15 y hasta entonces no se juzgan. En `LIB` se
+  usan las horas capturadas a mano.
+- El «Asistió» sigue apareciendo en cuanto se hace la revisión, sin esperar:
+  solo se hace esperar al dato que puede equivocarse.
+
+### Cambiado
+
+- **El indicador ahora es solo un icono dentro de la celda del turno**, pegado a
+  la derecha: palomita verde si asistió, cruz roja si no. Antes era texto debajo
+  del turno, que en un rol mensual no cabía.
+- La cuadrícula se refresca sola cada minuto, para que una celda cambie de
+  estado al terminar el turno aunque la pantalla lleve rato abierta.
+- La exportación a Excel sigue la misma regla: un turno en curso sale sin marca.
+
+---
+
 ## [2.7.0] — 2026-09-14
 
 ### Agregado

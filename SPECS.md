@@ -566,6 +566,11 @@ Al guardar una revisión, EPP escribe un documento con id `AAAA-MM-DD_nómina`:
 `fecha`, `noNomina`, `nombreCompleto`, `departamento`, `origen: 'EPP'` y `ts`.
 RRHH consulta esa colección por rango de fechas y marca su cuadrícula.
 
+### Cómo se ve
+Dentro de la celda del turno, a la derecha: una palomita verde si asistió, una
+cruz roja si no. Sin texto, para que un rol mensual de 31 columnas siga siendo
+legible. El detalle aparece al mantener el cursor encima.
+
 ### Reglas de negocio
 - **El documento va sin foto, sin firma y sin el detalle del EPP.** Leer los
   registros completos desde RRHH acabaría con la cuota del plan gratuito: esos
@@ -573,8 +578,18 @@ RRHH consulta esa colección por rango de fechas y marca su cuadrícula.
 - **Un documento por persona y día.** Una segunda revisión el mismo día
   sobrescribe, no duplica.
 - **Solo se evalúan celdas con turno asignado.** Un descanso no es una falta.
-- **Solo se evalúan fechas que ya ocurrieron.** Un rol de la próxima semana no
-  puede tener a nadie ausente todavía.
+- **La falta solo se afirma cuando el turno ya terminó.** Antes de la hora de
+  salida, que no haya revisión no significa nada: alguien de T2 entra a las
+  14:00, y darlo por ausente en la mañana sería inventar una falta. El
+  «Asistió», en cambio, aparece en cuanto se hace la revisión: solo se hace
+  esperar al dato que puede equivocarse.
+- **Se contemplan los turnos que cruzan la medianoche.** Un `T3` o un `N12` del
+  día 14 terminan a las 06:00 del 15, y hasta esa hora no se juzgan. En `LIB`
+  se usan las horas capturadas a mano; si una salida es anterior o igual a la
+  entrada, se entiende que cruza la noche. Un `LIB` sin horas nunca se da por
+  terminado, que es el lado que no inventa faltas.
+- **La cuadrícula se refresca sola cada minuto**, para que una celda cambie de
+  estado al terminar el turno aunque la pantalla lleve rato abierta.
 - **RRHH solo lee.** La asistencia nunca se marca a mano desde el rol de
   turnos: si se pudiera, dejaría de ser lo que la revisión constató.
 - **La consulta va por rango**, no trayendo la colección entera. `asistencia`
