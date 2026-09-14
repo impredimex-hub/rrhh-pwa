@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Users, Award, ClipboardList, GraduationCap, BookOpen, WifiOff, LogOut } from 'lucide-react';
+import { Users, Award, ClipboardList, GraduationCap, BookOpen, CalendarClock, WifiOff, Power } from 'lucide-react';
 import { PersonalModule } from './components/PersonalModule';
 import { AntiguedadVacantesModule } from './components/AntiguedadVacantesModule';
 import { IncidenciasModule } from './components/IncidenciasModule';
 import { CapacitacionModule } from './components/CapacitacionModule';
 import { CursosModule } from './components/CursosModule';
+import { SucesosTurnosModule } from './components/SucesosTurnosModule';
 import { LoginScreen } from './components/LoginScreen';
 import { SesionContext } from './services/SesionContext';
 import { armarSesion, vigilarSesion, salir, ErrorDeAcceso, type Sesion } from './services/suite';
@@ -16,7 +17,7 @@ const ETIQUETA_PAPEL: Record<string, string> = {
 };
 
 function App() {
-  const [pestanaActiva, setPestanaActiva] = useState<'personal' | 'antiguedad' | 'incidencias' | 'capacitacion' | 'cursos'>('personal');
+  const [pestanaActiva, setPestanaActiva] = useState<'personal' | 'antiguedad' | 'incidencias' | 'capacitacion' | 'cursos' | 'sucesos'>('personal');
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
 
   const [sesion, setSesion] = useState<Sesion | null>(null);
@@ -86,6 +87,7 @@ function App() {
     { id: 'incidencias', label: 'Incidencias', icon: ClipboardList },
     { id: 'capacitacion', label: 'Capacitación', icon: GraduationCap },
     { id: 'cursos', label: 'Cursos', icon: BookOpen },
+    { id: 'sucesos', label: 'Sucesos y Turnos', icon: CalendarClock },
   ];
 
   return (
@@ -108,37 +110,47 @@ function App() {
         padding: '0.75rem 1.5rem',
         marginBottom: '1rem'
       }}>
-        <div style={{ maxWidth: '1050px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ background: 'var(--brand-navy)', color: '#fff', width: '40px', height: '40px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '18px', letterSpacing: '.05em' }}>
-              IM
+        <div style={{ maxWidth: '1050px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
+
+          {/* Bloque central: marca, aplicación y quién entró */}
+          <div style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--brand-navy-dark)', letterSpacing: '.02em' }}>
+              IMPREDIMEX
             </div>
-            <div>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--brand-navy-dark)', letterSpacing: '.02em' }}>IMPREDIMEX</div>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--brand-navy)', letterSpacing: '.01em' }}>Sistema de Gestión de Recursos Humanos</div>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#8A9AB0', marginTop: '2px' }}>
-                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isOnline ? '#4ADE80' : '#c0392b', display: 'inline-block' }}></span>
-                {isOnline ? 'En línea' : 'Sin conexión'}
-              </div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--brand-navy)', marginTop: '1px' }}>
+              Sistema de Gestión de Recursos Humanos
+            </div>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--brand-navy-dark)', marginTop: '6px', textTransform: 'uppercase', letterSpacing: '.01em' }}>
+              {sesion.nombre}
+            </div>
+            {/* Si el padrón no trae puesto se cae al papel, para no dejar el
+                hueco vacío ni desalinear el encabezado. */}
+            <div style={{ fontSize: '12px', color: '#8A9AB0', textTransform: 'uppercase', letterSpacing: '.01em' }}>
+              {sesion.puesto || (ETIQUETA_PAPEL[sesion.papel] ?? sesion.papel)}
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-            <div style={{ textAlign: 'right', lineHeight: 1.4 }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--brand-navy-dark)' }} title={sesion.nombre}>
+          {/* Bloque derecho: nómina, salir y estado de conexión */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                title={`Nómina ${sesion.nomina} · ${ETIQUETA_PAPEL[sesion.papel] ?? sesion.papel}`}
+                style={{ background: 'var(--brand-navy)', color: '#fff', width: '46px', height: '46px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '15px' }}
+              >
                 {sesion.nomina}
               </div>
-              <div style={{ fontSize: '11px', color: '#8A9AB0' }}>
-                {ETIQUETA_PAPEL[sesion.papel] ?? sesion.papel}
-              </div>
+              <button
+                onClick={() => { salir().finally(() => window.location.reload()); }}
+                title="Cerrar sesión"
+                style={{ width: '46px', height: '46px', borderRadius: '50%', background: 'transparent', border: '1px solid rgba(0,32,96,.15)', color: 'var(--brand-navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
+              >
+                <Power size={19} />
+              </button>
             </div>
-            <button
-              onClick={() => { salir().finally(() => window.location.reload()); }}
-              title="Cerrar sesión"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'transparent', border: '1px solid rgba(0,32,96,.15)', borderRadius: '8px', padding: '7px 11px', fontSize: '11.5px', fontWeight: 600, fontFamily: 'inherit', color: 'var(--brand-navy)', cursor: 'pointer' }}
-            >
-              <LogOut size={13} /> Salir
-            </button>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#8A9AB0' }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isOnline ? '#4ADE80' : '#c0392b', display: 'inline-block' }}></span>
+              {isOnline ? 'En línea' : 'Sin conexión'}
+            </div>
           </div>
         </div>
       </header>
@@ -200,6 +212,7 @@ function App() {
           {pestanaActiva === 'incidencias' && <IncidenciasModule />}
           {pestanaActiva === 'capacitacion' && <CapacitacionModule />}
           {pestanaActiva === 'cursos' && <CursosModule />}
+          {pestanaActiva === 'sucesos' && <SucesosTurnosModule />}
         </main>
       </div>
     </div>
