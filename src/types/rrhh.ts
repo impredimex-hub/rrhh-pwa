@@ -26,6 +26,12 @@ export interface Colaborador {
    */
   reporteFaltasTodas?: boolean;
   /**
+   * Puede capturar y dar seguimiento a las promociones internas (SPEC-016).
+   * Es para Recursos Humanos, sin necesidad de ser administrador. Un `ADMIN`
+   * lo puede siempre, sin traer esta marca.
+   */
+  capturaPromociones?: boolean;
+  /**
    * Opcional a propósito: al importar desde Excel se omite para que el
    * documento conserve el estatus que ya tenía y una baja no reviva sola.
    */
@@ -194,3 +200,53 @@ export interface RolTurnos {
   creadoPorNomina: string;
   creadoPorNombre: string;
 }
+
+/* ───────────────── Promociones internas (v2.9) ───────────────── */
+
+export type TipoPromocion = 'PLANTA' | 'CATEGORIA' | 'PUESTO';
+
+export const ETIQUETA_PROMOCION: Record<TipoPromocion, string> = {
+  PLANTA: 'Contrato de planta',
+  CATEGORIA: 'Nueva categoría en su puesto',
+  PUESTO: 'Cambio de puesto'
+};
+
+export type EstatusPromocion = 'EN_PROCESO' | 'APROBADA' | 'RECHAZADA';
+
+export const ETIQUETA_ESTATUS_PROMOCION: Record<EstatusPromocion, string> = {
+  EN_PROCESO: 'En proceso',
+  APROBADA: 'Aprobada',
+  RECHAZADA: 'Rechazada'
+};
+
+/**
+ * Evaluación para contrato de planta o promoción interna.
+ *
+ * Son tres meses con una evaluación mensual. Las calificaciones viven en
+ * `calificaciones`, con clave '1', '2' y '3': se guarda solo el mes que ya se
+ * evaluó, en vez de tres campos que empezarían vacíos, porque Firestore
+ * rechaza un documento con cualquier campo en `undefined`.
+ */
+export interface PromocionInterna {
+  id?: string;
+  noNomina: string;
+  nombreCompleto: string;
+  departamento: string;
+  /** Puesto al momento de abrir la evaluación, copiado para que el histórico
+   *  no cambie si después se corrige el padrón. */
+  puestoActual: string;
+  tipo: TipoPromocion;
+  /** Categoría o puesto de destino. En un contrato de planta no aplica. */
+  destino?: string;
+  /** Inicio del periodo de tres meses, 'YYYY-MM-DD'. */
+  fechaInicio: string;
+  calificaciones: Record<string, number>;
+  estatus: EstatusPromocion;
+  observaciones?: string;
+  creadoPorNomina: string;
+  creadoPorNombre: string;
+}
+
+/** Escala de las calificaciones mensuales. */
+export const CALIFICACION_MIN = 0;
+export const CALIFICACION_MAX = 100;
