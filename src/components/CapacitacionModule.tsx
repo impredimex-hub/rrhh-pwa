@@ -188,6 +188,13 @@ export const CapacitacionModule: React.FC = () => {
       alert('Indica la categoría o el puesto de destino.');
       return;
     }
+    // El contrato de planta se obtiene una sola vez, y además se abre solo al
+    // dar de alta al colaborador. Sin esta comprobación quedarían dos
+    // evaluaciones del mismo concepto para la misma persona.
+    if (formProm.tipo === 'PLANTA' && promociones.some(p => p.noNomina === formProm.noNomina && p.tipo === 'PLANTA')) {
+      alert('Esa persona ya tiene una evaluación de contrato de planta abierta. Búscala en la lista de abajo.');
+      return;
+    }
 
     const c = colaboradores.find(x => x.noNomina === formProm.noNomina);
     const nueva: PromocionInterna = {

@@ -3,6 +3,7 @@ import { UserPlus, Upload, Trash2, FileSpreadsheet, FileText, ChevronLeft, Chevr
 import * as XLSX from 'xlsx';
 import type { Colaborador } from '../types/rrhh';
 import { saveColaboradoresBatch, subscribeColaboradores, deleteColaborador, cambiarEstatus, cambiarNomina, ordenarPorNomina } from '../services/personalService';
+import { abrirContratoPlanta } from '../services/promocionService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { DEPARTAMENTOS, reconocerDepartamento } from '../utils/catalogos';
 import { usePermisos, useSesion } from '../services/SesionContext';
@@ -110,9 +111,28 @@ export const PersonalModule: React.FC = () => {
         autor,
         yaExiste ? new Set() : new Set([String(formData.noNomina).trim()])
       );
+
+      // Un alta nueva estrena su evaluación de contrato de planta, con el
+      // periodo arrancando en su fecha de ingreso (SPEC-016). Va aparte del
+      // guardado del padrón y después de él: el colaborador ya quedó
+      // registrado, y un fallo aquí no debe deshacer eso ni perderse en
+      // silencio.
+      let avisoPlanta = '';
+      if (!yaExiste) {
+        try {
+          const abierta = await abrirContratoPlanta(formData as Colaborador, sesion?.nomina || '', sesion?.nombre || '');
+          avisoPlanta = abierta
+            ? '\n\nSe abrió su evaluación de contrato de planta.'
+            : '\n\nNo se abrió la evaluación de contrato de planta porque falta la fecha de ingreso. Captúrala y ábrela desde Capacitación.';
+        } catch (err) {
+          console.error(err);
+          avisoPlanta = '\n\nEl colaborador quedó registrado, pero no se pudo abrir su evaluación de contrato de planta. Ábrela a mano desde Capacitación.';
+        }
+      }
+
       setFormData({ noNomina: '', nombreCompleto: '', departamento: '', puesto: '', fechaIngreso: '', estatus: 'ACTIVO' });
       setEditando(null);
-      alert('Colaborador guardado con éxito');
+      alert('Colaborador guardado con éxito' + avisoPlanta);
     } catch (error: any) {
       alert('Error al guardar: ' + (error?.message || 'Error desconocido'));
     } finally {
