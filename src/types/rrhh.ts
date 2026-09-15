@@ -19,6 +19,13 @@ export interface Colaborador {
    */
   departamentosTurnos?: string[];
   /**
+   * Puede sacar el reporte de faltas de **todas** las áreas de una sola vez
+   * (SPEC-015). Es para quien lo necesita por función, como Recursos Humanos,
+   * sin tener que ser administrador de la aplicación. Un `ADMIN` lo puede
+   * siempre, sin necesidad de traer esta marca.
+   */
+  reporteFaltasTodas?: boolean;
+  /**
    * Opcional a propósito: al importar desde Excel se omite para que el
    * documento conserve el estatus que ya tenía y una baja no reviva sola.
    */
