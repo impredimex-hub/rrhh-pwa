@@ -7,6 +7,26 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.8.0] — 2026-09-14
+
+### Agregado
+
+- **Reporte de faltas (SPEC-015).** Botón «Faltas» junto a «Nuevo», en el rol de
+  turnos. Abre una ventana donde se elige periodo y departamento y devuelve la
+  lista de faltas, con descarga a Excel y PDF. Una falta es donde hubo turno
+  asignado, el turno ya terminó y no hubo revisión de EPP.
+- **Opción «Todos los departamentos»**, para sacar el reporte de toda la planta
+  de una sola vez. La ven los administradores y quien tenga marcada la casilla
+  nueva en la pantalla de Permisos: es para Recursos Humanos, que necesita el
+  reporte completo sin por eso poder programar roles.
+
+### Cambiado
+
+- **La columna de nombres del rol de turnos ya no corta los nombres largos.**
+  Se ensanchó y ahora parte en dos renglones cuando hace falta.
+
+---
+
 ## [2.7.1] — 2026-09-14
 
 ### Corregido

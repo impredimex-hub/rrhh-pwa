@@ -617,6 +617,48 @@ regla de que la revisión de EPP es obligatoria para todos.
 
 ---
 
+# SPEC-015 — Reporte de faltas
+
+**Estado:** implementado
+**Actor:** cualquiera puede pedirlo; solo algunos, de todas las áreas a la vez
+
+### Qué es
+Ventana emergente desde la pestaña de Sucesos y Turnos. Se pide un periodo y un
+departamento, y devuelve la lista de faltas, con descarga a Excel y PDF.
+
+### Cómo se calcula una falta
+Una falta existe donde se cumplen las tres cosas: **había turno asignado**, ese
+**turno ya terminó**, y **no hubo revisión de EPP**. Es la misma regla que pinta
+la cruz roja en la cuadrícula (SPEC-014), aplicada sobre un rango.
+
+El recorrido va por los roles, no por el padrón: son los roles los que dicen
+quién debía trabajar cada día. Quien no tiene turno asignado no puede faltar.
+
+### Reglas de negocio
+- **La opción «Todos los departamentos» está restringida.** La ven los `ADMIN` y
+  quien tenga `reporteFaltasTodas` en su documento del padrón. El resto elige un
+  departamento a la vez.
+- **El botón lo ve todo el mundo.** Consultar y exportar roles ya estaba abierto
+  a todos (SPEC-012); restringir el reporte por departamento sería incoherente
+  con eso.
+- **Dos roles del mismo departamento pueden solaparse en fechas.** Las faltas se
+  deduplican por persona y día, o la misma se contaría dos veces.
+- **Si la lectura de asistencias falla, no se entrega reporte.** Sin ellas, todo
+  turno terminado parecería falta y el reporte acusaría a quien sí vino.
+- **Un periodo que incluye días futuros no los reporta**, porque sus turnos no
+  han terminado.
+
+### Por qué `reporteFaltasTodas` y no `ADMIN`
+Quien necesita el reporte completo es Recursos Humanos, por función. Hacerlo
+`ADMIN` para conseguirlo le daría además permiso para programar los roles de
+toda la planta, que es justo lo que la SPEC-013 quiso evitar. Son dos cosas
+distintas y se marcan por separado, desde la misma pantalla de Permisos.
+
+`reporteFaltasTodas` **no** viaja en `construirDocumento`, por la misma razón que
+`departamentosTurnos`: un Excel sin esa columna borraría la marca en cada carga.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |
