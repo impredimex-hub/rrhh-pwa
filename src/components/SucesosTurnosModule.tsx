@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, FileSpreadsheet, FileText, Edit2, Copy, ClipboardPaste, Eraser, X, ChevronLeft, ShieldCheck, Eye, Check } from 'lucide-react';
+import { Plus, Trash2, FileSpreadsheet, FileText, Edit2, Copy, ClipboardPaste, Eraser, X, ChevronLeft, ShieldCheck, Eye, Check, FileWarning } from 'lucide-react';
 import type {
   Colaborador, Suceso, TipoSuceso, RolTurnos, PeriodoRol, ClaveTurno, AsignacionTurno
 } from '../types/rrhh';
 import { ETIQUETA_SUCESO, HORARIO_TURNO } from '../types/rrhh';
-import { subscribeColaboradores, asignarDepartamentosTurnos } from '../services/personalService';
+import { subscribeColaboradores, asignarDepartamentosTurnos, asignarReporteFaltasTodas } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
 import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino } from '../services/turnoService';
 import { subscribeAsistenciasRango, obtenerAsistenciasRango } from '../services/asistenciaService';
@@ -194,7 +194,20 @@ export const SucesosTurnosModule: React.FC = () => {
     }
   };
 
-  /** Quien ya tiene algún departamento asignado, primero; luego el resto. */
+  const alternarReporteTodas = async (c: Colaborador) => {
+    if (!esAdmin || guardandoPermiso) return;
+    setGuardandoPermiso(c.noNomina);
+    try {
+      await asignarReporteFaltasTodas(c.noNomina, !c.reporteFaltasTodas, sesion?.nomina || '');
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo guardar el permiso. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      setGuardandoPermiso('');
+    }
+  };
+
+  /** Quien ya tiene algún permiso, primero; luego el resto. */
   const personasPermisos = useMemo(() => {
     const t = buscaPermisos.trim().toUpperCase();
     const base = t
@@ -204,8 +217,8 @@ export const SucesosTurnosModule: React.FC = () => {
           (c.departamento || '').toUpperCase().includes(t))
       : activos;
     return [...base].sort((a, b) => {
-      const na = (a.departamentosTurnos || []).length ? 0 : 1;
-      const nb = (b.departamentosTurnos || []).length ? 0 : 1;
+      const na = ((a.departamentosTurnos || []).length || a.reporteFaltasTodas) ? 0 : 1;
+      const nb = ((b.departamentosTurnos || []).length || b.reporteFaltasTodas) ? 0 : 1;
       if (na !== nb) return na - nb;
       return (a.nombreCompleto || '').localeCompare(b.nombreCompleto || '');
     });
@@ -410,6 +423,93 @@ export const SucesosTurnosModule: React.FC = () => {
     }), `IMPREDIMEX_Turnos_${rol.nombre.replace(/[^\w]+/g, '_')}`);
   };
 
+  /* ══════════════════ REPORTE DE FALTAS ══════════════════ */
+
+  const [modalReporte, setModalReporte] = useState(false);
+  const [repDesde, setRepDesde] = useState(hoyISO());
+  const [repHasta, setRepHasta] = useState(hoyISO());
+  const [repDepto, setRepDepto] = useState('');
+  const [repFilas, setRepFilas] = useState<null | Array<Record<string, string>>>(null);
+  const [repCargando, setRepCargando] = useState(false);
+  const [repError, setRepError] = useState('');
+
+  /** Quien puede pedir el reporte de todas las áreas de una sola vez. */
+  const puedeReporteTodas = useMemo(() => {
+    if (esAdmin) return true;
+    if (!sesion) return false;
+    const yo = colaboradores.find(c => c.noNomina === sesion.nomina);
+    return !!yo?.reporteFaltasTodas;
+  }, [esAdmin, sesion, colaboradores]);
+
+  /**
+   * Faltas del periodo.
+   *
+   * Una falta solo existe donde hubo turno asignado, el turno ya terminó y no
+   * hay revisión de EPP. Se recorren los roles porque son los que dicen quién
+   * debía trabajar cada día: sin turno asignado no hay nada que faltar.
+   */
+  const generarReporte = async () => {
+    if (!repDesde || !repHasta) { setRepError('Elige las dos fechas.'); return; }
+    if (repDesde > repHasta) { setRepError('La fecha inicial es posterior a la final.'); return; }
+
+    setRepCargando(true);
+    setRepError('');
+    setRepFilas(null);
+    try {
+      const asis = await obtenerAsistenciasRango(repDesde, repHasta);
+      const ahoraRep = new Date();
+      // Dos roles del mismo departamento pueden solaparse en fechas; sin esto
+      // la misma falta se contaría dos veces.
+      const vistos = new Set<string>();
+      const filas: Array<Record<string, string>> = [];
+
+      for (const rol of roles) {
+        const deptoRol = (rol.departamento || '').trim().toUpperCase();
+        if (repDepto !== '__TODOS__' && deptoRol !== repDepto) continue;
+
+        const personas = activos.filter(c => (c.departamento || '').trim().toUpperCase() === deptoRol);
+        for (const f of diasDelPeriodo(rol.fechaInicio, rol.periodo)) {
+          if (f < repDesde || f > repHasta) continue;
+          for (const per of personas) {
+            const a = rol.asignaciones[claveCelda(per.noNomina, f)];
+            if (!a) continue;
+            if (!turnoYaTermino(f, a, ahoraRep)) continue;
+            const k = `${per.noNomina}|${f}`;
+            if (asis.has(k) || vistos.has(k)) continue;
+            vistos.add(k);
+            filas.push({
+              'Fecha': f,
+              '# Nómina': per.noNomina,
+              'Colaborador': per.nombreCompleto,
+              'Departamento': deptoRol,
+              'Turno': a.turno === 'LIB' ? `LIB ${a.horaInicio || ''}-${a.horaFin || ''}` : a.turno,
+              'Rol': rol.nombre
+            });
+          }
+        }
+      }
+
+      filas.sort((x, y) => x['Fecha'].localeCompare(y['Fecha']) || x['Colaborador'].localeCompare(y['Colaborador']));
+      setRepFilas(filas);
+    } catch (err) {
+      console.error(err);
+      // Sin asistencias, todo turno terminado parecería falta: mejor no
+      // entregar un reporte que acusaría a quien sí vino.
+      setRepError('No se pudieron leer las asistencias. El reporte no se generó para no reportar faltas equivocadas.');
+    } finally {
+      setRepCargando(false);
+    }
+  };
+
+  const abrirReporte = () => {
+    setRepDepto(puedeReporteTodas ? '__TODOS__' : (departamentos[0] || ''));
+    setRepFilas(null);
+    setRepError('');
+    setModalReporte(true);
+  };
+
+  const etiquetaPeriodo = `${repDesde}_a_${repHasta}`;
+
   /* ══════════════════ VISTA: permisos de programación ══════════════════ */
 
   if (panelPermisos && esAdmin) {
@@ -428,7 +528,10 @@ export const SucesosTurnosModule: React.FC = () => {
         <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.45 }}>
           Marca los departamentos que cada persona puede programar. Quien no tenga
           ninguno marcado solo consulta. Tú, como administrador, puedes programar
-          todos sin necesidad de aparecer aquí. Cada marca se guarda al instante.
+          todos sin necesidad de aparecer aquí. La casilla de abajo es aparte: da
+          acceso al reporte de faltas de todas las áreas de una sola vez, sin
+          conceder permiso para programar nada. Cada marca se guarda al
+          instante.
         </p>
 
         <input
@@ -447,7 +550,7 @@ export const SucesosTurnosModule: React.FC = () => {
               const suyos = (c.departamentosTurnos || []).map(d => d.trim().toUpperCase());
               const ocupado = guardandoPermiso === c.noNomina;
               return (
-                <div key={c.noNomina} style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '9px 11px', background: suyos.length ? 'var(--brand-navy-light)' : '#fff', opacity: ocupado ? 0.55 : 1 }}>
+                <div key={c.noNomina} style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '9px 11px', background: (suyos.length || c.reporteFaltasTodas) ? 'var(--brand-navy-light)' : '#fff', opacity: ocupado ? 0.55 : 1 }}>
                   <div style={{ fontWeight: 700, fontSize: '11.5px', color: 'var(--brand-navy-dark)' }}>
                     {c.nombreCompleto}
                   </div>
@@ -476,6 +579,17 @@ export const SucesosTurnosModule: React.FC = () => {
                       );
                     })}
                   </div>
+
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '10px', color: 'var(--text-secondary)', cursor: ocupado ? 'wait' : 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!c.reporteFaltasTodas}
+                      disabled={ocupado}
+                      onChange={() => alternarReporteTodas(c)}
+                      style={{ width: '14px', height: '14px', accentColor: 'var(--brand-navy)', cursor: ocupado ? 'wait' : 'pointer' }}
+                    />
+                    Puede ver el reporte de faltas de todas las áreas
+                  </label>
                 </div>
               );
             })}
@@ -586,7 +700,7 @@ export const SucesosTurnosModule: React.FC = () => {
               <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px', minWidth: '100%' }}>
                 <thead>
                   <tr>
-                    <th style={{ position: 'sticky', left: 0, zIndex: 3, background: '#F3F6FA', minWidth: '150px', maxWidth: '150px', padding: '6px 8px', textAlign: 'left', fontSize: '9px', textTransform: 'uppercase', color: 'var(--brand-navy)', borderBottom: '1px solid var(--border-light)', borderRight: '1px solid var(--border-light)' }}>
+                    <th style={{ position: 'sticky', left: 0, zIndex: 3, background: '#F3F6FA', minWidth: '185px', maxWidth: '185px', padding: '6px 8px', textAlign: 'left', fontSize: '9px', textTransform: 'uppercase', color: 'var(--brand-navy)', borderBottom: '1px solid var(--border-light)', borderRight: '1px solid var(--border-light)' }}>
                       Colaborador
                     </th>
                     {dias.map(f => {
@@ -605,7 +719,7 @@ export const SucesosTurnosModule: React.FC = () => {
                 <tbody>
                   {personasDelRol.map(p => (
                     <tr key={p.noNomina}>
-                      <td style={{ position: 'sticky', left: 0, zIndex: 2, background: '#fff', minWidth: '150px', maxWidth: '150px', padding: '6px 8px', fontWeight: 600, fontSize: '10.5px', borderBottom: '1px solid var(--border-light)', borderRight: '1px solid var(--border-light)', boxShadow: '1px 0 0 var(--border-light)' }}>
+                      <td style={{ position: 'sticky', left: 0, zIndex: 2, background: '#fff', minWidth: '185px', maxWidth: '185px', padding: '6px 8px', fontWeight: 600, fontSize: '10.5px', lineHeight: 1.25, whiteSpace: 'normal', overflowWrap: 'anywhere', borderBottom: '1px solid var(--border-light)', borderRight: '1px solid var(--border-light)', boxShadow: '1px 0 0 var(--border-light)' }}>
                         {p.nombreCompleto}
                         <span style={{ display: 'block', fontWeight: 400, fontSize: '9px', color: 'var(--text-light)' }}>#{p.noNomina}</span>
                       </td>
@@ -777,6 +891,13 @@ export const SucesosTurnosModule: React.FC = () => {
                   <Plus size={14} /> Nuevo
                 </button>
               )}
+              <button
+                onClick={abrirReporte}
+                title="Reporte de faltas"
+                style={{ height: '30px', display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '0 10px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(0,32,96,.15)', background: '#fff', color: 'var(--brand-navy)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                <FileWarning size={13} /> Faltas
+              </button>
             </div>
           </div>
 
@@ -833,6 +954,121 @@ export const SucesosTurnosModule: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* ─── Ventana del reporte de faltas ─── */}
+      {modalReporte && (
+        <div
+          onClick={() => setModalReporte(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(10,20,40,.45)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: '14px', width: '100%', maxWidth: '620px', maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 18px 50px rgba(0,20,60,.28)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border-light)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="bar-accent"></div>
+                <div className="sec-title" style={{ margin: 0 }}>Reporte de faltas</div>
+              </div>
+              <button onClick={() => setModalReporte(false)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)', padding: 0 }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: '14px 16px', overflowY: 'auto' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={SUB}>DESDE *</label>
+                  <input type="date" value={repDesde} onChange={e => { setRepDesde(e.target.value); setRepFilas(null); }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={SUB}>HASTA *</label>
+                  <input type="date" value={repHasta} onChange={e => { setRepHasta(e.target.value); setRepFilas(null); }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={SUB}>DEPARTAMENTO</label>
+                  <select value={repDepto} onChange={e => { setRepDepto(e.target.value); setRepFilas(null); }}>
+                    {puedeReporteTodas && <option value="__TODOS__">Todos los departamentos</option>}
+                    {departamentos.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <button
+                onClick={generarReporte}
+                className="btn-industrial-primary"
+                disabled={repCargando}
+                style={{ marginTop: '12px', opacity: repCargando ? 0.5 : 1, cursor: repCargando ? 'not-allowed' : 'pointer' }}
+              >
+                {repCargando ? 'Generando…' : 'Generar reporte'}
+              </button>
+
+              {repError && (
+                <div style={{ marginTop: '10px', background: 'var(--red-light)', border: '1px solid rgba(192,57,43,.25)', borderRadius: '10px', padding: '9px 12px', fontSize: '11.5px', color: 'var(--brand-red)' }}>
+                  {repError}
+                </div>
+              )}
+
+              {repFilas && (
+                <div style={{ marginTop: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--brand-navy)' }}>
+                      {repFilas.length === 0 ? 'Sin faltas en el periodo' : `${repFilas.length} falta${repFilas.length === 1 ? '' : 's'}`}
+                    </div>
+                    {repFilas.length > 0 && (
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button onClick={() => exportToExcel(repFilas, `IMPREDIMEX_Faltas_${etiquetaPeriodo}`)} className="btn-industrial-success" style={{ height: '28px' }}>
+                          <FileSpreadsheet size={12} /> Excel
+                        </button>
+                        <button
+                          onClick={() => exportToPDF(
+                            'IMPREDIMEX — Reporte de faltas',
+                            ['Fecha', '# Nómina', 'Colaborador', 'Depto.', 'Turno', 'Rol'],
+                            repFilas.map(r => [r['Fecha'], r['# Nómina'], r['Colaborador'], r['Departamento'], r['Turno'], r['Rol']]),
+                            `Reporte_Faltas_${etiquetaPeriodo}`
+                          )}
+                          className="btn-industrial-danger" style={{ height: '28px' }}
+                        >
+                          <FileText size={12} /> PDF
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {repFilas.length === 0 ? (
+                    <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                      Nadie con turno asignado y ya terminado se quedó sin revisión de EPP en esas fechas.
+                    </div>
+                  ) : (
+                    <div style={{ overflowX: 'auto', border: '1px solid var(--border-light)', borderRadius: '10px' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '10px' }}>
+                        <thead>
+                          <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
+                            {['Fecha', '# Nómina', 'Colaborador', 'Depto.', 'Turno'].map(h => (
+                              <th key={h} style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {repFilas.map((r, i) => (
+                            <tr key={i} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                              <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}>{r['Fecha']}</td>
+                              <td style={{ padding: '5px 8px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>{r['# Nómina']}</td>
+                              <td style={{ padding: '5px 8px' }}>{r['Colaborador']}</td>
+                              <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>{r['Departamento']}</td>
+                              <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}>{r['Turno']}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Bitácora ─── */}
       <div className="card-industrial">
