@@ -64,3 +64,43 @@ export const promedioCalificaciones = (calificaciones: Record<string, number>): 
   if (valores.length === 0) return null;
   return Math.round((valores.reduce((a, b) => a + b, 0) / valores.length) * 10) / 10;
 };
+
+/**
+ * Abre la evaluación de contrato de planta de un alta nueva (SPEC-016).
+ *
+ * El identificador del documento es determinista, `planta_<nómina>`, y no uno
+ * generado al azar: así, si el alta se reintenta o alguien vuelve a guardar al
+ * mismo colaborador, se sobrescribe la misma evaluación en vez de acumular
+ * duplicados. Una persona obtiene su contrato de planta una sola vez.
+ *
+ * Devuelve `false` sin escribir nada si no hay fecha de ingreso: sin ella no
+ * se pueden calcular los tres cortes mensuales, y una evaluación sin fechas
+ * sería peor que no tenerla.
+ */
+export const abrirContratoPlanta = async (
+  colaborador: { noNomina: string; nombreCompleto: string; departamento?: string; puesto?: string; fechaIngreso?: string },
+  autorNomina: string,
+  autorNombre: string
+): Promise<boolean> => {
+  const nomina = String(colaborador.noNomina || '').trim();
+  const fechaInicio = (colaborador.fechaIngreso || '').trim();
+  if (!nomina || !fechaInicio) return false;
+
+  const id = `planta_${nomina}`;
+  await setDoc(doc(db, COLLECTION_NAME, id), {
+    id,
+    noNomina: nomina,
+    nombreCompleto: colaborador.nombreCompleto || '',
+    departamento: colaborador.departamento || '',
+    puestoActual: colaborador.puesto || '',
+    tipo: 'PLANTA',
+    fechaInicio,
+    calificaciones: {},
+    estatus: 'EN_PROCESO',
+    observaciones: 'Abierta automáticamente al dar de alta al colaborador.',
+    creadoPorNomina: autorNomina || '',
+    creadoPorNombre: autorNombre || '',
+    createdAt: serverTimestamp()
+  }, { merge: true });
+  return true;
+};
