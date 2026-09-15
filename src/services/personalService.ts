@@ -195,3 +195,21 @@ export const asignarReporteFaltasTodas = async (
     actualizadoPor: autor
   });
 };
+
+/**
+ * Marca de «puede capturar promociones internas» (SPEC-016).
+ *
+ * Aparte de `construirDocumento`, igual que los otros permisos: si viajara por
+ * ahí, un Excel sin esa columna lo borraría en cada importación.
+ */
+export const asignarCapturaPromociones = async (
+  noNomina: string,
+  puede: boolean,
+  autor: string
+) => {
+  await updateDoc(doc(db, COLLECTION_NAME, String(noNomina).trim()), {
+    capturaPromociones: puede,
+    actualizadoEn: serverTimestamp(),
+    actualizadoPor: autor
+  });
+};
