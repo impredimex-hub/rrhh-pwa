@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileSpreadsheet, FileText, ChevronLeft, ChevronRight, SlidersHorizontal, Check } from 'lucide-react';
+import { FileSpreadsheet, FileText, ChevronLeft, ChevronRight, SlidersHorizontal, Check, Filter, X } from 'lucide-react';
 import type { Colaborador, CursoCapacitacion } from '../types/rrhh';
 import { subscribeColaboradores, ordenarPorNomina } from '../services/personalService';
 import { subscribeCursos } from '../services/capacitacionService';
@@ -14,6 +14,19 @@ export const CursosModule: React.FC = () => {
   const [filtroDepto, setFiltroDepto] = useState('');
   const [filtroPuesto, setFiltroPuesto] = useState('');
   const [filtroCurso, setFiltroCurso] = useState(''); // ID del curso seleccionado
+
+  /**
+   * Filtros efectivamente aplicados, distintos de los que se están capturando
+   * arriba. `null` significa que todavía no se ha pulsado Filtrar y por eso no
+   * se muestra ninguna tabla: con 122 personas, abrir la pestaña y recibir el
+   * padrón completo no ayudaba a nadie.
+   *
+   * Aplicar sin llenar nada devuelve a todos, que es la salida deliberada para
+   * ver el listado completo.
+   */
+  const [aplicados, setAplicados] = useState<null | {
+    texto: string; depto: string; puesto: string; curso: string;
+  }>(null);
   
   // Paginación
   const [paginaActual, setPaginaActual] = useState(1);
@@ -147,20 +160,21 @@ export const CursosModule: React.FC = () => {
     }));
   };
 
-  // Filtrado compuesto con ordenamiento numérico
-  const listaFiltrada = ordenarPorNomina(
+  // Filtrado compuesto con ordenamiento numérico. Se apoya en `aplicados`, no
+  // en lo que se está escribiendo: la tabla solo cambia al pulsar Filtrar.
+  const listaFiltrada = !aplicados ? [] : ordenarPorNomina(
     colaboradores.filter(c => {
-      const coincideTexto = 
-        c.nombreCompleto.toLowerCase().includes(filtroTexto.toLowerCase()) ||
-        c.noNomina.toLowerCase().includes(filtroTexto.toLowerCase());
+      const coincideTexto =
+        c.nombreCompleto.toLowerCase().includes(aplicados.texto.toLowerCase()) ||
+        c.noNomina.toLowerCase().includes(aplicados.texto.toLowerCase());
 
-      const coincideDepto = !filtroDepto || (c.departamento || '').trim().toUpperCase() === filtroDepto;
-      const coincidePuesto = !filtroPuesto || (c.puesto || '').trim().toUpperCase() === filtroPuesto;
+      const coincideDepto = !aplicados.depto || (c.departamento || '').trim().toUpperCase() === aplicados.depto;
+      const coincidePuesto = !aplicados.puesto || (c.puesto || '').trim().toUpperCase() === aplicados.puesto;
 
       // Si hay un filtro de curso activo, solo incluir colaboradores asignados a ese curso
       let coincideCurso = true;
-      if (filtroCurso) {
-        const cursoSeleccionado = cursos.find(cur => cur.id === filtroCurso);
+      if (aplicados.curso) {
+        const cursoSeleccionado = cursos.find(cur => cur.id === aplicados.curso);
         if (cursoSeleccionado) {
           coincideCurso = estaAsignado(c, cursoSeleccionado);
         }
@@ -169,6 +183,17 @@ export const CursosModule: React.FC = () => {
       return coincideTexto && coincideDepto && coincidePuesto && coincideCurso;
     })
   );
+
+  const aplicarFiltros = () => {
+    setAplicados({ texto: filtroTexto, depto: filtroDepto, puesto: filtroPuesto, curso: filtroCurso });
+    setPaginaActual(1);
+  };
+
+  const limpiarFiltros = () => {
+    setFiltroTexto(''); setFiltroDepto(''); setFiltroPuesto(''); setFiltroCurso('');
+    setAplicados(null);
+    setPaginaActual(1);
+  };
 
   const totalPaginas = Math.ceil(listaFiltrada.length / elementosPorPagina) || 1;
   const indexInicio = (paginaActual - 1) * elementosPorPagina;
@@ -254,7 +279,9 @@ export const CursosModule: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '2px solid var(--brand-navy-light)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div className="bar-accent"></div>
-            <div className="sec-title" style={{ margin: 0 }}>Control de Cursos Asignados por Colaborador ({listaFiltrada.length})</div>
+            <div className="sec-title" style={{ margin: 0 }}>
+              Control de Cursos Asignados por Colaborador{aplicados ? ` (${listaFiltrada.length})` : ''}
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -304,6 +331,26 @@ export const CursosModule: React.FC = () => {
               value={filtroTexto} onChange={(e) => setFiltroTexto(e.target.value)}
               style={{ width: '120px', height: '30px', padding: '4px 8px', fontSize: '10px' }}
             />
+
+            {/* Botón Filtrar: la tabla no aparece hasta pulsarlo */}
+            <button
+              onClick={aplicarFiltros}
+              className="btn-industrial-primary"
+              style={{ height: '30px', padding: '4px 10px', fontSize: '10px', width: 'auto' }}
+              title="Aplicar los filtros y mostrar los resultados"
+            >
+              <Filter size={13} /> Filtrar
+            </button>
+
+            {aplicados && (
+              <button
+                onClick={limpiarFiltros}
+                style={{ height: '30px', padding: '4px 10px', fontSize: '10px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(0,32,96,.15)', background: '#fff', color: 'var(--brand-navy)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                title="Limpiar los filtros y ocultar la tabla"
+              >
+                <X size={13} /> Limpiar
+              </button>
+            )}
 
             {/* Selector de Columnas */}
             <div style={{ position: 'relative' }}>
@@ -368,15 +415,28 @@ export const CursosModule: React.FC = () => {
               )}
             </div>
 
-            <button onClick={handleExportExcel} className="btn-industrial-success" style={{ height: '30px' }}>
+            <button onClick={handleExportExcel} disabled={!aplicados} className="btn-industrial-success"
+              title={aplicados ? 'Exportar a Excel' : 'Primero pulsa Filtrar'}
+              style={{ height: '30px', opacity: aplicados ? 1 : 0.45, cursor: aplicados ? 'pointer' : 'not-allowed' }}>
               <FileSpreadsheet size={13} /> Excel
             </button>
-            <button onClick={handleExportPDF} className="btn-industrial-danger" style={{ height: '30px' }}>
+            <button onClick={handleExportPDF} disabled={!aplicados} className="btn-industrial-danger"
+              title={aplicados ? 'Exportar a PDF' : 'Primero pulsa Filtrar'}
+              style={{ height: '30px', opacity: aplicados ? 1 : 0.45, cursor: aplicados ? 'pointer' : 'not-allowed' }}>
               <FileText size={13} /> PDF
             </button>
           </div>
         </div>
 
+        {!aplicados ? (
+          <div style={{ textAlign: 'center', padding: '2.2rem 1rem', color: 'var(--text-secondary)', fontSize: '12px', lineHeight: 1.5 }}>
+            Elige los filtros que necesites y pulsa <b style={{ color: 'var(--brand-navy)' }}>Filtrar</b>.
+            <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-light)', marginTop: '4px' }}>
+              Sin ningún filtro, se muestra todo el personal.
+            </span>
+          </div>
+        ) : (
+        <>
         {/* Tabla */}
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9.5px', lineHeight: '1.2' }}>
@@ -518,6 +578,8 @@ export const CursosModule: React.FC = () => {
               </button>
             </div>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>
