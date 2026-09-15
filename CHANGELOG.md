@@ -7,6 +7,30 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.9.1] — 2026-09-14
+
+### Agregado
+
+- **Un alta nueva en el directorio abre sola su evaluación de contrato de
+  planta**, con el periodo arrancando en la fecha de ingreso. Aplica al registro
+  individual, no a la importación desde Excel, y solo a altas: editar a alguien
+  que ya existe no abre nada.
+
+### Notas
+
+Si el colaborador se captura sin fecha de ingreso, la evaluación no se abre
+—sin esa fecha no hay de dónde calcular los tres cortes mensuales— y el mensaje
+de guardado lo dice para que se capture y se abra a mano.
+
+Si la apertura falla por cualquier otro motivo, el colaborador queda registrado
+igual y el aviso aparece en el mismo mensaje: el alta es lo prioritario, pero
+un fallo callado dejaría a alguien sin su evaluación sin que nadie lo supiera.
+
+Tampoco se puede abrir a mano un segundo contrato de planta para quien ya tiene
+uno. Las promociones de categoría y de puesto sí pueden repetirse.
+
+---
+
 ## [2.9.0] — 2026-09-14
 
 ### Agregado

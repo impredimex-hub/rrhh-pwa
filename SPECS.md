@@ -692,6 +692,23 @@ dentro de su mismo puesto** o **cambio de puesto**.
 - **El promedio se calcula solo sobre las calificaciones capturadas**, así que
   un periodo a la mitad no se castiga por los meses que faltan.
 - **Consultar está abierto a todos; capturar y calificar, no.**
+- **Un alta nueva en el directorio estrena su evaluación de contrato de planta
+  automáticamente**, con el periodo arrancando en su fecha de ingreso. Aplica
+  solo al registro individual, no a la importación desde Excel, y solo a altas:
+  editar a alguien que ya existe no abre nada.
+- **El documento de esa evaluación automática lleva un identificador
+  determinista**, `planta_<nómina>`, no uno al azar: si el alta se reintenta o
+  se vuelve a guardar al mismo colaborador, se sobrescribe la misma evaluación
+  en lugar de acumular duplicados.
+- **Sin fecha de ingreso no se abre**, porque no habría de dónde calcular los
+  tres cortes mensuales. Se avisa al guardar, para que se capture la fecha y se
+  abra a mano.
+- **No se puede abrir a mano un segundo contrato de planta** para quien ya
+  tiene uno. Las promociones de categoría y de puesto sí pueden repetirse:
+  alguien puede subir de categoría más de una vez a lo largo de su carrera.
+- **Si falla la apertura automática, el colaborador queda registrado igual** y
+  se avisa en el mismo mensaje. El alta es lo prioritario; en silencio, nadie
+  se enteraría de que esa evaluación nunca se creó.
 
 ### Por qué `capturaPromociones` y no `ADMIN`
 Quien lleva estas evaluaciones es Recursos Humanos. Volverlos `ADMIN` les daría
