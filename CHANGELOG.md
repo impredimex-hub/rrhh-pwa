@@ -7,6 +7,19 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.8.1] — 2026-09-14
+
+### Cambiado
+
+- **Los tres botones de la cabecera del rol de turnos son ahora circulares y
+  solo con icono**: permisos, nuevo y faltas, los tres del mismo tamaño. El
+  «Nuevo» queda relleno en azul y los otros dos con contorno, para que siga
+  leyéndose cuál es la acción principal.
+- Al quedarse sin texto, cada uno lleva `title` y `aria-label`: son lo único que
+  dice qué hacen, tanto al pasar el cursor como para un lector de pantalla.
+
+---
+
 ## [2.8.0] — 2026-09-14
 
 ### Agregado
