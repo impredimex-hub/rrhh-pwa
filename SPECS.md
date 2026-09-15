@@ -659,6 +659,48 @@ distintas y se marcan por separado, desde la misma pantalla de Permisos.
 
 ---
 
+# SPEC-016 — Promociones internas
+
+**Estado:** implementado
+**Actor:** `ADMIN` y quien tenga `capturaPromociones`; el resto solo consulta
+
+### Qué es
+Sección dentro de la pestaña de Capacitación, debajo de la matriz. Registra la
+evaluación de un colaborador para **contrato de planta**, **nueva categoría
+dentro de su mismo puesto** o **cambio de puesto**.
+
+### Flujo
+1. Se elige colaborador, tipo, fecha de inicio del periodo y, salvo en contrato
+   de planta, la categoría o el puesto de destino.
+2. La evaluación nace **en proceso**, con un periodo de tres meses.
+3. Cada mes se captura una calificación de 0 a 100. La aplicación calcula las
+   fechas en que toca cada una y muestra el promedio de las capturadas.
+4. Al cerrar el periodo se marca **aprobada** o **rechazada**.
+
+### Reglas de negocio
+- **Los datos del colaborador se copian al abrir la evaluación**, incluido el
+  puesto actual, para que el histórico no cambie si después se corrige el
+  padrón. Es la misma regla de la SPEC-007.
+- **El destino no aplica en un contrato de planta**, y en ese caso el campo no
+  se escribe: Firestore rechaza el documento entero si encuentra un campo en
+  `undefined`.
+- **Las calificaciones se guardan solo del mes ya evaluado**, con clave `'1'`,
+  `'2'` y `'3'`, en vez de tres campos que nacerían vacíos, por la misma razón.
+- **Las fechas de evaluación son meses de calendario, no bloques de 30 días.**
+  Si el día no existe en el mes destino —un periodo que empieza el 31 de enero,
+  cuyo primer corte caería el 31 de febrero— se recorta al último día del mes.
+- **El promedio se calcula solo sobre las calificaciones capturadas**, así que
+  un periodo a la mitad no se castiga por los meses que faltan.
+- **Consultar está abierto a todos; capturar y calificar, no.**
+
+### Por qué `capturaPromociones` y no `ADMIN`
+Quien lleva estas evaluaciones es Recursos Humanos. Volverlos `ADMIN` les daría
+además permiso sobre el padrón y sobre los roles de turnos de toda la planta.
+Se marca por separado, desde la pantalla de Permisos, y así las dos plazas de
+RH que hoy están vacantes se habilitan el día que se ocupen sin tocar código.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |

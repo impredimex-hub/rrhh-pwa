@@ -7,6 +7,29 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.9.0] — 2026-09-14
+
+### Agregado
+
+- **Promociones internas (SPEC-016)**, nueva sección en la pestaña de
+  Capacitación, debajo de la matriz. Registra evaluaciones para contrato de
+  planta, nueva categoría en el mismo puesto o cambio de puesto: periodo de tres
+  meses, una calificación mensual de 0 a 100, promedio automático y estatus en
+  proceso / aprobada / rechazada. Se exporta a Excel.
+- **Casilla «Puede capturar promociones internas»** en la pantalla de Permisos.
+  Es para Recursos Humanos, que necesita llevar estas evaluaciones sin por eso
+  ser administrador del padrón ni de los roles de turnos.
+
+### Cambiado
+
+- **Control de Antigüedad ahora muestra solo a quienes cumplen aniversario en el
+  mes en curso**, no al padrón completo. La tabla es para actuar sobre ellos, y
+  entre cientos de renglones la docena que importaba se perdía.
+- **Se quitan las tarjetas «Total de Incidencias» y «Días de Suspensión
+  Acumulados»** de la pestaña de Incidencias.
+
+---
+
 ## [2.8.1] — 2026-09-14
 
 ### Cambiado
