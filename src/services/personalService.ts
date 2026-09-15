@@ -176,3 +176,22 @@ export const asignarDepartamentosTurnos = async (
     actualizadoPor: autor
   });
 };
+
+/**
+ * Marca de «puede ver el reporte de faltas de todas las áreas» (SPEC-015).
+ *
+ * Va aparte de `construirDocumento` por la misma razón que
+ * `departamentosTurnos`: ese es el camino de la importación de Excel, y un
+ * archivo sin la columna borraría la marca en cada carga.
+ */
+export const asignarReporteFaltasTodas = async (
+  noNomina: string,
+  puede: boolean,
+  autor: string
+) => {
+  await updateDoc(doc(db, COLLECTION_NAME, String(noNomina).trim()), {
+    reporteFaltasTodas: puede,
+    actualizadoEn: serverTimestamp(),
+    actualizadoPor: autor
+  });
+};
