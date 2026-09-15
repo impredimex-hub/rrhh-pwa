@@ -83,8 +83,12 @@ export const AntiguedadVacantesModule: React.FC = () => {
     });
   };
 
+  // Solo quienes cumplen aniversario este mes: la tabla es para actuar sobre
+  // ellos, y con el padrón completo la docena que importa se perdía entre
+  // cientos de renglones. `esAniversarioMes` ya exige que hayan cumplido al
+  // menos un año, así que quien acaba de entrar no aparece.
   const listaFiltrada = ordenarPorNomina(
-    colaboradores.filter(c =>
+    colaboradores.filter(c => calcularAntiguedad(c.fechaIngreso).esAniversarioMes).filter(c =>
       c.nombreCompleto.toLowerCase().includes(filtro.toLowerCase()) ||
       c.noNomina.toLowerCase().includes(filtro.toLowerCase()) ||
       (c.departamento && c.departamento.toLowerCase().includes(filtro.toLowerCase())) ||
@@ -103,7 +107,9 @@ export const AntiguedadVacantesModule: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '2px solid var(--brand-navy-light)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div className="bar-accent"></div>
-            <div className="sec-title" style={{ margin: 0 }}>Control de Antigüedad y Aniversarios</div>
+            <div className="sec-title" style={{ margin: 0 }}>
+              Aniversarios de {new Date().toLocaleDateString('es-MX', { month: 'long' })} ({listaFiltrada.length})
+            </div>
           </div>
           <input
             type="text" placeholder="Buscar colaborador…"
@@ -129,7 +135,7 @@ export const AntiguedadVacantesModule: React.FC = () => {
               {colaboradoresPaginados.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
-                    No hay colaboradores registrados.
+                    Nadie cumple aniversario este mes.
                   </td>
                 </tr>
               ) : (

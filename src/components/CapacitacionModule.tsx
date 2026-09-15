@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, FileSpreadsheet, FileText, ChevronDown, Check, Eye } from 'lucide-react';
-import type { Colaborador, CursoCapacitacion } from '../types/rrhh';
+import { Plus, Trash2, Edit2, FileSpreadsheet, FileText, ChevronDown, Check, Eye, TrendingUp } from 'lucide-react';
+import type { Colaborador, CursoCapacitacion, PromocionInterna, TipoPromocion, EstatusPromocion } from '../types/rrhh';
+import { ETIQUETA_PROMOCION, ETIQUETA_ESTATUS_PROMOCION, CALIFICACION_MIN, CALIFICACION_MAX } from '../types/rrhh';
 import { subscribeColaboradores } from '../services/personalService';
 import { subscribeCursos, saveCurso, deleteCurso } from '../services/capacitacionService';
-import { usePermisos } from '../services/SesionContext';
+import { usePermisos, useSesion } from '../services/SesionContext';
+import { subscribePromociones, savePromocion, deletePromocion, fechasEvaluaciones, promedioCalificaciones } from '../services/promocionService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 export const CapacitacionModule: React.FC = () => {
@@ -26,13 +28,28 @@ export const CapacitacionModule: React.FC = () => {
     horaFin: '11:00',
     estatus: 'PROGRAMADO'
   });
-  const { puedeCapturar } = usePermisos();
+  const { puedeCapturar, papel } = usePermisos();
+  const sesion = useSesion();
+
+  /* ── Promociones internas ── */
+  const [promociones, setPromociones] = useState<PromocionInterna[]>([]);
+  const [formProm, setFormProm] = useState({
+    noNomina: '', tipo: 'PLANTA' as TipoPromocion, destino: '',
+    fechaInicio: new Date().toISOString().split('T')[0], observaciones: ''
+  });
+  const [guardandoProm, setGuardandoProm] = useState(false);
+
+  const puedeCapturarPromociones =
+    papel === 'ADMIN' ||
+    !!colaboradores.find(c => c.noNomina === sesion?.nomina)?.capturaPromociones;
 
   useEffect(() => {
+    const unsubProm = subscribePromociones(setPromociones);
     const unsubColab = subscribeColaboradores((data) => setColaboradores(data));
     const unsubCursos = subscribeCursos((data) => setCursos(data));
     return () => {
       unsubColab();
+      unsubProm();
       unsubCursos();
     };
   }, []);
@@ -161,6 +178,94 @@ export const CapacitacionModule: React.FC = () => {
       c.estatus
     ]);
     exportToPDF('IMPREDIMEX — Plan de Capacitación y Adiestramiento', headers, rows, 'Plan_Capacitacion');
+  };
+
+  const abrirPromocion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!puedeCapturarPromociones || guardandoProm) return;
+    if (!formProm.noNomina || !formProm.fechaInicio) return;
+    if (formProm.tipo !== 'PLANTA' && !formProm.destino.trim()) {
+      alert('Indica la categoría o el puesto de destino.');
+      return;
+    }
+
+    const c = colaboradores.find(x => x.noNomina === formProm.noNomina);
+    const nueva: PromocionInterna = {
+      noNomina: formProm.noNomina,
+      nombreCompleto: c ? c.nombreCompleto : 'Desconocido',
+      departamento: c ? c.departamento : '',
+      puestoActual: c ? (c.puesto || '') : '',
+      tipo: formProm.tipo,
+      fechaInicio: formProm.fechaInicio,
+      calificaciones: {},
+      estatus: 'EN_PROCESO',
+      observaciones: formProm.observaciones.trim(),
+      creadoPorNomina: sesion?.nomina || '',
+      creadoPorNombre: sesion?.nombre || ''
+    };
+    // El destino solo se incluye cuando aplica: Firestore rechaza el documento
+    // completo si encuentra un campo en `undefined`.
+    if (formProm.tipo !== 'PLANTA') nueva.destino = formProm.destino.trim();
+
+    setGuardandoProm(true);
+    try {
+      await savePromocion(nueva);
+      setFormProm({ noNomina: '', tipo: 'PLANTA', destino: '', fechaInicio: new Date().toISOString().split('T')[0], observaciones: '' });
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo guardar la evaluación. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      setGuardandoProm(false);
+    }
+  };
+
+  const calificarMes = async (p: PromocionInterna, mes: number, valor: string) => {
+    if (!puedeCapturarPromociones) return;
+    const calificaciones = { ...(p.calificaciones || {}) };
+    if (valor === '') {
+      delete calificaciones[String(mes)];
+    } else {
+      const n = Number(valor);
+      if (isNaN(n) || n < CALIFICACION_MIN || n > CALIFICACION_MAX) return;
+      calificaciones[String(mes)] = n;
+    }
+    try {
+      await savePromocion({ ...p, calificaciones });
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo guardar la calificación. Revisa tu conexión e inténtalo de nuevo.');
+    }
+  };
+
+  const cambiarEstatusProm = async (p: PromocionInterna, estatus: EstatusPromocion) => {
+    if (!puedeCapturarPromociones) return;
+    try {
+      await savePromocion({ ...p, estatus });
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo guardar el estatus. Revisa tu conexión e inténtalo de nuevo.');
+    }
+  };
+
+  const exportarPromocionesExcel = () => {
+    exportToExcel(promociones.map(p => {
+      const fs = fechasEvaluaciones(p.fechaInicio);
+      return {
+        '# Nómina': p.noNomina,
+        'Colaborador': p.nombreCompleto,
+        'Departamento': p.departamento,
+        'Puesto actual': p.puestoActual,
+        'Tipo': ETIQUETA_PROMOCION[p.tipo],
+        'Destino': p.destino || '—',
+        'Inicio': p.fechaInicio,
+        [`Mes 1 (${fs[0] || ''})`]: p.calificaciones?.['1'] ?? '',
+        [`Mes 2 (${fs[1] || ''})`]: p.calificaciones?.['2'] ?? '',
+        [`Mes 3 (${fs[2] || ''})`]: p.calificaciones?.['3'] ?? '',
+        'Promedio': promedioCalificaciones(p.calificaciones || {}) ?? '',
+        'Estatus': ETIQUETA_ESTATUS_PROMOCION[p.estatus],
+        'Observaciones': p.observaciones || ''
+      };
+    }), 'IMPREDIMEX_Promociones_Internas');
   };
 
   return (
@@ -511,6 +616,165 @@ export const CapacitacionModule: React.FC = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* SECCIÓN: PROMOCIONES INTERNAS */}
+      <div className="card-industrial" style={{ marginTop: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '2px solid var(--brand-navy-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="bar-accent"></div>
+            <div className="sec-title" style={{ margin: 0 }}>Promociones Internas ({promociones.length})</div>
+          </div>
+          {promociones.length > 0 && (
+            <button onClick={exportarPromocionesExcel} className="btn-industrial-success" style={{ height: '30px' }}>
+              <FileSpreadsheet size={13} /> Excel
+            </button>
+          )}
+        </div>
+
+        <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.45 }}>
+          Evaluación para contrato de planta, nueva categoría dentro del mismo puesto o cambio de puesto.
+          El periodo es de tres meses, con una calificación mensual de {CALIFICACION_MIN} a {CALIFICACION_MAX}.
+        </p>
+
+        {!puedeCapturarPromociones && (
+          <div style={{ background: '#E8EEF8', border: '1px solid rgba(0,53,128,.15)', borderRadius: '10px', padding: '9px 12px', marginBottom: '10px', fontSize: '11px', color: '#003580', display: 'flex', alignItems: 'center', gap: '7px' }}>
+            <Eye size={14} />
+            Puedes consultar las evaluaciones, pero no capturarlas ni calificarlas.
+          </div>
+        )}
+
+        {puedeCapturarPromociones && (
+          <form onSubmit={abrirPromocion} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>COLABORADOR *</label>
+              <select required value={formProm.noNomina} onChange={e => setFormProm(f => ({ ...f, noNomina: e.target.value }))}>
+                <option value="">-- Selecciona --</option>
+                {colaboradores.filter(c => c.estatus !== 'BAJA').map(c => (
+                  <option key={c.noNomina} value={c.noNomina}>{c.noNomina} - {c.nombreCompleto}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>TIPO *</label>
+              <select value={formProm.tipo} onChange={e => setFormProm(f => ({ ...f, tipo: e.target.value as TipoPromocion, destino: '' }))}>
+                {(Object.keys(ETIQUETA_PROMOCION) as TipoPromocion[]).map(t => (
+                  <option key={t} value={t}>{ETIQUETA_PROMOCION[t]}</option>
+                ))}
+              </select>
+            </div>
+            {formProm.tipo !== 'PLANTA' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>
+                  {formProm.tipo === 'CATEGORIA' ? 'NUEVA CATEGORÍA *' : 'PUESTO DESTINO *'}
+                </label>
+                <input type="text" value={formProm.destino} onChange={e => setFormProm(f => ({ ...f, destino: e.target.value }))} />
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>INICIO DEL PERIODO *</label>
+              <input type="date" required value={formProm.fechaInicio} onChange={e => setFormProm(f => ({ ...f, fechaInicio: e.target.value }))} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>OBSERVACIONES</label>
+              <input type="text" value={formProm.observaciones} placeholder="Opcional" onChange={e => setFormProm(f => ({ ...f, observaciones: e.target.value }))} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+              <button type="submit" className="btn-industrial-primary" disabled={guardandoProm}
+                style={{ width: '100%', opacity: guardandoProm ? 0.5 : 1, cursor: guardandoProm ? 'not-allowed' : 'pointer' }}>
+                <Plus size={15} /> {guardandoProm ? 'Guardando…' : 'Abrir evaluación'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {promociones.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '1.5rem 0', color: 'var(--text-secondary)', fontSize: '12px' }}>
+            No hay evaluaciones abiertas.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+            {promociones.map(pr => {
+              const fs = fechasEvaluaciones(pr.fechaInicio);
+              const prom = promedioCalificaciones(pr.calificaciones || {});
+              const colorEstatus =
+                pr.estatus === 'APROBADA' ? 'var(--green-dark)' :
+                pr.estatus === 'RECHAZADA' ? 'var(--brand-red)' : 'var(--brand-navy)';
+              return (
+                <div key={pr.id} style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '10px 12px', background: '#fff' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: '11.5px', color: 'var(--brand-navy-dark)' }}>
+                        {pr.nombreCompleto} <span style={{ fontWeight: 400, color: 'var(--text-light)' }}>#{pr.noNomina}</span>
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                        {ETIQUETA_PROMOCION[pr.tipo]}
+                        {pr.destino ? ` → ${pr.destino}` : ''}
+                        {pr.puestoActual ? ` · desde ${pr.puestoActual}` : ''}
+                      </div>
+                      <div style={{ fontSize: '9.5px', color: 'var(--text-light)', marginTop: '2px' }}>
+                        Periodo desde {pr.fechaInicio} · abierta por {pr.creadoPorNombre || '—'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                      {prom !== null && (
+                        <span title="Promedio de las calificaciones capturadas"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '11px', fontWeight: 700, color: 'var(--brand-navy)' }}>
+                          <TrendingUp size={12} /> {prom}
+                        </span>
+                      )}
+                      <select
+                        value={pr.estatus}
+                        disabled={!puedeCapturarPromociones}
+                        onChange={e => cambiarEstatusProm(pr, e.target.value as EstatusPromocion)}
+                        style={{ height: '24px', fontSize: '9.5px', fontWeight: 700, padding: '0 4px', borderRadius: '5px', border: '1px solid ' + colorEstatus, color: colorEstatus, background: '#fff', fontFamily: 'inherit' }}
+                      >
+                        {(Object.keys(ETIQUETA_ESTATUS_PROMOCION) as EstatusPromocion[]).map(es => (
+                          <option key={es} value={es}>{ETIQUETA_ESTATUS_PROMOCION[es]}</option>
+                        ))}
+                      </select>
+                      {puedeCapturarPromociones && (
+                        <button
+                          onClick={() => pr.id && window.confirm(`¿Eliminar la evaluación de ${pr.nombreCompleto}?`) && deletePromocion(pr.id)}
+                          title="Eliminar evaluación"
+                          style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-red)', padding: '2px' }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
+                    {[1, 2, 3].map(mes => (
+                      <div key={mes} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <label style={{ fontSize: '8.5px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                          MES {mes} · {fs[mes - 1] || '—'}
+                        </label>
+                        <input
+                          type="number"
+                          min={CALIFICACION_MIN}
+                          max={CALIFICACION_MAX}
+                          value={pr.calificaciones?.[String(mes)] ?? ''}
+                          disabled={!puedeCapturarPromociones}
+                          placeholder="—"
+                          onChange={e => calificarMes(pr, mes, e.target.value)}
+                          style={{ width: '74px', height: '26px', fontSize: '10.5px', padding: '2px 6px', textAlign: 'center' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {pr.observaciones && (
+                    <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '7px', lineHeight: 1.4 }}>
+                      {pr.observaciones}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

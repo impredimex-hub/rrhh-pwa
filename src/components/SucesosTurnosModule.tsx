@@ -4,7 +4,7 @@ import type {
   Colaborador, Suceso, TipoSuceso, RolTurnos, PeriodoRol, ClaveTurno, AsignacionTurno
 } from '../types/rrhh';
 import { ETIQUETA_SUCESO, HORARIO_TURNO } from '../types/rrhh';
-import { subscribeColaboradores, asignarDepartamentosTurnos, asignarReporteFaltasTodas } from '../services/personalService';
+import { subscribeColaboradores, asignarDepartamentosTurnos, asignarReporteFaltasTodas, asignarCapturaPromociones } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
 import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino } from '../services/turnoService';
 import { subscribeAsistenciasRango, obtenerAsistenciasRango } from '../services/asistenciaService';
@@ -231,6 +231,19 @@ export const SucesosTurnosModule: React.FC = () => {
     }
   };
 
+  const alternarCapturaPromociones = async (c: Colaborador) => {
+    if (!esAdmin || guardandoPermiso) return;
+    setGuardandoPermiso(c.noNomina);
+    try {
+      await asignarCapturaPromociones(c.noNomina, !c.capturaPromociones, sesion?.nomina || '');
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo guardar el permiso. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      setGuardandoPermiso('');
+    }
+  };
+
   /** Quien ya tiene algún permiso, primero; luego el resto. */
   const personasPermisos = useMemo(() => {
     const t = buscaPermisos.trim().toUpperCase();
@@ -241,8 +254,8 @@ export const SucesosTurnosModule: React.FC = () => {
           (c.departamento || '').toUpperCase().includes(t))
       : activos;
     return [...base].sort((a, b) => {
-      const na = ((a.departamentosTurnos || []).length || a.reporteFaltasTodas) ? 0 : 1;
-      const nb = ((b.departamentosTurnos || []).length || b.reporteFaltasTodas) ? 0 : 1;
+      const na = ((a.departamentosTurnos || []).length || a.reporteFaltasTodas || a.capturaPromociones) ? 0 : 1;
+      const nb = ((b.departamentosTurnos || []).length || b.reporteFaltasTodas || b.capturaPromociones) ? 0 : 1;
       if (na !== nb) return na - nb;
       return (a.nombreCompleto || '').localeCompare(b.nombreCompleto || '');
     });
@@ -552,10 +565,10 @@ export const SucesosTurnosModule: React.FC = () => {
         <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.45 }}>
           Marca los departamentos que cada persona puede programar. Quien no tenga
           ninguno marcado solo consulta. Tú, como administrador, puedes programar
-          todos sin necesidad de aparecer aquí. La casilla de abajo es aparte: da
-          acceso al reporte de faltas de todas las áreas de una sola vez, sin
-          conceder permiso para programar nada. Cada marca se guarda al
-          instante.
+          todos sin necesidad de aparecer aquí. Las casillas de abajo son
+          aparte y no conceden permiso para programar nada: una da acceso al
+          reporte de faltas de todas las áreas, la otra permite capturar y
+          calificar promociones internas. Cada marca se guarda al instante.
         </p>
 
         <input
@@ -574,7 +587,7 @@ export const SucesosTurnosModule: React.FC = () => {
               const suyos = (c.departamentosTurnos || []).map(d => d.trim().toUpperCase());
               const ocupado = guardandoPermiso === c.noNomina;
               return (
-                <div key={c.noNomina} style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '9px 11px', background: (suyos.length || c.reporteFaltasTodas) ? 'var(--brand-navy-light)' : '#fff', opacity: ocupado ? 0.55 : 1 }}>
+                <div key={c.noNomina} style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '9px 11px', background: (suyos.length || c.reporteFaltasTodas || c.capturaPromociones) ? 'var(--brand-navy-light)' : '#fff', opacity: ocupado ? 0.55 : 1 }}>
                   <div style={{ fontWeight: 700, fontSize: '11.5px', color: 'var(--brand-navy-dark)' }}>
                     {c.nombreCompleto}
                   </div>
@@ -613,6 +626,17 @@ export const SucesosTurnosModule: React.FC = () => {
                       style={{ width: '14px', height: '14px', accentColor: 'var(--brand-navy)', cursor: ocupado ? 'wait' : 'pointer' }}
                     />
                     Puede ver el reporte de faltas de todas las áreas
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', fontSize: '10px', color: 'var(--text-secondary)', cursor: ocupado ? 'wait' : 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!c.capturaPromociones}
+                      disabled={ocupado}
+                      onChange={() => alternarCapturaPromociones(c)}
+                      style={{ width: '14px', height: '14px', accentColor: 'var(--brand-navy)', cursor: ocupado ? 'wait' : 'pointer' }}
+                    />
+                    Puede capturar promociones internas
                   </label>
                 </div>
               );

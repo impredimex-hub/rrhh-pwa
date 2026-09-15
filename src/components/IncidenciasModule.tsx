@@ -168,11 +168,6 @@ export const IncidenciasModule: React.FC = () => {
     exportToPDF('IMPREDIMEX — Registro de Incidencias', headers, rows, 'Registro_Incidencias');
   };
 
-  const diasSuspensionAcumulados = incidencias.reduce(
-    (acc, curr) => acc + (curr.suspension ? curr.fechasSuspension?.length || 0 : 0),
-    0
-  );
-
   const celdas = construirCeldas(mesVista);
 
   return (
@@ -339,23 +334,6 @@ export const IncidenciasModule: React.FC = () => {
         </div>
         )}
 
-        {/* Resumen */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div className="card-industrial">
-            <div className="sec-title" style={{ color: 'var(--text-secondary)' }}>Total de Incidencias</div>
-            <div style={{ fontSize: '30px', fontWeight: 'bold', color: 'var(--brand-navy)', marginTop: '4px' }}>
-              {incidencias.length}
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '2px' }}>registros activos</div>
-          </div>
-          <div className="card-industrial">
-            <div className="sec-title" style={{ color: 'var(--text-secondary)' }}>Días de Suspensión Acumulados</div>
-            <div style={{ fontSize: '30px', fontWeight: 'bold', color: 'var(--brand-red)', marginTop: '4px' }}>
-              {diasSuspensionAcumulados} <span style={{ fontSize: '16px' }}>días</span>
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '2px' }}>acumulados</div>
-          </div>
-        </div>
       </div>
 
       {/* Historial */}
