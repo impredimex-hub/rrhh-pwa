@@ -31,6 +31,30 @@ const HORA_VALIDA = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 const SUB = { fontSize: '10px', fontWeight: 'bold' as const, color: 'var(--brand-navy)' };
 
+/**
+ * Los tres botones de la cabecera del rol de turnos. Un solo objeto para que
+ * midan exactamente igual: al ser redondos y sin texto, cualquier diferencia
+ * de tamaño se nota de inmediato.
+ *
+ * Sin etiqueta visible, el `title` y el `aria-label` de cada uno son lo único
+ * que dice qué hacen; por eso van siempre.
+ */
+const BOTON_REDONDO: React.CSSProperties = {
+  width: '34px',
+  height: '34px',
+  flexShrink: 0,
+  borderRadius: '50%',
+  border: '1px solid rgba(0,32,96,.15)',
+  background: '#fff',
+  color: 'var(--brand-navy)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  padding: 0,
+  fontFamily: 'inherit'
+};
+
 export const SucesosTurnosModule: React.FC = () => {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [sucesos, setSucesos] = useState<Suceso[]>([]);
@@ -876,27 +900,34 @@ export const SucesosTurnosModule: React.FC = () => {
               <div className="bar-accent"></div>
               <div className="sec-title" style={{ margin: 0 }}>Rol de Turnos ({roles.length})</div>
             </div>
-            <div style={{ display: 'flex', gap: '5px' }}>
+            <div style={{ display: 'flex', gap: '6px' }}>
               {esAdmin && (
                 <button
                   onClick={() => setPanelPermisos(true)}
                   title="Quién puede programar turnos"
-                  style={{ height: '30px', display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '0 10px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(0,32,96,.15)', background: '#fff', color: 'var(--brand-navy)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                  aria-label="Quién puede programar turnos"
+                  style={BOTON_REDONDO}
                 >
-                  <ShieldCheck size={13} /> Permisos
+                  <ShieldCheck size={16} />
                 </button>
               )}
               {puedeCrearRol && (
-                <button onClick={() => setEditandoRol(nuevoRol())} className="btn-industrial-primary" style={{ height: '30px' }}>
-                  <Plus size={14} /> Nuevo
+                <button
+                  onClick={() => setEditandoRol(nuevoRol())}
+                  title="Nuevo rol de turnos"
+                  aria-label="Nuevo rol de turnos"
+                  style={{ ...BOTON_REDONDO, background: 'var(--brand-navy)', borderColor: 'var(--brand-navy)', color: '#fff' }}
+                >
+                  <Plus size={17} />
                 </button>
               )}
               <button
                 onClick={abrirReporte}
                 title="Reporte de faltas"
-                style={{ height: '30px', display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '0 10px', borderRadius: 'var(--radius-md)', border: '1px solid rgba(0,32,96,.15)', background: '#fff', color: 'var(--brand-navy)', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                aria-label="Reporte de faltas"
+                style={BOTON_REDONDO}
               >
-                <FileWarning size={13} /> Faltas
+                <FileWarning size={16} />
               </button>
             </div>
           </div>
