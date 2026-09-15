@@ -7,6 +7,27 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.9.2] — 2026-09-14
+
+### Cambiado
+
+- **La pestaña de Cursos ya no abre con el padrón completo desplegado.** Al
+  entrar se ven solo los filtros y los botones; la tabla aparece al pulsar el
+  botón nuevo **Filtrar**. Sin ningún filtro puesto, Filtrar muestra a todo el
+  personal, que es la salida deliberada para ver el listado completo.
+- Se agrega un botón **Limpiar**, que borra los filtros y vuelve a ocultar la
+  tabla.
+- Excel y PDF quedan deshabilitados mientras no se haya filtrado: antes
+  habrían generado un archivo vacío.
+
+### Notas
+
+Los filtros que se van capturando ya no afectan la tabla al momento: se aplican
+solo al pulsar Filtrar. Es lo que permite revisar varias combinaciones sin que
+la tabla se recalcule con cada tecla.
+
+---
+
 ## [2.9.1] — 2026-09-14
 
 ### Agregado
