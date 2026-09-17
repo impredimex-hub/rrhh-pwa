@@ -6,6 +6,7 @@ import { saveColaboradoresBatch, subscribeColaboradores, deleteColaborador, camb
 import { abrirContratoPlanta } from '../services/promocionService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { DEPARTAMENTOS, reconocerDepartamento } from '../utils/catalogos';
+import { diaYMes } from '../utils/fechas';
 import { usePermisos, useSesion } from '../services/SesionContext';
 
 /** Fila del Excel que no se puede guardar, con el motivo. */
@@ -346,7 +347,7 @@ export const PersonalModule: React.FC = () => {
       'NOMBRE': c.nombreCompleto,
       'PUESTO': c.puesto || '-',
       'INGRESO': c.fechaIngreso || '-',
-      'NACIMIENTO': c.fechaNacimiento || '-',
+      'CUMPLEAÑOS': c.fechaNacimiento || '-',
       'DEPARTAMENTO': c.departamento || '-',
       'ESTATUS': c.estatus
     }));
@@ -354,9 +355,9 @@ export const PersonalModule: React.FC = () => {
   };
 
   const handleExportPDF = () => {
-    const headers = ['# Nómina', 'Nombre', 'Puesto', 'Ingreso', 'Departamento', 'Estatus'];
+    const headers = ['# Nómina', 'Nombre', 'Puesto', 'Ingreso', 'Cumpleaños', 'Departamento', 'Estatus'];
     const rows = listaFiltrada.map(c => [
-      c.noNomina, c.nombreCompleto, c.puesto || '-', c.fechaIngreso || '-', c.departamento || '-', c.estatus
+      c.noNomina, c.nombreCompleto, c.puesto || '-', c.fechaIngreso || '-', diaYMes(c.fechaNacimiento), c.departamento || '-', c.estatus
     ]);
     exportToPDF('IMPREDIMEX — Plantilla Registrada', headers, rows, 'Plantilla_Registrada');
   };
@@ -478,7 +479,7 @@ export const PersonalModule: React.FC = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9.5px', lineHeight: '1.2' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
-                {['# Nómina', 'Nombre', 'Puesto', 'Ingreso', 'Departamento', 'Estatus'].map(h => (
+                {['# Nómina', 'Nombre', 'Puesto', 'Ingreso', 'Cumpleaños', 'Departamento', 'Estatus'].map(h => (
                   <th key={h} style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>{h}</th>
                 ))}
                 {puedeEditarPadron && (
@@ -489,7 +490,7 @@ export const PersonalModule: React.FC = () => {
             <tbody>
               {colaboradoresPaginados.length === 0 ? (
                 <tr>
-                  <td colSpan={puedeEditarPadron ? 7 : 6} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
+                  <td colSpan={puedeEditarPadron ? 8 : 7} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
                     Sin registros que coincidan.
                   </td>
                 </tr>
@@ -500,6 +501,7 @@ export const PersonalModule: React.FC = () => {
                     <td style={{ padding: '5px 8px', fontWeight: 600 }}>{colab.nombreCompleto}</td>
                     <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>{colab.puesto || '-'}</td>
                     <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>{colab.fechaIngreso || '-'}</td>
+                    <td style={{ padding: '5px 8px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{diaYMes(colab.fechaNacimiento)}</td>
                     <td style={{ padding: '5px 8px' }}>
                       {colab.departamento ? (
                         <span style={{ display: 'inline-block', background: 'var(--brand-navy-light)', color: 'var(--brand-navy)', fontSize: '8.5px', padding: '2px 5px', borderRadius: '3px', fontWeight: 600 }}>

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar, ChevronLeft, ChevronRight, Eye, Cake, Upload, FileSpreadsheet } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { Plus, Trash2, Calendar, ChevronLeft, ChevronRight, Eye, Cake, FileSpreadsheet } from 'lucide-react';
 import type { Colaborador, Vacante } from '../types/rrhh';
 import { subscribeColaboradores, ordenarPorNomina, guardarFechasNacimiento } from '../services/personalService';
 import { subscribeVacantes, saveVacante, deleteVacante } from '../services/vacanteService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { partesFecha, diaYMes, edadQueCumple } from '../utils/fechas';
+import { CUMPLEANOS_INICIALES } from '../data/cumpleanos';
 import { exportToExcel } from '../utils/exportUtils';
 
 export const AntiguedadVacantesModule: React.FC = () => {
@@ -15,8 +15,10 @@ export const AntiguedadVacantesModule: React.FC = () => {
   const { puedeCapturar } = usePermisos();
   const sesion = useSesion();
   const [filtroCumple, setFiltroCumple] = useState('');
-  const [cargandoCumple, setCargandoCumple] = useState(false);
   const [verFaltantes, setVerFaltantes] = useState(false);
+  // Evita reintentar la siembra en cada llegada del padrón desde Firestore:
+  // la suscripción dispara varias veces y sin esto se repetiría el lote.
+  const sembrado = React.useRef(false);
   const [paginaActual, setPaginaActual] = useState(1);
   const elementosPorPagina = 30;
 
@@ -42,6 +44,36 @@ export const AntiguedadVacantesModule: React.FC = () => {
     setPaginaActual(1);
   }, [filtro]);
 
+  /**
+   * Siembra las fechas de nacimiento que vienen en el código (SPEC-017).
+   *
+   * Solo rellena huecos: nunca pisa una fecha que ya esté en el padrón, para
+   * que una corrección hecha en el Directorio no se deshaga sola en la
+   * siguiente visita. Cuando todos tienen fecha, esto no vuelve a escribir.
+   *
+   * Lo hace únicamente quien puede capturar, porque las reglas de Firestore no
+   * dejarían escribir a los demás; si falla, se anota en consola y la pantalla
+   * sigue funcionando con lo que ya haya.
+   */
+  useEffect(() => {
+    if (sembrado.current || !puedeCapturar || !colaboradores.length) return;
+
+    const pendientes = colaboradores
+      .filter(c => !partesFecha(c.fechaNacimiento))
+      .map(c => ({ noNomina: String(c.noNomina).trim(), fechaNacimiento: CUMPLEANOS_INICIALES[String(c.noNomina).trim()] }))
+      .filter((x): x is { noNomina: string; fechaNacimiento: string } => Boolean(x.fechaNacimiento));
+
+    if (!pendientes.length) { sembrado.current = true; return; }
+
+    sembrado.current = true;
+    guardarFechasNacimiento(pendientes, sesion?.nomina || '')
+      .catch(err => {
+        console.error('No se pudieron sembrar las fechas de nacimiento:', err);
+        // Se permite reintentar en la próxima visita: el fallo suele ser de red.
+        sembrado.current = false;
+      });
+  }, [colaboradores, puedeCapturar, sesion]);
+
   const calcularAntiguedad = (fechaIngresoStr?: string) => {
     // `new Date('2020-03-01')` da la medianoche UTC, que en México cae el 29 de
     // febrero: quien entró un día 1 se corría al mes anterior y desaparecía de
@@ -63,106 +95,6 @@ export const AntiguedadVacantesModule: React.FC = () => {
 
     const esAniversarioMes = hoy.getMonth() === ingreso.getMonth() && anios > 0;
     return { anios, meses, esAniversarioMes };
-  };
-
-  /** Normaliza la fecha venga como número de Excel, dd/mm/aaaa o ya en ISO. */
-  const fechaDesdeExcel = (val: any): string => {
-    if (val === null || val === undefined || val === '') return '';
-    if (typeof val === 'number') {
-      const d = new Date(Math.round((val - 25569) * 86400 * 1000));
-      return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
-    }
-    const str = String(val).trim();
-    if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
-    const sep = str.includes('/') ? '/' : str.includes('-') ? '-' : '';
-    if (sep) {
-      const partes = str.split(sep);
-      if (partes.length === 3) {
-        // Día primero: es como se escriben las fechas en México.
-        const dia = partes[0].padStart(2, '0');
-        const mes = partes[1].padStart(2, '0');
-        let anio = partes[2].trim();
-        if (anio.length === 2) anio = Number(anio) > 30 ? `19${anio}` : `20${anio}`;
-        return `${anio}-${mes}-${dia}`;
-      }
-    }
-    return '';
-  };
-
-  /**
-   * Carga la base de cumpleaños. Va por su propio camino y no por la
-   * importación del directorio: ese archivo solo trae nómina y fecha, así que
-   * allá las filas se rechazarían por no traer departamento, y las que sí lo
-   * trajeran vaciarían puesto y fecha de ingreso. Aquí solo se puede escribir
-   * la fecha de nacimiento.
-   */
-  const handleCargarCumpleanos = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-
-    reader.onload = async (ev) => {
-      try {
-        const wb = XLSX.read(ev.target?.result, { type: 'binary', cellDates: false });
-        const rows: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-
-        const validas: { noNomina: string; fechaNacimiento: string }[] = [];
-        const sinFecha: string[] = [];
-        const noEnPadron: string[] = [];
-        const conocidos = new Set(colaboradores.map(c => String(c.noNomina).trim()));
-
-        rows.forEach(row => {
-          const noNomina = String(
-            row['# NOMINA'] ?? row['#NOMINA'] ?? row['NOMINA'] ?? row['NoNomina'] ??
-            row['No. Nomina'] ?? row['NÓMINA'] ?? ''
-          ).trim();
-          if (!noNomina) return;
-
-          const cruda =
-            row['NACIMIENTO'] ?? row['Nacimiento'] ?? row['FECHA NACIMIENTO'] ??
-            row['FECHA DE NACIMIENTO'] ?? row['FechaNacimiento'] ??
-            row['CUMPLEAÑOS'] ?? row['CUMPLEANOS'] ?? row['Cumpleaños'] ?? row['CUMPLE'] ?? '';
-          const fecha = fechaDesdeExcel(cruda);
-
-          if (!partesFecha(fecha)) { sinFecha.push(noNomina); return; }
-          // Una fecha de cumpleaños no alcanza para dar de alta a nadie: si la
-          // nómina no está en el padrón, se reporta en vez de inventar gente.
-          if (!conocidos.has(noNomina)) { noEnPadron.push(noNomina); return; }
-          validas.push({ noNomina, fechaNacimiento: fecha });
-        });
-
-        if (!validas.length) {
-          alert(
-            'No se pudo leer ninguna fecha.\n\n' +
-            'El archivo necesita una columna de nómina (# NOMINA) y una de fecha ' +
-            '(NACIMIENTO o CUMPLEAÑOS).' +
-            (noEnPadron.length ? `\n\n${noEnPadron.length} nómina(s) del archivo no están en el directorio.` : '') +
-            (sinFecha.length ? `\n${sinFecha.length} fila(s) traían la fecha vacía o ilegible.` : '')
-          );
-          return;
-        }
-
-        const aviso =
-          `Se van a guardar ${validas.length} fecha(s) de nacimiento.` +
-          (noEnPadron.length ? `\n\n${noEnPadron.length} nómina(s) no están en el directorio y se omiten: ${noEnPadron.slice(0, 8).join(', ')}${noEnPadron.length > 8 ? '…' : ''}` : '') +
-          (sinFecha.length ? `\n\n${sinFecha.length} fila(s) con fecha ilegible se omiten: ${sinFecha.slice(0, 8).join(', ')}${sinFecha.length > 8 ? '…' : ''}` : '') +
-          '\n\nSolo se escribe la fecha de nacimiento. Nada más del directorio se toca.\n\n¿Continuar?';
-
-        if (!window.confirm(aviso)) return;
-
-        setCargandoCumple(true);
-        await guardarFechasNacimiento(validas, sesion?.nomina || '');
-        alert(`Listo. Se guardaron ${validas.length} fecha(s) de nacimiento.`);
-      } catch (err: any) {
-        console.error(err);
-        alert('No se pudo cargar el archivo: ' + (err?.message || 'error desconocido'));
-      } finally {
-        setCargandoCumple(false);
-        e.target.value = '';
-      }
-    };
-
-    reader.readAsBinaryString(file);
   };
 
   const handleCrearVacante = (e: React.FormEvent) => {
@@ -365,19 +297,6 @@ export const AntiguedadVacantesModule: React.FC = () => {
             >
               <FileSpreadsheet size={13} /> Excel
             </button>
-            {puedeCapturar && (
-              <>
-                <input id="cumple-upload" type="file" accept=".xlsx,.xls" onChange={handleCargarCumpleanos} style={{ display: 'none' }} />
-                <label
-                  htmlFor="cumple-upload"
-                  className="btn-industrial-primary"
-                  style={{ height: '30px', padding: '4px 10px', fontSize: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: cargandoCumple ? 'wait' : 'pointer', opacity: cargandoCumple ? 0.6 : 1 }}
-                  title="Cargar la base de fechas de nacimiento desde Excel"
-                >
-                  <Upload size={13} /> {cargandoCumple ? 'Guardando…' : 'Cargar fechas'}
-                </label>
-              </>
-            )}
           </div>
         </div>
 
