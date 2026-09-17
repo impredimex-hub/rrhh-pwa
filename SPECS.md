@@ -756,3 +756,32 @@ y se le asigna `ADMIN`.
 
 Estos cambios se hacen documento por documento en la consola de Firebase, sobre
 `colaboradores` del proyecto suite. No requieren tocar código.
+
+## SPEC-017 — Cumpleaños del mes
+
+- **La pestaña de Antigüedad y Vacantes muestra los cumpleaños del mes en
+  curso**, en su propia tarjeta, separada de los aniversarios de ingreso. Son
+  dos cosas distintas: una se felicita, la otra se reconoce por antigüedad, y
+  mezclarlas obligaba a columnas que no aplican a la mitad de los renglones.
+- **Solo se comparan día y mes.** El año se guarda porque sirve para la edad,
+  pero se omite si no es creíble (menos de 14 o más de 90 años): hay bases
+  donde el año viene como 1900 porque solo se capturó día y mes.
+- **La lista va ordenada por día**, no por nómina, para que se lea como
+  calendario. El cumpleaños de hoy se resalta y los que ya pasaron se atenúan.
+- **Se excluye a las bajas.**
+- **La carga masiva de fechas de nacimiento tiene su propio camino**
+  (`guardarFechasNacimiento`), que escribe únicamente `fechaNacimiento`. No
+  puede pasar por la importación del directorio: la base de cumpleaños trae
+  nómina y fecha, sin departamento, así que allá todas las filas se
+  rechazarían, y las que sí trajeran departamento vaciarían el puesto y la
+  fecha de ingreso de esa gente.
+- **La carga no da de alta a nadie.** Una nómina que no esté en el directorio
+  se reporta y se omite: una fecha de cumpleaños no basta para crear una
+  persona.
+- **`fechaNacimiento` se escribe de forma condicional en `construirDocumento`**,
+  igual que `estatus`. Si viajara sin condición, un Excel del directorio sin la
+  columna borraría todos los cumpleaños en cada importación.
+- **Las fechas `AAAA-MM-DD` se parten a mano** (`utils/fechas.ts`), nunca con
+  `new Date(cadena)`. Ese constructor interpreta la cadena como UTC, y en
+  México todo se corre un día hacia atrás: quien nació o entró un día 1 caía en
+  el mes anterior y nunca aparecía en su lista.
