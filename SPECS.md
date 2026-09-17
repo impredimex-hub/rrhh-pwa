@@ -916,3 +916,34 @@ Estos cambios se hacen documento por documento en la consola de Firebase, sobre
 - **La ronda que termina se archiva en `rondasPrevias`** antes de limpiar las
   calificaciones. Perderlas en silencio borraría la única evidencia de por qué
   se le dio otra oportunidad a alguien. La tarjeta muestra «2º periodo».
+
+## SPEC-022 — Roles de turnos: autoría y faltas a la vista
+
+- **Un rol guardado solo lo modifica quien lo creó.** Verlo lo puede cualquiera
+  que entre a la pestaña; guardarlo, únicamente su autor. **Esto reemplaza la
+  regla por departamento de SPEC-013** para la edición.
+- **Los departamentos asignados siguen mandando sobre quién puede *crear*
+  roles.** Son dos cosas distintas: crear está acotado al área, editar a la
+  autoría.
+- **Un administrador también puede modificar cualquier rol**, y no por
+  privilegio: si el autor sale de la empresa, su rol quedaría congelado para
+  siempre y no habría forma de corregir un turno mal puesto.
+- **Las dos nóminas tienen que existir para que coincidan.** Comparar dos
+  cadenas vacías da verdadero, y un rol antiguo sin autor registrado habría
+  quedado abierto a cualquier sesión que tampoco trajera nómina.
+- **Consecuencia conocida:** tres supervisores comparten impresión
+  (flexografía y rotograbado). Con esta regla, si el autor del rol falta, sus
+  compañeros de área ya no pueden ajustarlo; hay que pedírselo a un
+  administrador. Fue la razón por la que SPEC-013 había pasado el permiso a
+  departamento, y se revierte a petición expresa.
+- **Cada rol muestra su número de faltas** a la izquierda del icono de Excel.
+  En cero se muestra igual, en gris: no mostrar número se confundiría con «no
+  se ha calculado».
+- **Se cuentan con una sola lectura de asistencias** que cubre el tramo ya
+  vivido de todos los roles juntos. Consultar rol por rol multiplicaría las
+  lecturas de Firestore en cada visita a la pestaña.
+- **Solo se consultan los días ya transcurridos**: un rol que empieza el mes que
+  viene no pide nada. La falta sigue la misma regla que el reporte: hubo turno,
+  el turno ya terminó y no hay revisión de EPP.
+- **Si la lectura falla no se muestra número.** Sin asistencias, todo turno
+  terminado parecería falta, y el contador acusaría a gente que sí vino.

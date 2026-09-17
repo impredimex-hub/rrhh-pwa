@@ -7,6 +7,35 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.14.0] — 2026-09-17
+
+### Cambiado
+
+- **Un rol de turnos ya guardado solo lo puede modificar quien lo creó**
+  (SPEC-022). Cualquiera puede abrirlo y verlo; guardarlo, únicamente su autor.
+  Un administrador también puede, para que el rol no quede congelado si el
+  autor sale de la empresa.
+- Los departamentos asignados siguen decidiendo quién puede **crear** roles.
+  Eso no cambió.
+
+### Agregado
+
+- **El número de faltas de cada rol**, a la izquierda del icono de Excel. En
+  cero se muestra igual, en gris.
+
+### Notas
+
+Tres supervisores comparten impresión. Con esta regla, si el autor del rol
+falta, sus compañeros de área ya no pueden ajustarlo y hay que pedírselo a un
+administrador. Era la razón por la que SPEC-013 había puesto el permiso por
+departamento; se revierte a petición expresa.
+
+Las faltas de todos los roles se cuentan con una sola lectura de asistencias,
+limitada a los días ya transcurridos. Si esa lectura falla no se muestra
+número, porque sin asistencias todo turno terminado parecería falta.
+
+---
+
 ## [2.13.0] — 2026-09-17
 
 ### Agregado
