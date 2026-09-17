@@ -41,6 +41,13 @@ export interface Colaborador {
    */
   capturaPromociones?: boolean;
   /**
+   * Puede ver las gráficas de la aplicación (SPEC-019). Se reservan porque
+   * concentran información de toda la plantilla —rotación, faltas por área,
+   * incidencias por departamento— que no le toca a cualquiera que entre a
+   * consultar su propio turno. Un `ADMIN` las ve siempre, sin traer esta marca.
+   */
+  verGraficas?: boolean;
+  /**
    * Opcional a propósito: al importar desde Excel se omite para que el
    * documento conserve el estatus que ya tenía y una baja no reviva sola.
    */
