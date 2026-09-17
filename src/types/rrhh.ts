@@ -12,6 +12,15 @@ export interface Colaborador {
   puesto: string;
   fechaIngreso: string;
   /**
+   * Fecha de nacimiento, `AAAA-MM-DD`. Solo se usan el día y el mes para la
+   * lista de cumpleaños; el año se guarda porque sirve para la edad, pero se
+   * omite si no es creíble (ver `edadQueCumple`).
+   *
+   * Se escribe de forma condicional en `construirDocumento`: un Excel del
+   * directorio sin esta columna no debe borrar los cumpleaños ya cargados.
+   */
+  fechaNacimiento?: string;
+  /**
    * Departamentos cuyos roles de turnos puede crear y editar esta persona
    * (SPEC-013). Vacío o ausente significa que solo consulta. No lo escribe la
    * importación de Excel ni la edición normal del padrón: solo la pantalla de
