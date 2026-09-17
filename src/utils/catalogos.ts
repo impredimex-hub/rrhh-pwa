@@ -126,3 +126,27 @@ export function puestosDe(
 ): string[] {
   return puestosPorDepartamento(colaboradores).get(normalizarTexto(departamento)) || [];
 }
+
+/**
+ * Todos los puestos del padrón, sin separar por departamento (SPEC-021).
+ *
+ * Un cambio de puesto puede ser a otra área —de acondicionado a logística, por
+ * ejemplo—, así que acotarlo al departamento actual dejaría fuera justo los
+ * movimientos que más se quieren evaluar.
+ */
+export function todosLosPuestos(
+  colaboradores: { puesto?: string }[]
+): string[] {
+  const set = new Set<string>();
+  colaboradores.forEach(c => {
+    const p = (c.puesto || '').trim().toUpperCase();
+    if (p) set.add(p);
+  });
+  return [...set].sort((a, b) => a.localeCompare(b, 'es'));
+}
+
+/**
+ * Categorías dentro de un mismo puesto. Es una escala fija de la empresa, no
+ * algo que se deduzca del padrón: las categorías no se capturan como dato.
+ */
+export const CATEGORIAS = ['A', 'B', 'C', 'D'] as const;
