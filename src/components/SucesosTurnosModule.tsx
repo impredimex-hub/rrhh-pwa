@@ -10,6 +10,7 @@ import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, c
 import { subscribeAsistenciasRango, obtenerAsistenciasRango } from '../services/asistenciaService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
+import { BarrasVerticales, BarrasHorizontales, COLORES } from './Graficas';
 
 const CLAVES_TURNO: ClaveTurno[] = ['T1', 'T2', 'T3', 'D12', 'N12', 'G8', 'LIB'];
 const DIAS_CORTOS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -70,6 +71,15 @@ export const SucesosTurnosModule: React.FC = () => {
     const u3 = subscribeRolesTurnos(setRoles);
     return () => { u1(); u2(); u3(); };
   }, []);
+
+  // ── Gráfica de faltas (SPEC-018) ───────────────────────────────────────
+  // Va bajo demanda y no al abrir la pestaña: calcularla exige leer las
+  // asistencias de EPP del periodo, que son un documento por persona y día.
+  // Hacerlo en cada visita gastaría cuota de Firestore sin que nadie lo pida.
+  const [grafDias, setGrafDias] = useState(14);
+  const [grafCargando, setGrafCargando] = useState(false);
+  const [grafError, setGrafError] = useState('');
+  const [grafFaltas, setGrafFaltas] = useState<null | { fecha: string; depto: string }[]>(null);
 
   const activos = useMemo(
     () => colaboradores.filter(c => c.estatus !== 'BAJA'),
@@ -537,6 +547,79 @@ export const SucesosTurnosModule: React.FC = () => {
       setRepCargando(false);
     }
   };
+
+  /**
+   * Faltas de los últimos `grafDias` días, con la misma regla que el reporte:
+   * hubo turno asignado, el turno ya terminó y no hay revisión de EPP.
+   *
+   * Respeta los mismos permisos: quien no puede ver todas las áreas solo
+   * cuenta las de los departamentos que tiene asignados.
+   */
+  const calcularGrafica = async () => {
+    const hoy = new Date();
+    const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const hasta = iso(hoy);
+    const desde = iso(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - (grafDias - 1)));
+
+    setGrafCargando(true);
+    setGrafError('');
+    setGrafFaltas(null);
+    try {
+      const asis = await obtenerAsistenciasRango(desde, hasta);
+      const ahora = new Date();
+      const vistos = new Set<string>();
+      const filas: { fecha: string; depto: string }[] = [];
+
+      for (const rol of roles) {
+        const deptoRol = (rol.departamento || '').trim().toUpperCase();
+        if (!puedeReporteTodas && !departamentos.includes(deptoRol)) continue;
+
+        const personas = activos.filter(c => (c.departamento || '').trim().toUpperCase() === deptoRol);
+        for (const f of diasDelPeriodo(rol.fechaInicio, rol.periodo)) {
+          if (f < desde || f > hasta) continue;
+          for (const per of personas) {
+            const a = rol.asignaciones[claveCelda(per.noNomina, f)];
+            if (!a) continue;
+            if (!turnoYaTermino(f, a, ahora)) continue;
+            const k = `${per.noNomina}|${f}`;
+            if (asis.has(k) || vistos.has(k)) continue;
+            vistos.add(k);
+            filas.push({ fecha: f, depto: deptoRol });
+          }
+        }
+      }
+      setGrafFaltas(filas);
+    } catch (err) {
+      console.error(err);
+      // Sin asistencias todo turno terminado parecería falta: no se grafica
+      // nada antes que pintar ausencias de gente que sí vino.
+      setGrafError('No se pudieron leer las asistencias. La gráfica no se generó para no mostrar faltas equivocadas.');
+    } finally {
+      setGrafCargando(false);
+    }
+  };
+
+  /** Faltas por día, en orden, para ver si se concentran en alguna fecha. */
+  const faltasPorDia = useMemo(() => {
+    if (!grafFaltas) return [];
+    const hoy = new Date();
+    const dias: { clave: string; etiqueta: string }[] = [];
+    for (let i = grafDias - 1; i >= 0; i--) {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - i);
+      dias.push({
+        clave: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+        etiqueta: String(d.getDate())
+      });
+    }
+    return dias.map(d => ({ etiqueta: d.etiqueta, valor: grafFaltas.filter(f => f.fecha === d.clave).length }));
+  }, [grafFaltas, grafDias]);
+
+  const faltasPorDepto = useMemo(() => {
+    if (!grafFaltas) return [];
+    const cuenta = new Map<string, number>();
+    grafFaltas.forEach(f => cuenta.set(f.depto, (cuenta.get(f.depto) || 0) + 1));
+    return [...cuenta.entries()].map(([etiqueta, valor]) => ({ etiqueta, valor }));
+  }, [grafFaltas]);
 
   const abrirReporte = () => {
     setRepDepto(puedeReporteTodas ? '__TODOS__' : (departamentos[0] || ''));
@@ -1192,6 +1275,66 @@ export const SucesosTurnosModule: React.FC = () => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* GRÁFICA DE FALTAS (SPEC-018) */}
+        <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+            <div style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--brand-navy)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+              Faltas
+            </div>
+            <select
+              value={grafDias}
+              onChange={(e) => { setGrafDias(Number(e.target.value)); setGrafFaltas(null); }}
+              style={{ height: '28px', fontSize: '10px', padding: '2px 6px', width: 'auto' }}
+            >
+              <option value={7}>Últimos 7 días</option>
+              <option value={14}>Últimos 14 días</option>
+              <option value={30}>Últimos 30 días</option>
+            </select>
+            <button
+              onClick={calcularGrafica}
+              disabled={grafCargando}
+              className="btn-industrial-primary"
+              style={{ height: '28px', padding: '4px 10px', fontSize: '10px', width: 'auto' }}
+            >
+              {grafCargando ? 'Calculando…' : 'Calcular'}
+            </button>
+          </div>
+
+          {grafError && (
+            <div style={{ fontSize: '10.5px', color: '#991b1b', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius-md)', padding: '7px 10px', lineHeight: 1.45 }}>
+              {grafError}
+            </div>
+          )}
+
+          {!grafFaltas && !grafError && !grafCargando && (
+            <div style={{ fontSize: '10.5px', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+              Elige el periodo y pulsa <b>Calcular</b>. No se calcula sola al abrir la pestaña porque hay que
+              leer las revisiones de EPP de cada persona y cada día del periodo.
+            </div>
+          )}
+
+          {grafFaltas && (
+            <>
+              <BarrasVerticales
+                titulo={`Faltas por día (${grafFaltas.length} en el periodo)`}
+                datos={faltasPorDia}
+                color={COLORES.ROJO}
+                nota="Una falta es un turno asignado que ya terminó sin que exista revisión de EPP de esa persona ese día."
+                mensajeVacio="Sin faltas en el periodo."
+              />
+              <div style={{ marginTop: '12px' }}>
+                <BarrasHorizontales
+                  titulo="Faltas por departamento"
+                  datos={faltasPorDepto}
+                  color={COLORES.ROJO}
+                  nota={puedeReporteTodas ? undefined : 'Solo se cuentan los departamentos que tienes asignados.'}
+                  mensajeVacio="Sin faltas en el periodo."
+                />
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

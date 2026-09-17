@@ -6,6 +6,7 @@ import { subscribeVacantes, saveVacante, deleteVacante } from '../services/vacan
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { partesFecha, diaYMes, edadQueCumple } from '../utils/fechas';
 import { CUMPLEANOS_INICIALES } from '../data/cumpleanos';
+import { BarrasVerticales, BarrasHorizontales, COLORES } from './Graficas';
 import { exportToExcel } from '../utils/exportUtils';
 
 export const AntiguedadVacantesModule: React.FC = () => {
@@ -163,6 +164,86 @@ export const AntiguedadVacantesModule: React.FC = () => {
   );
   const sinFechaNacimiento = faltantesNacimiento.length;
 
+  // ── Datos de las gráficas ──────────────────────────────────────────────
+  const activos = colaboradores.filter(c => c.estatus !== 'BAJA');
+
+  /**
+   * Antigüedad: cuánta gente hay en cada tramo de años cumplidos.
+   *
+   * Se cuenta sobre el padrón activo completo, no sobre la tabla de arriba:
+   * esa solo trae a quienes cumplen aniversario este mes, y una gráfica de
+   * doce personas no dice nada de la plantilla.
+   */
+  const tramosAntiguedad = (() => {
+    const tramos: { etiqueta: string; min: number; max: number }[] = [
+      { etiqueta: '< 1', min: 0, max: 0 },
+      { etiqueta: '1-2', min: 1, max: 2 },
+      { etiqueta: '3-5', min: 3, max: 5 },
+      { etiqueta: '6-10', min: 6, max: 10 },
+      { etiqueta: '11-15', min: 11, max: 15 },
+      { etiqueta: '16+', min: 16, max: 200 }
+    ];
+    return tramos.map(t => ({
+      etiqueta: t.etiqueta,
+      valor: activos.filter(c => {
+        if (!partesFecha(c.fechaIngreso)) return false;
+        const a = calcularAntiguedad(c.fechaIngreso).anios;
+        return a >= t.min && a <= t.max;
+      }).length
+    }));
+  })();
+
+  const sinFechaIngreso = activos.filter(c => !partesFecha(c.fechaIngreso)).length;
+
+  /**
+   * Rotación: altas contra bajas, mes a mes, en los últimos doce meses.
+   *
+   * Las altas salen de `fechaIngreso`, que es la fecha real de contratación y
+   * existe desde siempre. Las bajas salen de `fechaBaja`, que se empezó a
+   * registrar con esta versión, así que los meses anteriores aparecerán en
+   * cero aunque sí haya habido bajas. No se usa `actualizadoEn` como sustituto
+   * porque cambia con cualquier edición y pintaría bajas donde no las hubo.
+   */
+  const rotacionMeses = (() => {
+    const hoy = new Date();
+    const meses: { clave: string; etiqueta: string }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      meses.push({
+        clave: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+        etiqueta: d.toLocaleDateString('es-MX', { month: 'short' }).replace('.', '')
+      });
+    }
+    const mesDe = (iso?: string) => {
+      const p = partesFecha(iso);
+      return p ? `${p.anio}-${String(p.mes).padStart(2, '0')}` : null;
+    };
+    return meses.map(m => ({
+      etiqueta: m.etiqueta,
+      valor: colaboradores.filter(c => mesDe(c.fechaIngreso) === m.clave).length,
+      valor2: colaboradores.filter(c => c.estatus === 'BAJA' && mesDe(c.fechaBaja) === m.clave).length
+    }));
+  })();
+
+  const bajasRegistradas = colaboradores.filter(c => c.estatus === 'BAJA' && partesFecha(c.fechaBaja)).length;
+  const bajasSinFecha = colaboradores.filter(c => c.estatus === 'BAJA' && !partesFecha(c.fechaBaja)).length;
+
+  /** Vacantes: plazas pedidas contra plazas ya cubiertas, por departamento. */
+  const vacantesPorDepto = (() => {
+    const mapa = new Map<string, { req: number; cub: number }>();
+    vacantes.forEach(v => {
+      const d = (v.departamento || 'SIN DEPARTAMENTO').trim().toUpperCase();
+      const prev = mapa.get(d) || { req: 0, cub: 0 };
+      mapa.set(d, {
+        req: prev.req + (Number(v.cantidadRequerida) || 0),
+        cub: prev.cub + (Number(v.cantidadCubierta) || 0)
+      });
+    });
+    return [...mapa.entries()].map(([etiqueta, v]) => ({ etiqueta, valor: v.req, valor2: v.cub }));
+  })();
+
+  const plazasPendientes = vacantesPorDepto.reduce((t, d) => t + Math.max(0, d.valor - (d.valor2 ?? 0)), 0);
+
   const totalPaginas = Math.ceil(listaFiltrada.length / elementosPorPagina) || 1;
   const indexInicio = (paginaActual - 1) * elementosPorPagina;
   const colaboradoresPaginados = listaFiltrada.slice(indexInicio, indexInicio + elementosPorPagina);
@@ -261,6 +342,17 @@ export const AntiguedadVacantesModule: React.FC = () => {
             </div>
           </div>
         )}
+      </div>
+
+      {/* GRÁFICA DE ANTIGÜEDAD (SPEC-018) */}
+      <div className="card-industrial">
+        <BarrasVerticales
+          titulo="Antigüedad de la plantilla"
+          datos={tramosAntiguedad}
+          nota={`Años cumplidos de los ${activos.length} colaboradores activos.` +
+            (sinFechaIngreso ? ` ${sinFechaIngreso} no aparecen porque no tienen fecha de ingreso capturada.` : '')}
+          mensajeVacio="Sin fechas de ingreso capturadas."
+        />
       </div>
 
       {/* SECCIÓN 2: CUMPLEAÑOS DEL MES (SPEC-017) */}
@@ -369,6 +461,23 @@ export const AntiguedadVacantesModule: React.FC = () => {
         </div>
       </div>
 
+      {/* GRÁFICA DE ROTACIÓN (SPEC-018) */}
+      <div className="card-industrial" style={{ marginTop: '1rem' }}>
+        <BarrasVerticales
+          titulo="Rotación de los últimos 12 meses"
+          datos={rotacionMeses}
+          leyenda={[{ texto: 'Altas', color: COLORES.AZUL }, { texto: 'Bajas', color: COLORES.ROJO }]}
+          color2={COLORES.ROJO}
+          nota={
+            bajasRegistradas === 0
+              ? 'Las altas salen de la fecha de ingreso. Las bajas se empezaron a fechar con esta versión, así que la barra roja seguirá vacía hasta que se dé de baja a alguien desde el Directorio.'
+              : `Altas por fecha de ingreso y bajas por la fecha en que se marcaron.` +
+                (bajasSinFecha ? ` ${bajasSinFecha} baja(s) anterior(es) a esta versión no traen fecha y quedan fuera.` : '')
+          }
+          mensajeVacio="Sin movimientos en los últimos doce meses."
+        />
+      </div>
+
       {/* SECCIÓN 3: CONTROL DE VACANTES */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '16px', marginTop: '1rem' }}>
         
@@ -414,6 +523,20 @@ export const AntiguedadVacantesModule: React.FC = () => {
               <Plus size={16} /> Registrar Vacante
             </button>
           </form>
+
+          {/* GRÁFICA DE VACANTES (SPEC-018) */}
+          <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
+            <BarrasHorizontales
+              titulo="Plazas por departamento"
+              datos={vacantesPorDepto}
+              leyenda={[{ texto: 'Requeridas', color: COLORES.AZUL }, { texto: 'Cubiertas', color: COLORES.VERDE }]}
+              color2={COLORES.VERDE}
+              nota={plazasPendientes > 0
+                ? `Faltan ${plazasPendientes} plaza(s) por cubrir.`
+                : 'Todas las plazas registradas están cubiertas.'}
+              mensajeVacio="Todavía no hay vacantes registradas."
+            />
+          </div>
         </div>
         )}
 

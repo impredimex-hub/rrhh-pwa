@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, FileSpreadsheet, FileText, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import type { Colaborador, Incidencia, TipoIncidencia } from '../types/rrhh';
 import { ETIQUETA_INCIDENCIA } from '../types/rrhh';
+import { BarrasHorizontales, COLORES } from './Graficas';
 import { subscribeColaboradores } from '../services/personalService';
 import { subscribeIncidencias, saveIncidencia, deleteIncidencia } from '../services/incidenciaService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
@@ -144,6 +145,31 @@ export const IncidenciasModule: React.FC = () => {
       setGuardando(false);
     }
   };
+
+  // ── Datos de las gráficas (SPEC-018) ───────────────────────────────────
+  // Se cuenta por tipo y por departamento en lugar de por mes: las
+  // incidencias no guardan fecha propia, solo el momento de captura, y las
+  // registradas antes de esa versión ni siquiera lo traen. Una gráfica por
+  // mes dejaría fuera registros sin avisar.
+  const incidenciasPorTipo = (Object.keys(ETIQUETA_INCIDENCIA) as TipoIncidencia[])
+    .map(t => ({
+      etiqueta: ETIQUETA_INCIDENCIA[t],
+      valor: incidencias.filter(i => i.tipo === t).length
+    }))
+    .filter(d => d.valor > 0);
+
+  const incidenciasPorDepto = (() => {
+    const depto = new Map<string, string>();
+    colaboradores.forEach(c => depto.set(String(c.noNomina).trim(), (c.departamento || '').trim().toUpperCase()));
+    const cuenta = new Map<string, number>();
+    incidencias.forEach(i => {
+      const d = depto.get(String(i.noNomina).trim()) || 'SIN DEPARTAMENTO';
+      cuenta.set(d, (cuenta.get(d) || 0) + 1);
+    });
+    return [...cuenta.entries()].map(([etiqueta, valor]) => ({ etiqueta, valor }));
+  })();
+
+  const diasSuspensionTotal = incidencias.reduce((t, i) => t + (i.suspension ? (i.diasSuspension || 0) : 0), 0);
 
   const handleExportExcel = () => {
     const data = incidencias.map((i) => ({
@@ -412,6 +438,28 @@ export const IncidenciasModule: React.FC = () => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* GRÁFICA DE INCIDENCIAS (SPEC-018) */}
+        <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
+          <BarrasHorizontales
+            titulo="Incidencias por tipo"
+            datos={incidenciasPorTipo}
+            nota={`${incidencias.length} incidencia(s) registrada(s).` +
+              (diasSuspensionTotal > 0 ? ` ${diasSuspensionTotal} día(s) de suspensión en total.` : '')}
+            mensajeVacio="Todavía no hay incidencias registradas."
+          />
+        </div>
+
+        {/* Por departamento: dice dónde se concentran, que es lo que permite
+            actuar. Va aparte del tipo porque responden preguntas distintas. */}
+        <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
+          <BarrasHorizontales
+            titulo="Incidencias por departamento"
+            datos={incidenciasPorDepto}
+            color={COLORES.AZUL_CLARO}
+            mensajeVacio="Todavía no hay incidencias registradas."
+          />
         </div>
       </div>
     </div>
