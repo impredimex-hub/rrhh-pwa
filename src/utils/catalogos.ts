@@ -88,3 +88,41 @@ export function calcularAntiguedad(fechaIngreso: string): { anios: number; meses
 
   return { anios: Math.floor(meses / 12), meses: meses % 12 };
 }
+
+/**
+ * Puestos que existen en cada departamento, deducidos del propio padrón
+ * (SPEC-020).
+ *
+ * No hay un catálogo fijo de puestos escrito a mano, y tampoco conviene: la
+ * lista real es la que ya está capturada en el directorio, se mantiene sola
+ * conforme cambia la plantilla, y así nadie tiene que recompilar para dar de
+ * alta un puesto nuevo.
+ *
+ * Se agrupa por departamento normalizado para que un acento o una mayúscula de
+ * más no parta el mismo departamento en dos listas distintas.
+ */
+export function puestosPorDepartamento(
+  colaboradores: { departamento?: string; puesto?: string; estatus?: string }[]
+): Map<string, string[]> {
+  const mapa = new Map<string, Set<string>>();
+  colaboradores.forEach(c => {
+    // Las bajas siguen contando: quien salió deja su puesto vacante, y es
+    // justo el que se va a querer volver a capturar.
+    const depto = normalizarTexto(c.departamento || '');
+    const puesto = (c.puesto || '').trim().toUpperCase();
+    if (!depto || !puesto) return;
+    if (!mapa.has(depto)) mapa.set(depto, new Set());
+    mapa.get(depto)!.add(puesto);
+  });
+  const salida = new Map<string, string[]>();
+  mapa.forEach((set, depto) => salida.set(depto, [...set].sort((a, b) => a.localeCompare(b, 'es'))));
+  return salida;
+}
+
+/** Puestos de un departamento, listos para pintar en un desplegable. */
+export function puestosDe(
+  colaboradores: { departamento?: string; puesto?: string; estatus?: string }[],
+  departamento: string
+): string[] {
+  return puestosPorDepartamento(colaboradores).get(normalizarTexto(departamento)) || [];
+}
