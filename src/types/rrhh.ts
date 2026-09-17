@@ -111,6 +111,14 @@ export const ETIQUETA_INCIDENCIA: Record<TipoIncidencia, string> = {
  *  calendario y su longitud siempre coincide con `diasSuspension`. */
 export interface Incidencia {
   id?: string;
+  /**
+   * Día en que se levanta la incidencia, `AAAA-MM-DD` (SPEC-020).
+   *
+   * Es dato capturado, no el momento del guardado: una incidencia puede
+   * registrarse días después de ocurrida. Las incidencias anteriores a este
+   * campo no lo traen y se muestran con un guion.
+   */
+  fecha?: string;
   colaboradorId: string;
   noNomina: string;
   nombreCompleto: string;
