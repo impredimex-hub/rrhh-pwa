@@ -4,11 +4,12 @@ import type {
   Colaborador, Suceso, TipoSuceso, RolTurnos, PeriodoRol, ClaveTurno, AsignacionTurno
 } from '../types/rrhh';
 import { ETIQUETA_SUCESO, HORARIO_TURNO } from '../types/rrhh';
-import { subscribeColaboradores, asignarDepartamentosTurnos, asignarReporteFaltasTodas, asignarCapturaPromociones } from '../services/personalService';
+import { subscribeColaboradores, asignarDepartamentosTurnos, asignarReporteFaltasTodas, asignarCapturaPromociones, asignarVerGraficas } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
 import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino } from '../services/turnoService';
 import { subscribeAsistenciasRango, obtenerAsistenciasRango } from '../services/asistenciaService';
 import { usePermisos, useSesion } from '../services/SesionContext';
+import { puedeVerGraficas } from '../services/permisosPadron';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { BarrasVerticales, BarrasHorizontales, COLORES } from './Graficas';
 
@@ -254,6 +255,19 @@ export const SucesosTurnosModule: React.FC = () => {
     }
   };
 
+  const alternarVerGraficas = async (c: Colaborador) => {
+    if (!esAdmin || guardandoPermiso) return;
+    setGuardandoPermiso(c.noNomina);
+    try {
+      await asignarVerGraficas(c.noNomina, !c.verGraficas, sesion?.nomina || '');
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo guardar el permiso. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      setGuardandoPermiso('');
+    }
+  };
+
   /** Quien ya tiene algún permiso, primero; luego el resto. */
   const personasPermisos = useMemo(() => {
     const t = buscaPermisos.trim().toUpperCase();
@@ -264,8 +278,8 @@ export const SucesosTurnosModule: React.FC = () => {
           (c.departamento || '').toUpperCase().includes(t))
       : activos;
     return [...base].sort((a, b) => {
-      const na = ((a.departamentosTurnos || []).length || a.reporteFaltasTodas || a.capturaPromociones) ? 0 : 1;
-      const nb = ((b.departamentosTurnos || []).length || b.reporteFaltasTodas || b.capturaPromociones) ? 0 : 1;
+      const na = ((a.departamentosTurnos || []).length || a.reporteFaltasTodas || a.capturaPromociones || a.verGraficas) ? 0 : 1;
+      const nb = ((b.departamentosTurnos || []).length || b.reporteFaltasTodas || b.capturaPromociones || b.verGraficas) ? 0 : 1;
       if (na !== nb) return na - nb;
       return (a.nombreCompleto || '').localeCompare(b.nombreCompleto || '');
     });
@@ -481,6 +495,11 @@ export const SucesosTurnosModule: React.FC = () => {
   const [repError, setRepError] = useState('');
 
   /** Quien puede pedir el reporte de todas las áreas de una sola vez. */
+  const verGraficas = useMemo(
+    () => puedeVerGraficas(papel, sesion?.nomina, colaboradores),
+    [papel, sesion, colaboradores]
+  );
+
   const puedeReporteTodas = useMemo(() => {
     if (esAdmin) return true;
     if (!sesion) return false;
@@ -670,7 +689,7 @@ export const SucesosTurnosModule: React.FC = () => {
               const suyos = (c.departamentosTurnos || []).map(d => d.trim().toUpperCase());
               const ocupado = guardandoPermiso === c.noNomina;
               return (
-                <div key={c.noNomina} style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '9px 11px', background: (suyos.length || c.reporteFaltasTodas || c.capturaPromociones) ? 'var(--brand-navy-light)' : '#fff', opacity: ocupado ? 0.55 : 1 }}>
+                <div key={c.noNomina} style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '9px 11px', background: (suyos.length || c.reporteFaltasTodas || c.capturaPromociones || c.verGraficas) ? 'var(--brand-navy-light)' : '#fff', opacity: ocupado ? 0.55 : 1 }}>
                   <div style={{ fontWeight: 700, fontSize: '11.5px', color: 'var(--brand-navy-dark)' }}>
                     {c.nombreCompleto}
                   </div>
@@ -720,6 +739,17 @@ export const SucesosTurnosModule: React.FC = () => {
                       style={{ width: '14px', height: '14px', accentColor: 'var(--brand-navy)', cursor: ocupado ? 'wait' : 'pointer' }}
                     />
                     Puede capturar promociones internas
+                  </label>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', fontSize: '10px', color: 'var(--text-secondary)', cursor: ocupado ? 'wait' : 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!c.verGraficas}
+                      disabled={ocupado}
+                      onChange={() => alternarVerGraficas(c)}
+                      style={{ width: '14px', height: '14px', accentColor: 'var(--brand-navy)', cursor: ocupado ? 'wait' : 'pointer' }}
+                    />
+                    Puede ver las gráficas
                   </label>
                 </div>
               );
@@ -1277,7 +1307,8 @@ export const SucesosTurnosModule: React.FC = () => {
           </table>
         </div>
 
-        {/* GRÁFICA DE FALTAS (SPEC-018) */}
+        {/* GRÁFICA DE FALTAS (SPEC-018), solo para quien tiene el permiso */}
+        {verGraficas && (
         <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
             <div style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--brand-navy)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
@@ -1336,6 +1367,7 @@ export const SucesosTurnosModule: React.FC = () => {
             </>
           )}
         </div>
+        )}
       </div>
     </div>
   );

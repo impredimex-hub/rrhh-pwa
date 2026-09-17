@@ -7,13 +7,14 @@ import { usePermisos, useSesion } from '../services/SesionContext';
 import { partesFecha, diaYMes, edadQueCumple } from '../utils/fechas';
 import { CUMPLEANOS_INICIALES } from '../data/cumpleanos';
 import { BarrasVerticales, BarrasHorizontales, COLORES } from './Graficas';
+import { puedeVerGraficas } from '../services/permisosPadron';
 import { exportToExcel } from '../utils/exportUtils';
 
 export const AntiguedadVacantesModule: React.FC = () => {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [vacantes, setVacantes] = useState<Vacante[]>([]);
   const [filtro, setFiltro] = useState('');
-  const { puedeCapturar } = usePermisos();
+  const { puedeCapturar, papel } = usePermisos();
   const sesion = useSesion();
   const [filtroCumple, setFiltroCumple] = useState('');
   const [verFaltantes, setVerFaltantes] = useState(false);
@@ -163,6 +164,10 @@ export const AntiguedadVacantesModule: React.FC = () => {
     colaboradores.filter(c => c.estatus !== 'BAJA' && !partesFecha(c.fechaNacimiento))
   );
   const sinFechaNacimiento = faltantesNacimiento.length;
+
+  // Las gráficas concentran información de toda la plantilla, así que se
+  // reservan a quien tenga el permiso en el padrón (SPEC-019).
+  const verGraficas = puedeVerGraficas(papel, sesion?.nomina, colaboradores);
 
   // ── Datos de las gráficas ──────────────────────────────────────────────
   const activos = colaboradores.filter(c => c.estatus !== 'BAJA');
@@ -344,7 +349,8 @@ export const AntiguedadVacantesModule: React.FC = () => {
         )}
       </div>
 
-      {/* GRÁFICA DE ANTIGÜEDAD (SPEC-018) */}
+      {/* GRÁFICA DE ANTIGÜEDAD (SPEC-018), solo con permiso */}
+      {verGraficas && (
       <div className="card-industrial">
         <BarrasVerticales
           titulo="Antigüedad de la plantilla"
@@ -354,6 +360,7 @@ export const AntiguedadVacantesModule: React.FC = () => {
           mensajeVacio="Sin fechas de ingreso capturadas."
         />
       </div>
+      )}
 
       {/* SECCIÓN 2: CUMPLEAÑOS DEL MES (SPEC-017) */}
       <div className="card-industrial">
@@ -461,7 +468,8 @@ export const AntiguedadVacantesModule: React.FC = () => {
         </div>
       </div>
 
-      {/* GRÁFICA DE ROTACIÓN (SPEC-018) */}
+      {/* GRÁFICA DE ROTACIÓN (SPEC-018), solo con permiso */}
+      {verGraficas && (
       <div className="card-industrial" style={{ marginTop: '1rem' }}>
         <BarrasVerticales
           titulo="Rotación de los últimos 12 meses"
@@ -477,6 +485,7 @@ export const AntiguedadVacantesModule: React.FC = () => {
           mensajeVacio="Sin movimientos en los últimos doce meses."
         />
       </div>
+      )}
 
       {/* SECCIÓN 3: CONTROL DE VACANTES */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '16px', marginTop: '1rem' }}>
@@ -524,7 +533,8 @@ export const AntiguedadVacantesModule: React.FC = () => {
             </button>
           </form>
 
-          {/* GRÁFICA DE VACANTES (SPEC-018) */}
+          {/* GRÁFICA DE VACANTES (SPEC-018), solo con permiso */}
+          {verGraficas && (
           <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
             <BarrasHorizontales
               titulo="Plazas por departamento"
@@ -537,6 +547,7 @@ export const AntiguedadVacantesModule: React.FC = () => {
               mensajeVacio="Todavía no hay vacantes registradas."
             />
           </div>
+          )}
         </div>
         )}
 

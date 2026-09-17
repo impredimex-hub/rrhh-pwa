@@ -3,10 +3,11 @@ import { Plus, Trash2, FileSpreadsheet, FileText, ChevronLeft, ChevronRight, Eye
 import type { Colaborador, Incidencia, TipoIncidencia } from '../types/rrhh';
 import { ETIQUETA_INCIDENCIA } from '../types/rrhh';
 import { BarrasHorizontales, COLORES } from './Graficas';
+import { puedeVerGraficas } from '../services/permisosPadron';
 import { subscribeColaboradores } from '../services/personalService';
 import { subscribeIncidencias, saveIncidencia, deleteIncidencia } from '../services/incidenciaService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
-import { usePermisos } from '../services/SesionContext';
+import { usePermisos, useSesion } from '../services/SesionContext';
 
 const DIAS_SEMANA = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 
@@ -58,7 +59,8 @@ export const IncidenciasModule: React.FC = () => {
   const [form, setForm] = useState<FormIncidencia>(FORM_VACIO);
   const [mesVista, setMesVista] = useState(new Date());
   const [guardando, setGuardando] = useState(false);
-  const { puedeCapturar } = usePermisos();
+  const { puedeCapturar, papel } = usePermisos();
+  const sesion = useSesion();
 
   useEffect(() => {
     const unsubColab = subscribeColaboradores((data) => setColaboradores(data));
@@ -145,6 +147,8 @@ export const IncidenciasModule: React.FC = () => {
       setGuardando(false);
     }
   };
+
+  const verGraficas = puedeVerGraficas(papel, sesion?.nomina, colaboradores);
 
   // ── Datos de las gráficas (SPEC-018) ───────────────────────────────────
   // Se cuenta por tipo y por departamento en lugar de por mes: las
@@ -440,7 +444,9 @@ export const IncidenciasModule: React.FC = () => {
           </table>
         </div>
 
-        {/* GRÁFICA DE INCIDENCIAS (SPEC-018) */}
+        {/* GRÁFICAS DE INCIDENCIAS (SPEC-018), solo con permiso */}
+        {verGraficas && (
+        <>
         <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
           <BarrasHorizontales
             titulo="Incidencias por tipo"
@@ -461,6 +467,8 @@ export const IncidenciasModule: React.FC = () => {
             mensajeVacio="Todavía no hay incidencias registradas."
           />
         </div>
+        </>
+        )}
       </div>
     </div>
   );
