@@ -77,6 +77,17 @@ export const SucesosTurnosModule: React.FC = () => {
   // Va bajo demanda y no al abrir la pestaña: calcularla exige leer las
   // asistencias de EPP del periodo, que son un documento por persona y día.
   // Hacerlo en cada visita gastaría cuota de Firestore sin que nadie lo pida.
+  /**
+   * Faltas acumuladas de cada rol, para mostrarlas en la lista (SPEC-022).
+   *
+   * Se resuelve con **una sola** lectura de asistencias que cubre el tramo ya
+   * vivido de todos los roles juntos, no una por rol: con varios roles abiertos,
+   * consultar uno por uno multiplicaría las lecturas de Firestore cada vez que
+   * alguien abre la pestaña.
+   */
+  const [faltasPorRol, setFaltasPorRol] = useState<Record<string, number>>({});
+  const [contandoFaltas, setContandoFaltas] = useState(false);
+
   const [grafDias, setGrafDias] = useState(14);
   const [grafCargando, setGrafCargando] = useState(false);
   const [grafError, setGrafError] = useState('');
@@ -116,8 +127,27 @@ export const SucesosTurnosModule: React.FC = () => {
    * que hace falta cuando tres supervisores cubren la misma línea o alguien
    * falta y hay que ajustar su rol.
    */
-  const puedeTocarRol = (rol: RolTurnos) =>
-    esAdmin || misDepartamentos.includes((rol.departamento || '').trim().toUpperCase());
+  /**
+   * Quién puede modificar un rol ya guardado: solo quien lo creó.
+   *
+   * Sustituye a la regla por departamento. Verlo lo puede cualquiera; guardar,
+   * únicamente su autor. Los departamentos asignados siguen mandando sobre
+   * quién puede **crear** roles, que es otra cosa.
+   *
+   * Un administrador también puede, y no por privilegio: si el autor sale de
+   * la empresa, su rol quedaría congelado para siempre y no habría forma de
+   * corregir un turno mal puesto.
+   */
+  const puedeTocarRol = (rol: RolTurnos) => {
+    if (esAdmin) return true;
+    const autor = String(rol.creadoPorNomina || '').trim();
+    const yo = String(sesion?.nomina || '').trim();
+    // Ambas nóminas deben existir: comparar dos vacíos da verdadero, y un rol
+    // viejo sin autor registrado habría quedado abierto a cualquier sesión que
+    // tampoco traiga nómina.
+    if (!autor || !yo) return false;
+    return autor === yo;
+  };
 
   /* ══════════════════ SUCESOS ══════════════════ */
 
@@ -495,6 +525,59 @@ export const SucesosTurnosModule: React.FC = () => {
   const [repError, setRepError] = useState('');
 
   /** Quien puede pedir el reporte de todas las áreas de una sola vez. */
+  useEffect(() => {
+    if (!roles.length || !activos.length) { setFaltasPorRol({}); return; }
+
+    const hoy = new Date();
+    const hoyISOv = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+
+    // Solo los días ya transcurridos pueden tener faltas, así que la consulta
+    // se recorta ahí. Un rol que empieza el mes que viene no pide nada.
+    let desde = '', hasta = '';
+    roles.forEach(r => {
+      diasDelPeriodo(r.fechaInicio, r.periodo).forEach(f => {
+        if (f > hoyISOv) return;
+        if (!desde || f < desde) desde = f;
+        if (!hasta || f > hasta) hasta = f;
+      });
+    });
+    if (!desde) { setFaltasPorRol({}); return; }
+
+    let vigente = true;
+    setContandoFaltas(true);
+    obtenerAsistenciasRango(desde, hasta)
+      .then(asis => {
+        if (!vigente) return;
+        const ahora = new Date();
+        const cuenta: Record<string, number> = {};
+        roles.forEach(r => {
+          const deptoRol = (r.departamento || '').trim().toUpperCase();
+          const personas = activos.filter(c => (c.departamento || '').trim().toUpperCase() === deptoRol);
+          let n = 0;
+          diasDelPeriodo(r.fechaInicio, r.periodo).forEach(f => {
+            personas.forEach(per => {
+              const a = r.asignaciones[claveCelda(per.noNomina, f)];
+              // Misma regla que el reporte: hubo turno, el turno ya terminó y
+              // no hay revisión de EPP de esa persona ese día.
+              if (!a || !turnoYaTermino(f, a, ahora)) return;
+              if (!asis.has(`${per.noNomina}|${f}`)) n++;
+            });
+          });
+          if (r.id) cuenta[r.id] = n;
+        });
+        setFaltasPorRol(cuenta);
+      })
+      .catch(err => {
+        // Sin asistencias, todo turno terminado parecería falta. Se prefiere no
+        // mostrar número antes que acusar a gente que sí vino.
+        console.error('No se pudieron contar las faltas de los roles:', err);
+        if (vigente) setFaltasPorRol({});
+      })
+      .finally(() => { if (vigente) setContandoFaltas(false); });
+
+    return () => { vigente = false; };
+  }, [roles, activos]);
+
   const verGraficas = useMemo(
     () => puedeVerGraficas(papel, sesion?.nomina, colaboradores),
     [papel, sesion, colaboradores]
@@ -785,7 +868,7 @@ export const SucesosTurnosModule: React.FC = () => {
 
           {soloLectura && (
             <div style={{ background: '#E8EEF8', border: '1px solid rgba(0,53,128,.15)', borderRadius: '10px', padding: '10px 14px', marginBottom: '10px', fontSize: '11.5px', color: '#003580' }}>
-              Estás viendo un rol de {editandoRol.departamento || 'otro departamento'}, creado por {editandoRol.creadoPorNombre || 'otra persona'}. Solo quien tiene asignado ese departamento, o un administrador, puede modificarlo.
+              Estás viendo un rol creado por {editandoRol.creadoPorNombre || 'otra persona'}. Solo quien lo creó, o un administrador, puede modificarlo.
             </div>
           )}
 
@@ -1096,7 +1179,23 @@ export const SucesosTurnosModule: React.FC = () => {
                           Creado por {r.creadoPorNombre || '—'}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '3px', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', gap: '3px', flexShrink: 0, alignItems: 'center' }}>
+                        {/* Faltas del rol, a la izquierda del icono de Excel.
+                            En cero se muestra igual, en gris: la ausencia de
+                            número se confundiría con «todavía no se ha
+                            calculado». */}
+                        <span
+                          title={contandoFaltas ? 'Contando faltas…' : `${faltasPorRol[r.id || ''] ?? 0} falta(s) en este rol`}
+                          style={{
+                            minWidth: '20px', height: '20px', borderRadius: '10px', padding: '0 5px',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '10px', fontWeight: 800, marginRight: '3px',
+                            background: (faltasPorRol[r.id || ''] ?? 0) > 0 ? 'var(--red-light)' : 'var(--bg-light)',
+                            color: (faltasPorRol[r.id || ''] ?? 0) > 0 ? 'var(--brand-red)' : 'var(--text-light)'
+                          }}
+                        >
+                          {contandoFaltas && faltasPorRol[r.id || ''] === undefined ? '·' : (faltasPorRol[r.id || ''] ?? 0)}
+                        </span>
                         <button onClick={() => exportarRolExcel(r)} title="Exportar a Excel"
                           style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--green-dark)', padding: '2px' }}>
                           <FileSpreadsheet size={14} />
