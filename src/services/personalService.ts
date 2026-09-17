@@ -1,4 +1,4 @@
-import { collection, doc, writeBatch, deleteDoc, updateDoc, getDoc, setDoc, query, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, writeBatch, deleteDoc, updateDoc, getDoc, setDoc, query, onSnapshot, serverTimestamp, deleteField } from 'firebase/firestore';
 // El padrón vive en el proyecto compartido de la suite, no en el propio de
 // RRHH. Es la única lista de personal válida de las cinco aplicaciones, y esta
 // es la única app que la escribe.
@@ -101,8 +101,16 @@ export const saveColaborador = async (colaborador: Colaborador, autor: string, e
  * el historial y los permisos, y se puede revertir.
  */
 export const cambiarEstatus = async (noNomina: string, estatus: 'ACTIVO' | 'BAJA', autor: string) => {
+  // Se anota el día de la baja porque `actualizadoEn` no sirve para medir
+  // rotación: cambia con cualquier edición, así que una baja vieja parecería
+  // reciente en cuanto alguien corrija el puesto de esa persona. Al reingresar,
+  // el campo se borra para no arrastrar una baja que ya no existe.
+  const hoy = new Date();
+  const iso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+
   await updateDoc(doc(db, COLLECTION_NAME, String(noNomina).trim()), {
     estatus,
+    fechaBaja: estatus === 'BAJA' ? iso : deleteField(),
     actualizadoEn: serverTimestamp(),
     actualizadoPor: autor
   });
