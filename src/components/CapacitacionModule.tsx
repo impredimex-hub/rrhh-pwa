@@ -6,6 +6,9 @@ import { subscribeColaboradores } from '../services/personalService';
 import { subscribeCursos, saveCurso, deleteCurso } from '../services/capacitacionService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { subscribePromociones, savePromocion, deletePromocion, fechasEvaluaciones, promedioCalificaciones } from '../services/promocionService';
+import { todosLosPuestos, CATEGORIAS } from '../utils/catalogos';
+import { AutocompletarColaborador } from './AutocompletarColaborador';
+import { fechaLocal } from '../utils/fechas';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 export const CapacitacionModule: React.FC = () => {
@@ -33,6 +36,8 @@ export const CapacitacionModule: React.FC = () => {
 
   /* ── Promociones internas ── */
   const [promociones, setPromociones] = useState<PromocionInterna[]>([]);
+  const [porRechazar, setPorRechazar] = useState<PromocionInterna | null>(null);
+  const [resolviendoRechazo, setResolviendoRechazo] = useState(false);
   const [formProm, setFormProm] = useState({
     noNomina: '', tipo: 'PLANTA' as TipoPromocion, destino: '',
     fechaInicio: new Date().toISOString().split('T')[0], observaciones: ''
@@ -244,13 +249,90 @@ export const CapacitacionModule: React.FC = () => {
     }
   };
 
+  /**
+   * Semáforo de una fecha de evaluación (SPEC-021).
+   *
+   * Solo alarma mientras la evaluación sigue en proceso y ese mes no tiene
+   * calificación: en una ya aprobada o rechazada, pintar fechas en rojo sería
+   * ruido sobre algo que ya se cerró.
+   */
+  const colorFecha = (pr: PromocionInterna, iso: string, mes: number): string | undefined => {
+    if (pr.estatus !== 'EN_PROCESO') return undefined;
+    if (pr.calificaciones && pr.calificaciones[String(mes)] !== undefined) return undefined;
+    const f = fechaLocal(iso);
+    if (!f) return undefined;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    // Días completos que faltan. En negativo, la fecha ya pasó sin calificar.
+    const dias = Math.round((f.getTime() - hoy.getTime()) / 86400000);
+    if (dias < 0) return 'var(--brand-red)';
+    if (dias <= 3) return '#B45309';
+    return undefined;
+  };
+
   const cambiarEstatusProm = async (p: PromocionInterna, estatus: EstatusPromocion) => {
     if (!puedeCapturarPromociones) return;
+    // Un rechazo no es un cambio de estatus más: hay que decidir si cierra el
+    // caso o si se le abre otro periodo. Se pregunta antes de escribir nada.
+    if (estatus === 'RECHAZADA') { setPorRechazar(p); return; }
     try {
       await savePromocion({ ...p, estatus });
     } catch (err) {
       console.error(err);
       alert('No se pudo guardar el estatus. Revisa tu conexión e inténtalo de nuevo.');
+    }
+  };
+
+  /** Rechazo definitivo: se cierra y las calificaciones quedan como están. */
+  const rechazarDefinitivo = async () => {
+    if (!porRechazar) return;
+    setResolviendoRechazo(true);
+    try {
+      await savePromocion({ ...porRechazar, estatus: 'RECHAZADA' });
+      setPorRechazar(null);
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      setResolviendoRechazo(false);
+    }
+  };
+
+  /**
+   * Segunda oportunidad: se archiva la ronda que terminó y se abre otro periodo
+   * de tres meses a partir de hoy.
+   *
+   * Arranca hoy y no al día siguiente del último corte porque ese corte suele
+   * estar en el pasado: encadenarlo dejaría el mes 1 vencido desde el primer
+   * momento, en rojo, sin que nadie hubiera tenido oportunidad de calificarlo.
+   */
+  const darOtroPeriodo = async () => {
+    if (!porRechazar) return;
+    const hoy = new Date();
+    const iso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+    setResolviendoRechazo(true);
+    try {
+      await savePromocion({
+        ...porRechazar,
+        rondasPrevias: [
+          ...(porRechazar.rondasPrevias || []),
+          {
+            fechaInicio: porRechazar.fechaInicio,
+            calificaciones: { ...(porRechazar.calificaciones || {}) },
+            cerradaEl: iso,
+            cerradaPor: sesion?.nombre || ''
+          }
+        ],
+        fechaInicio: iso,
+        calificaciones: {},
+        estatus: 'EN_PROCESO'
+      });
+      setPorRechazar(null);
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo guardar. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      setResolviendoRechazo(false);
     }
   };
 
@@ -655,12 +737,12 @@ export const CapacitacionModule: React.FC = () => {
           <form onSubmit={abrirPromocion} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', marginBottom: '14px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>COLABORADOR *</label>
-              <select required value={formProm.noNomina} onChange={e => setFormProm(f => ({ ...f, noNomina: e.target.value }))}>
-                <option value="">-- Selecciona --</option>
-                {colaboradores.filter(c => c.estatus !== 'BAJA').map(c => (
-                  <option key={c.noNomina} value={c.noNomina}>{c.noNomina} - {c.nombreCompleto}</option>
-                ))}
-              </select>
+              <AutocompletarColaborador
+                colaboradores={colaboradores}
+                valor={formProm.noNomina}
+                onChange={v => setFormProm(f => ({ ...f, noNomina: v }))}
+                required
+              />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>TIPO *</label>
@@ -675,7 +757,20 @@ export const CapacitacionModule: React.FC = () => {
                 <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>
                   {formProm.tipo === 'CATEGORIA' ? 'NUEVA CATEGORÍA *' : 'PUESTO DESTINO *'}
                 </label>
-                <input type="text" value={formProm.destino} onChange={e => setFormProm(f => ({ ...f, destino: e.target.value }))} />
+                {formProm.tipo === 'CATEGORIA' ? (
+                  // Escala fija de la empresa, no algo que se deduzca del padrón.
+                  <select required value={formProm.destino} onChange={e => setFormProm(f => ({ ...f, destino: e.target.value }))}>
+                    <option value="">-- Selecciona --</option>
+                    {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                ) : (
+                  // Todos los puestos del padrón, sin acotar al departamento:
+                  // un cambio de puesto suele ser precisamente a otra área.
+                  <select required value={formProm.destino} onChange={e => setFormProm(f => ({ ...f, destino: e.target.value }))}>
+                    <option value="">-- Selecciona --</option>
+                    {todosLosPuestos(colaboradores).map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                )}
               </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -721,6 +816,11 @@ export const CapacitacionModule: React.FC = () => {
                       </div>
                       <div style={{ fontSize: '9.5px', color: 'var(--text-light)', marginTop: '2px' }}>
                         Periodo desde {pr.fechaInicio} · abierta por {pr.creadoPorNombre || '—'}
+                        {(pr.rondasPrevias?.length || 0) > 0 && (
+                          <span style={{ color: 'var(--brand-red)', fontWeight: 700 }}>
+                            {' '}· {(pr.rondasPrevias!.length) + 1}º periodo
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
@@ -753,9 +853,13 @@ export const CapacitacionModule: React.FC = () => {
                   </div>
 
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '8px' }}>
-                    {[1, 2, 3].map(mes => (
+                    {[1, 2, 3].map(mes => {
+                      // Rojo si el corte ya pasó sin calificar; ámbar si faltan
+                      // tres días o menos. Solo mientras siga en proceso.
+                      const alarma = colorFecha(pr, fs[mes - 1] || '', mes);
+                      return (
                       <div key={mes} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <label style={{ fontSize: '8.5px', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                        <label style={{ fontSize: '8.5px', fontWeight: 700, color: alarma || 'var(--text-secondary)' }}>
                           MES {mes} · {fs[mes - 1] || '—'}
                         </label>
                         <input
@@ -766,10 +870,11 @@ export const CapacitacionModule: React.FC = () => {
                           disabled={!puedeCapturarPromociones}
                           placeholder="—"
                           onChange={e => calificarMes(pr, mes, e.target.value)}
-                          style={{ width: '74px', height: '26px', fontSize: '10.5px', padding: '2px 6px', textAlign: 'center' }}
+                          style={{ width: '74px', height: '26px', fontSize: '10.5px', padding: '2px 6px', textAlign: 'center', borderColor: alarma || undefined }}
                         />
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {pr.observaciones && (
@@ -783,6 +888,66 @@ export const CapacitacionModule: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Qué hacer con un rechazo (SPEC-021). Se pregunta antes de escribir
+          nada: cerrar el caso y dar otra oportunidad son decisiones distintas
+          y una de ellas borra las calificaciones de la ronda en curso. */}
+      {porRechazar && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,16,48,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', zIndex: 60 }}
+          onClick={() => !resolviendoRechazo && setPorRechazar(null)}
+        >
+          <div
+            style={{ background: '#fff', borderRadius: 'var(--radius-md)', padding: '18px', maxWidth: '430px', width: '100%', boxShadow: '0 16px 40px rgba(0,32,96,.25)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--brand-navy)', marginBottom: '.6rem' }}>
+              Evaluación rechazada
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--brand-navy-dark)', lineHeight: 1.6, marginBottom: '.9rem' }}>
+              <strong>{porRechazar.nombreCompleto}</strong> · {ETIQUETA_PROMOCION[porRechazar.tipo]}
+              {porRechazar.destino ? ` → ${porRechazar.destino}` : ''}
+            </div>
+            <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '1rem' }}>
+              ¿El caso termina en rechazo, o se le dan tres meses más para volver a evaluarlo?
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button
+                onClick={darOtroPeriodo}
+                disabled={resolviendoRechazo}
+                className="btn-industrial-primary"
+                style={{ width: '100%' }}
+              >
+                {resolviendoRechazo ? 'Guardando…' : 'Dar tres meses más'}
+              </button>
+              <div style={{ fontSize: '10px', color: 'var(--text-secondary)', lineHeight: 1.45, marginTop: '-2px' }}>
+                Abre un periodo nuevo a partir de hoy y vuelve a dejarla en proceso. Las
+                calificaciones de esta ronda se guardan como periodo anterior, no se pierden.
+              </div>
+
+              <button
+                onClick={rechazarDefinitivo}
+                disabled={resolviendoRechazo}
+                style={{ width: '100%', height: '34px', borderRadius: 'var(--radius-md)', border: '1px solid var(--brand-red)', background: '#fff', color: 'var(--brand-red)', fontWeight: 700, fontSize: '12px', fontFamily: 'inherit', cursor: resolviendoRechazo ? 'wait' : 'pointer', marginTop: '4px' }}
+              >
+                {resolviendoRechazo ? 'Guardando…' : 'Terminar en rechazo'}
+              </button>
+              <div style={{ fontSize: '10px', color: 'var(--text-secondary)', lineHeight: 1.45, marginTop: '-2px' }}>
+                Cierra la evaluación. Las calificaciones quedan como están.
+              </div>
+
+              <button
+                onClick={() => setPorRechazar(null)}
+                disabled={resolviendoRechazo}
+                style={{ width: '100%', height: '30px', borderRadius: 'var(--radius-md)', border: 'none', background: 'transparent', color: 'var(--text-secondary)', fontSize: '11.5px', fontFamily: 'inherit', cursor: 'pointer', marginTop: '2px' }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
