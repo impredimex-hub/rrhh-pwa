@@ -7,6 +7,40 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.11.0] — 2026-09-16
+
+### Agregado
+
+- **Gráficas** (SPEC-018), cada una debajo de su sección:
+  - **Antigüedad de la plantilla**, bajo Aniversarios: cuánta gente hay en cada
+    tramo de años, sobre el padrón activo completo.
+  - **Rotación de los últimos 12 meses**, bajo Cumpleaños: altas contra bajas,
+    mes a mes.
+  - **Plazas por departamento**, bajo Abrir nueva vacante: requeridas contra
+    cubiertas, con el total pendiente.
+  - **Incidencias por tipo y por departamento**, bajo el Historial.
+  - **Faltas por día y por departamento**, bajo la Bitácora de sucesos, con
+    selector de periodo y botón para calcular.
+- **Fecha de baja** en el padrón, que escribe el cambio de estatus del
+  Directorio. Es lo que permite medir la rotación.
+
+### Notas
+
+Las gráficas se dibujan a mano en SVG, sin librería. Agregar una dependencia
+obligaría a regenerar `package-lock.json`, que no se puede hacer desde el
+teléfono, y la compilación fallaría.
+
+La barra de bajas empieza vacía. Las bajas se empezaron a fechar con esta
+versión; las anteriores no traen fecha y quedan fuera, y la gráfica lo dice en
+lugar de aparentar que no hubo ninguna. Las altas sí tienen historia completa,
+porque salen de la fecha de ingreso.
+
+La gráfica de faltas no se calcula sola al abrir la pestaña: hay que leer las
+revisiones de EPP de cada persona y cada día del periodo, y hacerlo en cada
+visita gastaría cuota de Firestore sin que nadie lo pida.
+
+---
+
 ## [2.10.0] — 2026-09-16
 
 ### Agregado

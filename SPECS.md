@@ -792,3 +792,38 @@ Estos cambios se hacen documento por documento en la consola de Firebase, sobre
   `new Date(cadena)`. Ese constructor interpreta la cadena como UTC, y en
   México todo se corre un día hacia atrás: quien nació o entró un día 1 caía en
   el mes anterior y nunca aparecía en su lista.
+
+## SPEC-018 — Gráficas
+
+- **Se dibujan a mano en SVG** (`src/components/Graficas.tsx`), sin librería de
+  gráficas. El proyecto se compila desde el navegador de un teléfono, sin forma
+  de correr `npm` para regenerar `package-lock.json`, y el flujo de publicación
+  instala con ese archivo: una dependencia nueva rompería la compilación sin
+  dejar claro por qué.
+- **Cinco gráficas, cada una debajo de la sección que le corresponde:**
+  antigüedad bajo Aniversarios, rotación bajo Cumpleaños, plazas bajo Abrir
+  nueva vacante, incidencias bajo el Historial, y faltas bajo la Bitácora.
+- **Barras verticales para lo que se lee en orden** (meses, días, tramos de
+  años); **horizontales para categorías con nombres largos** (departamentos,
+  tipos de incidencia), porque en vertical esas etiquetas se encimarían o
+  habría que girarlas, ilegibles en un teléfono.
+- **La rotación necesita `fechaBaja`**, que escribe `cambiarEstatus` y nadie
+  más. `actualizadoEn` no sirve: cambia con cualquier edición, así que una baja
+  vieja parecería reciente en cuanto alguien corrija el puesto de esa persona.
+  Las bajas anteriores a este campo no lo traen y quedan fuera, y la gráfica lo
+  dice en lugar de fingir que no hubo ninguna.
+- **Las altas de la rotación salen de `fechaIngreso`, no de `creadoEn`.** El
+  padrón entró de una sola importación, así que `creadoEn` amontonaría a todos
+  en el mismo mes.
+- **La antigüedad se cuenta sobre el padrón activo completo**, no sobre la
+  tabla de aniversarios de arriba: esa solo trae a quienes cumplen este mes.
+- **Las incidencias se agrupan por tipo y por departamento, no por mes**: no
+  guardan fecha propia, solo el momento de captura, y las registradas antes de
+  esa versión ni siquiera lo traen.
+- **La gráfica de faltas va bajo demanda, con un botón.** Calcularla exige leer
+  las asistencias de EPP del periodo, que son un documento por persona y por
+  día; hacerlo al abrir la pestaña gastaría cuota sin que nadie lo pida.
+- **Respeta los permisos del reporte de faltas**: quien no puede ver todas las
+  áreas solo cuenta las de sus departamentos asignados, y se avisa en la nota.
+- **Si fallan las asistencias no se grafica nada.** Sin ellas, todo turno
+  terminado parecería falta, y la gráfica acusaría a gente que sí vino.
