@@ -7,6 +7,44 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.10.0] — 2026-09-16
+
+### Agregado
+
+- **Cumpleaños del mes** en la pestaña de Antigüedad y Vacantes (SPEC-017), en
+  su propia tarjeta debajo de los aniversarios. Ordenados por día, con el de
+  hoy resaltado, los ya pasados atenuados, la edad que cumple cada quien y
+  salida a Excel.
+- **Botón "Cargar fechas"** para subir la base de cumpleaños desde Excel, con
+  las columnas `# NOMINA` y `NACIMIENTO` (o `CUMPLEAÑOS`). Muestra un resumen
+  antes de escribir nada.
+- Campo de **fecha de nacimiento** en el registro individual del directorio —
+  el mismo formulario sirve para el alta y para la edición—, y columna
+  `NACIMIENTO` opcional en la importación y en la exportación.
+- El aviso de fechas faltantes **lista los nombres**, no solo el total: con un
+  número suelto no se sabía a quién había que editar.
+
+### Corregido
+
+- **Los aniversarios se calculaban con un día de desfase.** `new Date('2020-09-01')`
+  devuelve la medianoche UTC, que en México cae el 31 de agosto, así que quien
+  entró el día 1 de un mes nunca aparecía en su mes de aniversario y quien
+  entró el día 1 del mes siguiente aparecía de más. Ahora las fechas se parten
+  a mano y ya no dependen de la zona horaria.
+
+### Notas
+
+La carga de cumpleaños escribe **solo** la fecha de nacimiento y va por su
+propio camino, no por la importación del directorio. Esa base trae nómina y
+fecha, sin departamento: en la importación normal todas las filas se
+rechazarían, y las que sí trajeran departamento habrían vaciado el puesto y la
+fecha de ingreso de esa gente.
+
+Tampoco da de alta a nadie. Una nómina que no esté en el directorio se reporta
+y se omite.
+
+---
+
 ## [2.9.2] — 2026-09-14
 
 ### Cambiado
