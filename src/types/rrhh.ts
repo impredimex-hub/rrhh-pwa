@@ -46,6 +46,16 @@ export interface Colaborador {
    */
   estatus?: 'ACTIVO' | 'BAJA';
   /**
+   * Día en que se marcó la baja, `AAAA-MM-DD`. Lo escribe `cambiarEstatus` y
+   * nadie más; la importación de Excel no lo toca.
+   *
+   * Hace falta porque `actualizadoEn` no sirve para medir rotación: cambia con
+   * cualquier edición del registro, así que una baja de hace un año parecería
+   * de ayer en cuanto alguien le corrija el puesto. Las bajas anteriores a este
+   * campo no lo traen y quedan fuera de la gráfica.
+   */
+  fechaBaja?: string;
+  /**
    * Heredados de una versión anterior. La antigüedad se calcula al vuelo desde
    * `fechaIngreso`; guardarla la deja desactualizada cada mes.
    * @deprecated
