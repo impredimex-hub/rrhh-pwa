@@ -49,6 +49,7 @@ export const PersonalModule: React.FC = () => {
     departamento: '',
     puesto: '',
     fechaIngreso: '',
+    fechaNacimiento: '',
     estatus: 'ACTIVO'
   });
 
@@ -73,14 +74,14 @@ export const PersonalModule: React.FC = () => {
     setFormData({
       noNomina: colab.noNomina, nombreCompleto: colab.nombreCompleto,
       departamento: colab.departamento, puesto: colab.puesto,
-      fechaIngreso: colab.fechaIngreso, estatus: colab.estatus
+      fechaIngreso: colab.fechaIngreso, fechaNacimiento: colab.fechaNacimiento || '', estatus: colab.estatus
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const cancelarEdicion = () => {
     setEditando(null);
-    setFormData({ noNomina:'', nombreCompleto:'', departamento:'', puesto:'', fechaIngreso:'', estatus:'ACTIVO' });
+    setFormData({ noNomina:'', nombreCompleto:'', departamento:'', puesto:'', fechaIngreso:'', fechaNacimiento:'', estatus:'ACTIVO' });
   };
 
   const handleManualSubmit = async (e: React.FormEvent) => {
@@ -130,7 +131,7 @@ export const PersonalModule: React.FC = () => {
         }
       }
 
-      setFormData({ noNomina: '', nombreCompleto: '', departamento: '', puesto: '', fechaIngreso: '', estatus: 'ACTIVO' });
+      setFormData({ noNomina: '', nombreCompleto: '', departamento: '', puesto: '', fechaIngreso: '', fechaNacimiento: '', estatus: 'ACTIVO' });
       setEditando(null);
       alert('Colaborador guardado con éxito' + avisoPlanta);
     } catch (error: any) {
@@ -190,6 +191,13 @@ export const PersonalModule: React.FC = () => {
           const puesto = String(row['PUESTO'] || row['Puesto'] || '').trim().toUpperCase();
           const fechaIngreso = formatearFechaExcel(row['INGRESO'] || row['Ingreso'] || row['FECHA INGRESO'] || row['FechaIngreso'] || '');
           const deptoCrudo = String(row['DEPARTAMENTO'] || row['Departamento'] || row['DEPTO'] || '').trim();
+          // Opcional: si el archivo del directorio trae el cumpleaños, se
+          // aprovecha. Si no, no se toca el que ya esté guardado.
+          const fechaNacimiento = formatearFechaExcel(
+            row['NACIMIENTO'] || row['Nacimiento'] || row['FECHA NACIMIENTO'] ||
+            row['FECHA DE NACIMIENTO'] || row['FechaNacimiento'] ||
+            row['CUMPLEAÑOS'] || row['CUMPLEANOS'] || row['Cumpleaños'] || ''
+          );
 
           if (!noNomina || !nombreCompleto) {
             if (noNomina || nombreCompleto) {
@@ -211,6 +219,7 @@ export const PersonalModule: React.FC = () => {
 
           const previo = existentes.get(noNomina);
           const base: Colaborador = { noNomina, nombreCompleto, puesto, fechaIngreso, departamento };
+          if (fechaNacimiento) base.fechaNacimiento = fechaNacimiento;
 
           if (!previo) {
             altas.push({ ...base, estatus: 'ACTIVO' });
@@ -337,6 +346,7 @@ export const PersonalModule: React.FC = () => {
       'NOMBRE': c.nombreCompleto,
       'PUESTO': c.puesto || '-',
       'INGRESO': c.fechaIngreso || '-',
+      'NACIMIENTO': c.fechaNacimiento || '-',
       'DEPARTAMENTO': c.departamento || '-',
       'ESTATUS': c.estatus
     }));
@@ -394,9 +404,19 @@ export const PersonalModule: React.FC = () => {
                 <input type="text" name="noNomina" placeholder="# Nómina *" required value={formData.noNomina} onChange={handleInputChange} style={{ flex: 1 }} />
                 <input type="text" name="nombreCompleto" placeholder="Nombre *" required value={formData.nombreCompleto} onChange={handleInputChange} style={{ flex: 1.5 }} />
               </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
                 <input type="text" name="puesto" placeholder="Puesto (ej. OPERADOR)" value={formData.puesto} onChange={handleInputChange} style={{ flex: 1.2 }} />
-                <input type="date" name="fechaIngreso" value={formData.fechaIngreso} onChange={handleInputChange} style={{ flex: 1 }} />
+                {/* Dos campos de fecha juntos son indistinguibles sin rótulo, y
+                    confundirlos mete a alguien de 40 años al control de
+                    antigüedad como si acabara de entrar. */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <label htmlFor="f-ingreso" style={{ fontSize: '9.5px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Ingreso</label>
+                  <input id="f-ingreso" type="date" name="fechaIngreso" value={formData.fechaIngreso} onChange={handleInputChange} style={{ width: '100%' }} />
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <label htmlFor="f-nacimiento" style={{ fontSize: '9.5px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Nacimiento</label>
+                  <input id="f-nacimiento" type="date" name="fechaNacimiento" value={formData.fechaNacimiento || ''} onChange={handleInputChange} style={{ width: '100%' }} />
+                </div>
               </div>
               {/* Se elige de la lista: escribirlo libre es lo que produce las
                   variantes con acento distinto que rompen el filtro de EPP. */}
@@ -422,7 +442,7 @@ export const PersonalModule: React.FC = () => {
               <div className="sec-title" style={{ margin: 0 }}>Carga Masiva desde Archivo Excel</div>
             </div>
             <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: '1.4', marginBottom: '14px' }}>
-              Columnas requeridas: <code># NOMINA</code>, <code>NOMBRE</code>, <code>PUESTO</code>, <code>INGRESO</code>, <code>DEPARTAMENTO</code>. Verás un resumen antes de que se guarde nada.
+              Columnas requeridas: <code># NOMINA</code>, <code>NOMBRE</code>, <code>PUESTO</code>, <code>INGRESO</code>, <code>DEPARTAMENTO</code>. <code>NACIMIENTO</code> es opcional. Verás un resumen antes de que se guarde nada.
             </p>
             <div style={{ border: '2px dashed var(--border-mid)', borderRadius: 'var(--radius-md)', padding: '20px', textAlign: 'center', background: '#fff' }}>
               <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} disabled={loading} id="excel-upload" style={{ display: 'none' }} />
