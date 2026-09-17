@@ -34,6 +34,9 @@ const construirDocumento = (colab: Colaborador, autor: string, esAlta: boolean) 
   puesto: (colab.puesto || '').trim(),
   fechaIngreso: colab.fechaIngreso || '',
   departamento: (colab.departamento || '').trim(),
+  // Igual que `estatus`: si no viene, no se escribe. Así un Excel del
+  // directorio sin la columna de nacimiento no borra los cumpleaños cargados.
+  ...(colab.fechaNacimiento ? { fechaNacimiento: colab.fechaNacimiento } : {}),
   // Sin `estatus` el campo no se escribe y el documento conserva el suyo.
   ...(colab.estatus ? { estatus: colab.estatus } : {}),
   ...(esAlta ? { creadoEn: serverTimestamp() } : {}),
@@ -212,4 +215,39 @@ export const asignarCapturaPromociones = async (
     actualizadoEn: serverTimestamp(),
     actualizadoPor: autor
   });
+};
+
+/**
+ * Carga masiva de fechas de nacimiento (SPEC-017).
+ *
+ * Escribe **únicamente** `fechaNacimiento`, y por eso va aparte de
+ * `construirDocumento`. La base de cumpleaños de la empresa trae nómina y
+ * fecha, sin puesto ni departamento ni fecha de ingreso; si pasara por la
+ * importación normal del directorio, las filas se rechazarían por no traer
+ * departamento, y las que sí lo trajeran vaciarían el puesto y la fecha de
+ * ingreso de esa gente. Este camino no puede tocar nada más.
+ *
+ * Solo actualiza documentos que ya existen: una fecha de cumpleaños no basta
+ * para dar de alta a nadie.
+ */
+export const guardarFechasNacimiento = async (
+  pares: { noNomina: string; fechaNacimiento: string }[],
+  autor: string
+) => {
+  // Firestore admite 500 operaciones por lote; el padrón ronda las 122
+  // personas, pero el corte evita que crezca hasta romperse sin avisar.
+  const trozos: typeof pares[] = [];
+  for (let i = 0; i < pares.length; i += 400) trozos.push(pares.slice(i, i + 400));
+
+  for (const trozo of trozos) {
+    const batch = writeBatch(db);
+    trozo.forEach(({ noNomina, fechaNacimiento }) => {
+      batch.update(doc(db, COLLECTION_NAME, String(noNomina).trim()), {
+        fechaNacimiento,
+        actualizadoEn: serverTimestamp(),
+        actualizadoPor: autor
+      });
+    });
+    await batch.commit();
+  }
 };
