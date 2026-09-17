@@ -259,3 +259,22 @@ export const guardarFechasNacimiento = async (
     await batch.commit();
   }
 };
+
+/**
+ * Concede o retira el permiso de ver las gráficas (SPEC-019).
+ *
+ * Va aparte de `construirDocumento` por la misma razón que los demás permisos:
+ * ese es el camino de la importación de Excel, y un archivo sin la columna
+ * borraría la marca en cada carga.
+ */
+export const asignarVerGraficas = async (
+  noNomina: string,
+  puede: boolean,
+  autor: string
+) => {
+  await updateDoc(doc(db, COLLECTION_NAME, String(noNomina).trim()), {
+    verGraficas: puede,
+    actualizadoEn: serverTimestamp(),
+    actualizadoPor: autor
+  });
+};
