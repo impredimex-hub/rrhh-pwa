@@ -15,9 +15,13 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
   su propia tarjeta debajo de los aniversarios. Ordenados por día, con el de
   hoy resaltado, los ya pasados atenuados, la edad que cumple cada quien y
   salida a Excel.
-- **Botón "Cargar fechas"** para subir la base de cumpleaños desde Excel, con
-  las columnas `# NOMINA` y `NACIMIENTO` (o `CUMPLEAÑOS`). Muestra un resumen
-  antes de escribir nada.
+- **Las fechas de nacimiento vienen cargadas y se siembran solas.** La base de
+  Recursos Humanos quedó en `src/data/cumpleanos.ts`; al abrir la pestaña, la
+  app escribe en el padrón las fechas de quien todavía no tiene ninguna. No hay
+  que subir ningún archivo. Solo rellena huecos: nunca pisa una fecha ya
+  capturada, para que una corrección hecha a mano no se deshaga sola.
+- **Columna `Cumpleaños`** en la plantilla registrada del Directorio, a la
+  derecha de `Ingreso`, y también en sus exportaciones a Excel y PDF.
 - Campo de **fecha de nacimiento** en el registro individual del directorio —
   el mismo formulario sirve para el alta y para la edición—, y columna
   `NACIMIENTO` opcional en la importación y en la exportación.

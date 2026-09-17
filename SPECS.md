@@ -769,15 +769,22 @@ Estos cambios se hacen documento por documento en la consola de Firebase, sobre
 - **La lista va ordenada por día**, no por nómina, para que se lea como
   calendario. El cumpleaños de hoy se resalta y los que ya pasaron se atenúan.
 - **Se excluye a las bajas.**
-- **La carga masiva de fechas de nacimiento tiene su propio camino**
-  (`guardarFechasNacimiento`), que escribe únicamente `fechaNacimiento`. No
-  puede pasar por la importación del directorio: la base de cumpleaños trae
-  nómina y fecha, sin departamento, así que allá todas las filas se
-  rechazarían, y las que sí trajeran departamento vaciarían el puesto y la
-  fecha de ingreso de esa gente.
-- **La carga no da de alta a nadie.** Una nómina que no esté en el directorio
-  se reporta y se omite: una fecha de cumpleaños no basta para crear una
-  persona.
+- **La plantilla registrada del Directorio lleva una columna `Cumpleaños`** a la
+  derecha de `Ingreso`, en día y mes. El año no se muestra ahí: la tabla es para
+  consultar la plantilla, no para calcular edades.
+- **Las fechas se siembran solas** desde `src/data/cumpleanos.ts` al abrir la
+  pestaña, sin que nadie suba ningún archivo. Escribe `guardarFechasNacimiento`,
+  que toca únicamente `fechaNacimiento`.
+- **La siembra solo rellena huecos y nunca pisa una fecha existente.** Si
+  alguien corrige en el Directorio una fecha equivocada, la lista del código no
+  debe devolverla en la siguiente visita.
+- **Solo siembra quien puede capturar**, porque las reglas de Firestore no
+  dejarían escribir a los demás. Un fallo se anota en consola, deja la pantalla
+  funcionando y se reintenta en la próxima visita.
+- **La siembra no da de alta a nadie:** solo escribe sobre nóminas que ya están
+  en el padrón. Una fecha de cumpleaños no basta para crear una persona.
+- **La lista del código no es la fuente de verdad.** Una vez sembrada, la fecha
+  vive en el padrón y se edita desde el Directorio como cualquier otro dato.
 - **`fechaNacimiento` se escribe de forma condicional en `construirDocumento`**,
   igual que `estatus`. Si viajara sin condición, un Excel del directorio sin la
   columna borraría todos los cumpleaños en cada importación.
