@@ -277,6 +277,20 @@ export interface PromocionInterna {
   calificaciones: Record<string, number>;
   estatus: EstatusPromocion;
   observaciones?: string;
+  /**
+   * Rondas cerradas antes de la actual (SPEC-021).
+   *
+   * Cuando una evaluación se rechaza y se decide darle tres meses más, la ronda
+   * que terminó se guarda aquí antes de limpiar las calificaciones. Perderlas
+   * en silencio borraría la única evidencia de por qué se le dio otra
+   * oportunidad a alguien.
+   */
+  rondasPrevias?: {
+    fechaInicio: string;
+    calificaciones: Record<string, number>;
+    cerradaEl: string;
+    cerradaPor?: string;
+  }[];
   creadoPorNomina: string;
   creadoPorNombre: string;
 }
