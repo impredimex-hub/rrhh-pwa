@@ -1,29 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, Upload, Trash2, FileSpreadsheet, FileText, ChevronLeft, ChevronRight, UserMinus, UserCheck, AlertTriangle, Eye, Pencil, X } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { UserPlus, Trash2, FileSpreadsheet, FileText, ChevronLeft, ChevronRight, UserMinus, UserCheck, AlertTriangle, Eye, Pencil, X } from 'lucide-react';
 import type { Colaborador } from '../types/rrhh';
 import { saveColaboradoresBatch, subscribeColaboradores, deleteColaborador, cambiarEstatus, cambiarNomina, ordenarPorNomina } from '../services/personalService';
 import { abrirContratoPlanta } from '../services/promocionService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
-import { DEPARTAMENTOS, reconocerDepartamento } from '../utils/catalogos';
+import { DEPARTAMENTOS } from '../utils/catalogos';
+import { SelectorPuesto } from './SelectorPuesto';
 import { diaYMes } from '../utils/fechas';
 import { usePermisos, useSesion } from '../services/SesionContext';
-
-/** Fila del Excel que no se puede guardar, con el motivo. */
-interface FilaRechazada {
-  fila: number;
-  noNomina: string;
-  nombreCompleto: string;
-  motivo: string;
-}
-
-/** Resumen que se muestra antes de escribir nada (SPEC-006). */
-interface PreviaImportacion {
-  altas: Colaborador[];
-  actualizaciones: Colaborador[];
-  bajasEncontradas: Colaborador[];
-  rechazadas: FilaRechazada[];
-}
 
 export const PersonalModule: React.FC = () => {
   const { puedeEditarPadron } = usePermisos();
@@ -37,8 +21,6 @@ export const PersonalModule: React.FC = () => {
   const [paginaActual, setPaginaActual] = useState(1);
   const elementosPorPagina = 30;
 
-  const [previa, setPrevia] = useState<PreviaImportacion | null>(null);
-  const [reactivarBajas, setReactivarBajas] = useState(false);
   const [porEliminar, setPorEliminar] = useState<Colaborador | null>(null);
   // Nómina que se está editando. Null significa alta nueva.
   const [editando, setEditando] = useState<string | null>(null);
@@ -142,152 +124,6 @@ export const PersonalModule: React.FC = () => {
     }
   };
 
-  const formatearFechaExcel = (val: any): string => {
-    if (!val) return '';
-    if (typeof val === 'number') {
-      const date = new Date((val - (25567 + 2)) * 86400 * 1000);
-      return date.toISOString().split('T')[0];
-    }
-    const str = String(val).trim();
-    if (str.includes('/')) {
-      const partes = str.split('/');
-      if (partes.length === 3) {
-        const dia = partes[0].padStart(2, '0');
-        const mes = partes[1].padStart(2, '0');
-        const anio = partes[2].length === 2 ? `20${partes[2]}` : partes[2];
-        return `${anio}-${mes}-${dia}`;
-      }
-    }
-    return str;
-  };
-
-  /**
-   * Lee el archivo y arma el resumen. No escribe nada todavía: la importación
-   * pisa nombre, puesto, fecha y departamento de quien ya existe, así que el
-   * usuario debe ver qué va a pasar antes de que pase.
-   */
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !puedeEditarPadron) return;
-
-    setLoading(true);
-    const reader = new FileReader();
-
-    reader.onload = (event) => {
-      try {
-        const wb = XLSX.read(event.target?.result, { type: 'binary', cellDates: false });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rawData: any[] = XLSX.utils.sheet_to_json(ws);
-
-        const existentes = new Map(colaboradores.map(c => [String(c.noNomina).trim(), c]));
-        const altas: Colaborador[] = [];
-        const actualizaciones: Colaborador[] = [];
-        const bajasEncontradas: Colaborador[] = [];
-        const rechazadas: FilaRechazada[] = [];
-
-        rawData.forEach((row, i) => {
-          const fila = i + 2; // +1 por el encabezado, +1 porque Excel cuenta desde 1
-          const noNomina = String(row['# NOMINA'] || row['#NOMINA'] || row['NOMINA'] || row['NoNomina'] || row['No. Nomina'] || '').trim();
-          const nombreCompleto = String(row['NOMBRE'] || row['Nombre'] || row['NombreCompleto'] || '').trim().toUpperCase();
-          const puesto = String(row['PUESTO'] || row['Puesto'] || '').trim().toUpperCase();
-          const fechaIngreso = formatearFechaExcel(row['INGRESO'] || row['Ingreso'] || row['FECHA INGRESO'] || row['FechaIngreso'] || '');
-          const deptoCrudo = String(row['DEPARTAMENTO'] || row['Departamento'] || row['DEPTO'] || '').trim();
-          // Opcional: si el archivo del directorio trae el cumpleaños, se
-          // aprovecha. Si no, no se toca el que ya esté guardado.
-          const fechaNacimiento = formatearFechaExcel(
-            row['NACIMIENTO'] || row['Nacimiento'] || row['FECHA NACIMIENTO'] ||
-            row['FECHA DE NACIMIENTO'] || row['FechaNacimiento'] ||
-            row['CUMPLEAÑOS'] || row['CUMPLEANOS'] || row['Cumpleaños'] || ''
-          );
-
-          if (!noNomina || !nombreCompleto) {
-            if (noNomina || nombreCompleto) {
-              rechazadas.push({ fila, noNomina, nombreCompleto, motivo: 'Falta la nómina o el nombre' });
-            }
-            return;
-          }
-
-          // Un departamento fuera del catálogo deja al trabajador sin equipo
-          // asignado en EPP, y falla en silencio. Mejor rechazar la fila.
-          const departamento = reconocerDepartamento(deptoCrudo);
-          if (!departamento) {
-            rechazadas.push({
-              fila, noNomina, nombreCompleto,
-              motivo: deptoCrudo ? `Departamento no reconocido: "${deptoCrudo}"` : 'Sin departamento'
-            });
-            return;
-          }
-
-          const previo = existentes.get(noNomina);
-          const base: Colaborador = { noNomina, nombreCompleto, puesto, fechaIngreso, departamento };
-          if (fechaNacimiento) base.fechaNacimiento = fechaNacimiento;
-
-          if (!previo) {
-            altas.push({ ...base, estatus: 'ACTIVO' });
-          } else {
-            actualizaciones.push(base);
-            if (previo.estatus === 'BAJA') bajasEncontradas.push(previo);
-          }
-        });
-
-        if (!altas.length && !actualizaciones.length) {
-          alert(
-            rechazadas.length
-              ? `No se pudo usar ninguna fila. Revisa el archivo: ${rechazadas.length} filas rechazadas.`
-              : 'No se encontraron registros válidos. Columnas requeridas: # NOMINA, NOMBRE, PUESTO, INGRESO, DEPARTAMENTO.'
-          );
-        } else {
-          setReactivarBajas(false);
-          setPrevia({ altas, actualizaciones, bajasEncontradas, rechazadas });
-        }
-      } catch (error: any) {
-        alert('Error al procesar el archivo Excel: ' + (error?.message || 'Error desconocido'));
-      } finally {
-        setLoading(false);
-        e.target.value = '';
-      }
-    };
-
-    reader.onerror = () => {
-      alert('Error de lectura del archivo.');
-      setLoading(false);
-      e.target.value = '';
-    };
-
-    reader.readAsBinaryString(file);
-  };
-
-  const confirmarImportacion = async () => {
-    if (!puedeEditarPadron) return;
-    if (!previa) return;
-    setLoading(true);
-    try {
-      const bajas = new Set(previa.bajasEncontradas.map(c => String(c.noNomina).trim()));
-      const aGuardar: Colaborador[] = [
-        ...previa.altas,
-        ...previa.actualizaciones.map(c => {
-          // Sin `estatus` el campo no se escribe y el documento conserva el
-          // suyo. Así una baja sigue siendo baja salvo que se pida revivirla.
-          if (bajas.has(String(c.noNomina).trim())) {
-            return reactivarBajas ? { ...c, estatus: 'ACTIVO' as const } : c;
-          }
-          return c;
-        })
-      ];
-      await saveColaboradoresBatch(
-        aGuardar,
-        autor,
-        new Set(previa.altas.map(c => String(c.noNomina).trim()))
-      );
-      alert(`Importación terminada: ${previa.altas.length} altas y ${previa.actualizaciones.length} actualizaciones.`);
-      setPrevia(null);
-    } catch (error: any) {
-      alert('Error al guardar: ' + (error?.message || 'Error desconocido'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const confirmarRenombrado = async () => {
     if (!porRenombrar) return;
     setLoading(true);
@@ -381,7 +217,7 @@ export const PersonalModule: React.FC = () => {
       )}
 
       {puedeEditarPadron && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '16px', marginBottom: '1rem' }}>
+        <div style={{ marginBottom: '1rem' }}>
 
           {/* Formulario Individual */}
           <div className="card-industrial">
@@ -406,7 +242,25 @@ export const PersonalModule: React.FC = () => {
                 <input type="text" name="nombreCompleto" placeholder="Nombre *" required value={formData.nombreCompleto} onChange={handleInputChange} style={{ flex: 1.5 }} />
               </div>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
-                <input type="text" name="puesto" placeholder="Puesto (ej. OPERADOR)" value={formData.puesto} onChange={handleInputChange} style={{ flex: 1.2 }} />
+                {/* El departamento va primero porque de él dependen los
+                    puestos que se pueden elegir abajo. Se toma de la lista:
+                    escribirlo libre es lo que produce las variantes con acento
+                    distinto que rompen el filtro de EPP. */}
+                <select
+                  name="departamento" required value={formData.departamento} style={{ flex: 1.2 }}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    departamento: e.target.value,
+                    // Un puesto de otra área deja de tener sentido. Se limpia
+                    // aquí, en el cambio hecho a mano, y no dentro del selector:
+                    // allá no se distingue de cargar la ficha para editarla, y
+                    // abrir a alguien le vaciaba el puesto.
+                    puesto: ''
+                  }))}
+                >
+                  <option value="">Departamento *</option>
+                  {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
                 {/* Dos campos de fecha juntos son indistinguibles sin rótulo, y
                     confundirlos mete a alguien de 40 años al control de
                     antigüedad como si acabara de entrar. */}
@@ -419,12 +273,13 @@ export const PersonalModule: React.FC = () => {
                   <input id="f-nacimiento" type="date" name="fechaNacimiento" value={formData.fechaNacimiento || ''} onChange={handleInputChange} style={{ width: '100%' }} />
                 </div>
               </div>
-              {/* Se elige de la lista: escribirlo libre es lo que produce las
-                  variantes con acento distinto que rompen el filtro de EPP. */}
-              <select name="departamento" required value={formData.departamento} onChange={handleInputChange}>
-                <option value="">Departamento *</option>
-                {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
+              {/* Los puestos se acotan al departamento elegido arriba. */}
+              <SelectorPuesto
+                colaboradores={colaboradores}
+                departamento={formData.departamento}
+                valor={formData.puesto}
+                onChange={(v) => setFormData(prev => ({ ...prev, puesto: v }))}
+              />
               <button type="submit" disabled={loading} className="btn-industrial-primary" style={{ marginTop: '4px' }}>
                 <UserPlus size={16} /> {loading ? 'Guardando…' : (editando ? 'Guardar cambios' : 'Guardar Colaborador')}
               </button>
@@ -436,23 +291,6 @@ export const PersonalModule: React.FC = () => {
             </form>
           </div>
 
-          {/* Carga Masiva */}
-          <div className="card-industrial">
-            <div className="card-title-bar">
-              <div className="bar-accent"></div>
-              <div className="sec-title" style={{ margin: 0 }}>Carga Masiva desde Archivo Excel</div>
-            </div>
-            <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: '1.4', marginBottom: '14px' }}>
-              Columnas requeridas: <code># NOMINA</code>, <code>NOMBRE</code>, <code>PUESTO</code>, <code>INGRESO</code>, <code>DEPARTAMENTO</code>. <code>NACIMIENTO</code> es opcional. Verás un resumen antes de que se guarde nada.
-            </p>
-            <div style={{ border: '2px dashed var(--border-mid)', borderRadius: 'var(--radius-md)', padding: '20px', textAlign: 'center', background: '#fff' }}>
-              <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} disabled={loading} id="excel-upload" style={{ display: 'none' }} />
-              <label htmlFor="excel-upload" style={{ cursor: 'pointer', color: 'var(--brand-navy)', fontWeight: 'bold', fontSize: '12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-                <Upload size={22} />
-                {loading ? 'Procesando archivo...' : 'Seleccionar plantilla Excel (.xlsx)'}
-              </label>
-            </div>
-          </div>
         </div>
       )}
 
@@ -565,76 +403,6 @@ export const PersonalModule: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* Vista previa de la importación */}
-      {previa && (
-        <div style={capaModal} onClick={() => !loading && setPrevia(null)}>
-          <div style={cajaModal} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: '15px', fontWeight: 700, color: '#002060', marginBottom: '.4rem' }}>
-              Revisa antes de importar
-            </div>
-            <div style={{ fontSize: '12px', color: '#5A6A80', marginBottom: '1rem', lineHeight: 1.5 }}>
-              Todavía no se ha guardado nada. La importación reemplaza nombre, puesto, fecha y departamento de quien ya existe.
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '1rem', flexWrap: 'wrap' }}>
-              {[
-                { n: previa.altas.length, t: 'altas nuevas' },
-                { n: previa.actualizaciones.length, t: 'actualizaciones' },
-                { n: previa.rechazadas.length, t: 'filas rechazadas' }
-              ].map(x => (
-                <div key={x.t} style={{ flex: 1, minWidth: '110px', background: '#E8EEF8', borderRadius: '8px', padding: '10px' }}>
-                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#003580' }}>{x.n}</div>
-                  <div style={{ fontSize: '10.5px', color: '#5A6A80' }}>{x.t}</div>
-                </div>
-              ))}
-            </div>
-
-            {previa.bajasEncontradas.length > 0 && (
-              <div style={{ border: '1px solid rgba(200,16,46,.3)', background: 'rgba(200,16,46,.05)', borderRadius: '10px', padding: '12px', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', fontWeight: 700, color: '#C8102E', marginBottom: '.5rem' }}>
-                  <AlertTriangle size={15} /> {previa.bajasEncontradas.length} persona(s) dadas de baja vienen en el archivo
-                </div>
-                <ul style={{ margin: '0 0 .6rem', paddingLeft: '1.1rem', fontSize: '11.5px', color: '#5A6A80', maxHeight: '120px', overflowY: 'auto' }}>
-                  {previa.bajasEncontradas.map(c => (
-                    <li key={c.noNomina}>{c.noNomina} — {c.nombreCompleto}</li>
-                  ))}
-                </ul>
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', fontSize: '11.5px', color: '#002060', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={reactivarBajas} onChange={e => setReactivarBajas(e.target.checked)} style={{ marginTop: '2px' }} />
-                  <span>Reactivarlas y marcarlas como ACTIVO. Si no marcas esto, sus datos se actualizan pero siguen dadas de baja.</span>
-                </label>
-              </div>
-            )}
-
-            {previa.rechazadas.length > 0 && (
-              <div style={{ marginBottom: '1rem' }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, color: '#002060', marginBottom: '.35rem' }}>
-                  Filas que no se van a guardar
-                </div>
-                <div style={{ fontSize: '11px', color: '#5A6A80', maxHeight: '130px', overflowY: 'auto', lineHeight: 1.6 }}>
-                  {previa.rechazadas.map((r, i) => (
-                    <div key={i}>
-                      Fila {r.fila} — {r.noNomina || 's/n'} {r.nombreCompleto}: {r.motivo}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: '10px', marginTop: '1rem' }}>
-              <button onClick={() => setPrevia(null)} disabled={loading}
-                style={{ flex: 1, padding: '11px', borderRadius: '9px', border: '1px solid rgba(0,32,96,.2)', background: '#fff', color: '#003580', fontWeight: 600, fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}>
-                Cancelar
-              </button>
-              <button onClick={confirmarImportacion} disabled={loading}
-                style={{ flex: 1.4, padding: '11px', borderRadius: '9px', border: 'none', background: '#003580', color: '#fff', fontWeight: 700, fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}>
-                {loading ? 'Guardando…' : 'Importar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Cambio de nómina: no es una edición más */}
       {porRenombrar && (

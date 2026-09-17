@@ -36,6 +36,7 @@ const nombreMes = (d: Date) => {
 };
 
 interface FormIncidencia {
+  fecha: string;
   noNomina: string;
   tipo: TipoIncidencia;
   observaciones: string;
@@ -44,7 +45,14 @@ interface FormIncidencia {
   fechasSuspension: string[];
 }
 
+/** Hoy en local; `toISOString` daría el día de ayer en México por la zona. */
+const hoyISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 const FORM_VACIO: FormIncidencia = {
+  fecha: hoyISO(),
   noNomina: '',
   tipo: 'FALTA_INJUSTIFICADA',
   observaciones: '',
@@ -122,6 +130,7 @@ export const IncidenciasModule: React.FC = () => {
     // encuentra uno, y antes eso hacía que una incidencia sin suspensión
     // fallara al guardar mientras el formulario se limpiaba igual.
     const nuevaIncidencia: Incidencia = {
+      fecha: form.fecha,
       colaboradorId: form.noNomina,
       noNomina: form.noNomina,
       nombreCompleto: colaborador ? colaborador.nombreCompleto : 'Desconocido',
@@ -138,7 +147,7 @@ export const IncidenciasModule: React.FC = () => {
     try {
       await saveIncidencia(nuevaIncidencia);
       // Solo se limpia si de verdad quedó guardada.
-      setForm(FORM_VACIO);
+      setForm({ ...FORM_VACIO, fecha: hoyISO() });
       setMesVista(new Date());
     } catch (err) {
       console.error(err);
@@ -177,6 +186,7 @@ export const IncidenciasModule: React.FC = () => {
 
   const handleExportExcel = () => {
     const data = incidencias.map((i) => ({
+      'Fecha': i.fecha || '—',
       '# Nómina': i.noNomina,
       'Colaborador': i.nombreCompleto,
       'Tipo de Incidencia': ETIQUETA_INCIDENCIA[i.tipo] || i.tipo,
@@ -187,8 +197,9 @@ export const IncidenciasModule: React.FC = () => {
   };
 
   const handleExportPDF = () => {
-    const headers = ['# Nómina', 'Colaborador', 'Tipo', 'Suspensión', 'Observaciones'];
+    const headers = ['Fecha', '# Nómina', 'Colaborador', 'Tipo', 'Suspensión', 'Observaciones'];
     const rows = incidencias.map((i) => [
+      i.fecha || '—',
       i.noNomina,
       i.nombreCompleto,
       ETIQUETA_INCIDENCIA[i.tipo] || i.tipo,
@@ -219,6 +230,19 @@ export const IncidenciasModule: React.FC = () => {
             <div className="sec-title" style={{ margin: 0 }}>Registrar Incidencia</div>
           </div>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {/* Viene con la fecha de hoy puesta, que es el caso normal, pero se
+                puede mover: una incidencia se registra a veces días después. */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label htmlFor="inc-fecha" style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>FECHA DE LA INCIDENCIA *</label>
+              <input
+                id="inc-fecha"
+                type="date"
+                required
+                value={form.fecha}
+                onChange={(e) => setForm((f) => ({ ...f, fecha: e.target.value }))}
+              />
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>SELECCIONAR COLABORADOR *</label>
               <select
@@ -387,6 +411,7 @@ export const IncidenciasModule: React.FC = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9.5px', lineHeight: '1.2' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
+                <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Fecha</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}># Nómina</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Nombre</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Tipo</th>
@@ -400,7 +425,7 @@ export const IncidenciasModule: React.FC = () => {
             <tbody>
               {incidencias.length === 0 ? (
                 <tr>
-                  <td colSpan={puedeCapturar ? 6 : 5} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
+                  <td colSpan={puedeCapturar ? 7 : 6} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
                     No hay incidencias registradas.
                   </td>
                 </tr>
@@ -412,6 +437,9 @@ export const IncidenciasModule: React.FC = () => {
 
                   return (
                     <tr key={inc.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                      {/* Las incidencias anteriores a este campo no traen
+                          fecha; se marcan con guion en vez de inventarles una. */}
+                      <td style={{ padding: '5px 8px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{inc.fecha || '—'}</td>
                       <td style={{ padding: '5px 8px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>{inc.noNomina}</td>
                       <td style={{ padding: '5px 8px', fontWeight: 600 }}>{inc.nombreCompleto}</td>
                       <td style={{ padding: '5px 8px' }}>

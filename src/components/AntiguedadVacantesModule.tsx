@@ -8,6 +8,8 @@ import { partesFecha, diaYMes, edadQueCumple } from '../utils/fechas';
 import { CUMPLEANOS_INICIALES } from '../data/cumpleanos';
 import { BarrasVerticales, BarrasHorizontales, COLORES } from './Graficas';
 import { puedeVerGraficas } from '../services/permisosPadron';
+import { DEPARTAMENTOS } from '../utils/catalogos';
+import { SelectorPuesto } from './SelectorPuesto';
 import { exportToExcel } from '../utils/exportUtils';
 
 export const AntiguedadVacantesModule: React.FC = () => {
@@ -504,13 +506,25 @@ export const AntiguedadVacantesModule: React.FC = () => {
             <div className="sec-title" style={{ margin: 0 }}>Abrir Nueva Vacante</div>
           </div>
           <form onSubmit={handleCrearVacante} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <input
-              type="text" placeholder="Departamento (ej. FLEXOGRAFÍA)" required value={formVacante.departamento}
-              onChange={(e) => setFormVacante({ ...formVacante, departamento: e.target.value })}
-            />
-            <input
-              type="text" placeholder="Puesto (ej. AYUDANTE GENERAL)" required value={formVacante.puesto}
-              onChange={(e) => setFormVacante({ ...formVacante, puesto: e.target.value })}
+            {/* Departamento de la lista cerrada, igual que en el Directorio:
+                escrito libre aparecían variantes con acento distinto y la misma
+                área quedaba partida en dos en las gráficas y los filtros. */}
+            <select
+              required value={formVacante.departamento}
+              onChange={(e) => setFormVacante({ ...formVacante, departamento: e.target.value, puesto: '' })}
+            >
+              <option value="">Departamento *</option>
+              {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+
+            {/* Los puestos se acotan al departamento elegido. Una plaza nueva
+                que nunca ha existido se captura con «Otro puesto». */}
+            <SelectorPuesto
+              colaboradores={colaboradores}
+              departamento={formVacante.departamento}
+              valor={formVacante.puesto}
+              onChange={(v) => setFormVacante(f => ({ ...f, puesto: v }))}
+              required
             />
             <div style={{ display: 'flex', gap: '10px' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
