@@ -827,3 +827,58 @@ Estos cambios se hacen documento por documento en la consola de Firebase, sobre
   áreas solo cuenta las de sus departamentos asignados, y se avisa en la nota.
 - **Si fallan las asistencias no se grafica nada.** Sin ellas, todo turno
   terminado parecería falta, y la gráfica acusaría a gente que sí vino.
+
+## SPEC-019 — Quién ve las gráficas
+
+- **Las gráficas se reservan a quien tenga la marca `verGraficas` en el padrón**,
+  más los administradores, que las ven siempre sin necesidad de aparecer
+  marcados. Concentran información de toda la plantilla —rotación, faltas por
+  área, incidencias por departamento— que no le toca a cualquiera que entre a
+  consultar su propio turno.
+- **El permiso se administra como dato, no como código**: vive en
+  `colaboradores` y se enciende desde la casilla «Puede ver las gráficas» de la
+  pantalla de Permisos, dentro de Sucesos y Turnos. Así, cuando se contrate a
+  alguien más de Recursos Humanos, basta con marcarlo; no hay que tocar código
+  ni recompilar.
+- **`verGraficas` no viaja en `construirDocumento`.** Si lo hiciera, un Excel
+  del directorio sin esa columna borraría el permiso en cada importación.
+- **La regla está escrita una sola vez**, en `services/permisosPadron.ts`. Las
+  gráficas aparecen en tres pestañas distintas; con la condición repetida tres
+  veces, tarde o temprano una se quedaría atrás y alguien vería en una pestaña
+  lo que no puede ver en otra.
+- **Ante la duda, no se concede.** Sin nómina, fuera del padrón o sin la marca,
+  las gráficas no se muestran.
+- **Es un candado de interfaz**, como el resto de los de esta aplicación: quien
+  tenga conocimientos puede leer los datos de todos modos. Se sostiene en que
+  las reglas de Firestore no distinguen usuarios (SPEC-008).
+
+## SPEC-020 — Captura acotada y fecha de incidencia
+
+- **La incidencia lleva fecha capturada**, no la del guardado: se registra a
+  veces días después de ocurrida. Viene con la de hoy puesta, que es el caso
+  normal, y se puede mover. Las incidencias anteriores a este campo no la traen
+  y se muestran con un guion, sin inventarles una.
+- **El departamento va antes que el puesto en el Directorio**, porque de él
+  dependen los puestos elegibles.
+- **Los puestos se eligen de una lista acotada al departamento**, tanto en el
+  Directorio como al abrir una vacante. La lista sale del propio padrón
+  (`puestosPorDepartamento`), no de un catálogo escrito a mano: se mantiene sola
+  conforme cambia la plantilla y nadie tiene que recompilar para dar de alta un
+  puesto nuevo.
+- **Se agrupa por departamento normalizado**, para que un acento o una mayúscula
+  de más no parta el mismo departamento en dos listas.
+- **Las bajas siguen aportando sus puestos a la lista**: quien salió deja su
+  puesto vacante, y es justo el que se va a querer volver a capturar.
+- **Hay una salida «Otro puesto» con captura libre.** Sin ella no se podría
+  abrir una plaza que nunca ha existido, que es cuando más falta hace.
+- **El puesto ya capturado se agrega a la lista aunque no figure entre los del
+  departamento.** Pasa al editar a alguien con un puesto único; sin esto, abrir
+  su ficha se lo borraría en silencio.
+- **Limpiar el puesto al cambiar de departamento lo hace el formulario, no el
+  selector.** Dentro del selector no se distingue un cambio hecho a mano de
+  cargar la ficha de alguien para editarla, y abrir a un colaborador le vaciaba
+  el puesto sin que nadie lo tocara.
+- **Se retiró la carga masiva del padrón desde Excel**, junto con su vista
+  previa y su motor de lectura. Lo que SPEC-006 describe sobre ese resumen ya no
+  aplica. El alta y la corrección son uno por uno; la exportación a Excel y PDF
+  del directorio sigue igual.

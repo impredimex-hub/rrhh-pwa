@@ -7,6 +7,66 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.12.0] — 2026-09-16
+
+### Agregado
+
+- **Fecha en el registro de incidencias** (SPEC-020). Viene con la de hoy
+  puesta y se puede mover, porque una incidencia se registra a veces días
+  después de ocurrida. Sale también en el historial y en las exportaciones.
+- **Los puestos se eligen de una lista acotada al departamento**, en el
+  Directorio y al abrir una vacante. La lista sale del propio padrón, así que
+  se mantiene sola conforme cambia la plantilla. Hay una opción «Otro puesto»
+  para plazas que nunca han existido.
+- **El departamento de una vacante se elige de la lista cerrada**, ya no se
+  escribe libre.
+
+### Cambiado
+
+- En el registro individual del Directorio, **departamento y puesto
+  intercambiaron lugar**: el departamento va primero porque de él dependen los
+  puestos elegibles.
+
+### Quitado
+
+- **La carga masiva del padrón desde archivo Excel**, junto con su vista previa
+  y su motor de lectura.
+
+### Notas
+
+El alta y la corrección de colaboradores queda de uno en uno. La exportación
+del directorio a Excel y PDF no se tocó.
+
+Las incidencias registradas antes de esta versión no traen fecha y aparecen con
+un guion, en lugar de mostrar una inventada.
+
+---
+
+## [2.11.1] — 2026-09-16
+
+### Cambiado
+
+- **Las gráficas ahora solo las ve quien tenga permiso** (SPEC-019). Los
+  administradores las ven siempre; para los demás hay una casilla nueva,
+  **«Puede ver las gráficas»**, en la pantalla de Permisos dentro de Sucesos y
+  Turnos.
+
+### Notas
+
+El permiso vive en el padrón, no en el código, igual que los de turnos, reporte
+de faltas y promociones. Cuando se contrate a alguien más de Recursos Humanos,
+basta con marcarle la casilla: no hay que tocar código ni volver a compilar.
+
+La condición está escrita una sola vez, en `services/permisosPadron.ts`. Las
+gráficas salen en tres pestañas y, repitiendo la regla tres veces, tarde o
+temprano una se habría quedado atrás.
+
+Sigue siendo un candado de interfaz, como los demás de esta aplicación: quien
+tenga conocimientos puede leer los datos de todos modos, porque las reglas de
+Firestore no distinguen usuarios (SPEC-008).
+
+---
+
 ## [2.11.0] — 2026-09-16
 
 ### Agregado
