@@ -1,15 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { Plus, Trash2, Calendar, ChevronLeft, ChevronRight, Eye, Cake, Upload, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import type { Colaborador, Vacante } from '../types/rrhh';
-import { subscribeColaboradores, ordenarPorNomina } from '../services/personalService';
+import { subscribeColaboradores, ordenarPorNomina, guardarFechasNacimiento } from '../services/personalService';
 import { subscribeVacantes, saveVacante, deleteVacante } from '../services/vacanteService';
-import { usePermisos } from '../services/SesionContext';
+import { usePermisos, useSesion } from '../services/SesionContext';
+import { partesFecha, diaYMes, edadQueCumple } from '../utils/fechas';
+import { exportToExcel } from '../utils/exportUtils';
 
 export const AntiguedadVacantesModule: React.FC = () => {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [vacantes, setVacantes] = useState<Vacante[]>([]);
   const [filtro, setFiltro] = useState('');
   const { puedeCapturar } = usePermisos();
+  const sesion = useSesion();
+  const [filtroCumple, setFiltroCumple] = useState('');
+  const [cargandoCumple, setCargandoCumple] = useState(false);
+  const [verFaltantes, setVerFaltantes] = useState(false);
   const [paginaActual, setPaginaActual] = useState(1);
   const elementosPorPagina = 30;
 
@@ -36,10 +43,14 @@ export const AntiguedadVacantesModule: React.FC = () => {
   }, [filtro]);
 
   const calcularAntiguedad = (fechaIngresoStr?: string) => {
-    if (!fechaIngresoStr) return { anios: 0, meses: 0, esAniversarioMes: false };
+    // `new Date('2020-03-01')` da la medianoche UTC, que en México cae el 29 de
+    // febrero: quien entró un día 1 se corría al mes anterior y desaparecía de
+    // la lista de aniversarios. Por eso se parte la cadena a mano.
+    const p = partesFecha(fechaIngresoStr);
+    if (!p) return { anios: 0, meses: 0, esAniversarioMes: false };
     const hoy = new Date();
-    const ingreso = new Date(fechaIngresoStr);
-    
+    const ingreso = new Date(p.anio, p.mes - 1, p.dia);
+
     if (isNaN(ingreso.getTime())) return { anios: 0, meses: 0, esAniversarioMes: false };
 
     let anios = hoy.getFullYear() - ingreso.getFullYear();
@@ -52,6 +63,106 @@ export const AntiguedadVacantesModule: React.FC = () => {
 
     const esAniversarioMes = hoy.getMonth() === ingreso.getMonth() && anios > 0;
     return { anios, meses, esAniversarioMes };
+  };
+
+  /** Normaliza la fecha venga como número de Excel, dd/mm/aaaa o ya en ISO. */
+  const fechaDesdeExcel = (val: any): string => {
+    if (val === null || val === undefined || val === '') return '';
+    if (typeof val === 'number') {
+      const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+      return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+    }
+    const str = String(val).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.slice(0, 10);
+    const sep = str.includes('/') ? '/' : str.includes('-') ? '-' : '';
+    if (sep) {
+      const partes = str.split(sep);
+      if (partes.length === 3) {
+        // Día primero: es como se escriben las fechas en México.
+        const dia = partes[0].padStart(2, '0');
+        const mes = partes[1].padStart(2, '0');
+        let anio = partes[2].trim();
+        if (anio.length === 2) anio = Number(anio) > 30 ? `19${anio}` : `20${anio}`;
+        return `${anio}-${mes}-${dia}`;
+      }
+    }
+    return '';
+  };
+
+  /**
+   * Carga la base de cumpleaños. Va por su propio camino y no por la
+   * importación del directorio: ese archivo solo trae nómina y fecha, así que
+   * allá las filas se rechazarían por no traer departamento, y las que sí lo
+   * trajeran vaciarían puesto y fecha de ingreso. Aquí solo se puede escribir
+   * la fecha de nacimiento.
+   */
+  const handleCargarCumpleanos = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+
+    reader.onload = async (ev) => {
+      try {
+        const wb = XLSX.read(ev.target?.result, { type: 'binary', cellDates: false });
+        const rows: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+
+        const validas: { noNomina: string; fechaNacimiento: string }[] = [];
+        const sinFecha: string[] = [];
+        const noEnPadron: string[] = [];
+        const conocidos = new Set(colaboradores.map(c => String(c.noNomina).trim()));
+
+        rows.forEach(row => {
+          const noNomina = String(
+            row['# NOMINA'] ?? row['#NOMINA'] ?? row['NOMINA'] ?? row['NoNomina'] ??
+            row['No. Nomina'] ?? row['NÓMINA'] ?? ''
+          ).trim();
+          if (!noNomina) return;
+
+          const cruda =
+            row['NACIMIENTO'] ?? row['Nacimiento'] ?? row['FECHA NACIMIENTO'] ??
+            row['FECHA DE NACIMIENTO'] ?? row['FechaNacimiento'] ??
+            row['CUMPLEAÑOS'] ?? row['CUMPLEANOS'] ?? row['Cumpleaños'] ?? row['CUMPLE'] ?? '';
+          const fecha = fechaDesdeExcel(cruda);
+
+          if (!partesFecha(fecha)) { sinFecha.push(noNomina); return; }
+          // Una fecha de cumpleaños no alcanza para dar de alta a nadie: si la
+          // nómina no está en el padrón, se reporta en vez de inventar gente.
+          if (!conocidos.has(noNomina)) { noEnPadron.push(noNomina); return; }
+          validas.push({ noNomina, fechaNacimiento: fecha });
+        });
+
+        if (!validas.length) {
+          alert(
+            'No se pudo leer ninguna fecha.\n\n' +
+            'El archivo necesita una columna de nómina (# NOMINA) y una de fecha ' +
+            '(NACIMIENTO o CUMPLEAÑOS).' +
+            (noEnPadron.length ? `\n\n${noEnPadron.length} nómina(s) del archivo no están en el directorio.` : '') +
+            (sinFecha.length ? `\n${sinFecha.length} fila(s) traían la fecha vacía o ilegible.` : '')
+          );
+          return;
+        }
+
+        const aviso =
+          `Se van a guardar ${validas.length} fecha(s) de nacimiento.` +
+          (noEnPadron.length ? `\n\n${noEnPadron.length} nómina(s) no están en el directorio y se omiten: ${noEnPadron.slice(0, 8).join(', ')}${noEnPadron.length > 8 ? '…' : ''}` : '') +
+          (sinFecha.length ? `\n\n${sinFecha.length} fila(s) con fecha ilegible se omiten: ${sinFecha.slice(0, 8).join(', ')}${sinFecha.length > 8 ? '…' : ''}` : '') +
+          '\n\nSolo se escribe la fecha de nacimiento. Nada más del directorio se toca.\n\n¿Continuar?';
+
+        if (!window.confirm(aviso)) return;
+
+        setCargandoCumple(true);
+        await guardarFechasNacimiento(validas, sesion?.nomina || '');
+        alert(`Listo. Se guardaron ${validas.length} fecha(s) de nacimiento.`);
+      } catch (err: any) {
+        console.error(err);
+        alert('No se pudo cargar el archivo: ' + (err?.message || 'error desconocido'));
+      } finally {
+        setCargandoCumple(false);
+        e.target.value = '';
+      }
+    };
+
+    reader.readAsBinaryString(file);
   };
 
   const handleCrearVacante = (e: React.FormEvent) => {
@@ -95,6 +206,30 @@ export const AntiguedadVacantesModule: React.FC = () => {
       (c.puesto && c.puesto.toLowerCase().includes(filtro.toLowerCase()))
     )
   );
+
+  // Cumpleaños del mes en curso (SPEC-017). Se compara solo el mes, nunca el
+  // año: la lista es para felicitar, no para calcular antigüedad.
+  const mesHoy = new Date().getMonth() + 1;
+  const diaHoy = new Date().getDate();
+  const cumpleanosDelMes = colaboradores
+    .filter(c => c.estatus !== 'BAJA')
+    .map(c => ({ colab: c, p: partesFecha(c.fechaNacimiento) }))
+    .filter(x => x.p !== null && x.p!.mes === mesHoy)
+    .filter(x =>
+      x.colab.nombreCompleto.toLowerCase().includes(filtroCumple.toLowerCase()) ||
+      x.colab.noNomina.toLowerCase().includes(filtroCumple.toLowerCase()) ||
+      (x.colab.departamento || '').toLowerCase().includes(filtroCumple.toLowerCase())
+    )
+    // Por día del mes: así la lista se lee como un calendario y se ve de un
+    // vistazo lo que viene esta semana.
+    .sort((a, b) => a.p!.dia - b.p!.dia);
+
+  // Quiénes, no cuántos: un número suelto no permite actuar. Con los nombres
+  // a la vista se sabe exactamente a quién hay que editar en el Directorio.
+  const faltantesNacimiento = ordenarPorNomina(
+    colaboradores.filter(c => c.estatus !== 'BAJA' && !partesFecha(c.fechaNacimiento))
+  );
+  const sinFechaNacimiento = faltantesNacimiento.length;
 
   const totalPaginas = Math.ceil(listaFiltrada.length / elementosPorPagina) || 1;
   const indexInicio = (paginaActual - 1) * elementosPorPagina;
@@ -196,7 +331,126 @@ export const AntiguedadVacantesModule: React.FC = () => {
         )}
       </div>
 
-      {/* SECCIÓN 2: CONTROL DE VACANTES */}
+      {/* SECCIÓN 2: CUMPLEAÑOS DEL MES (SPEC-017) */}
+      <div className="card-industrial">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '2px solid var(--brand-navy-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="bar-accent"></div>
+            <div className="sec-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Cake size={14} /> Cumpleaños de {new Date().toLocaleDateString('es-MX', { month: 'long' })} ({cumpleanosDelMes.length})
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <input
+              type="text" placeholder="Buscar colaborador…"
+              value={filtroCumple} onChange={(e) => setFiltroCumple(e.target.value)}
+              style={{ width: '160px', height: '30px', padding: '4px 8px', fontSize: '10px' }}
+            />
+            <button
+              onClick={() => exportToExcel(
+                cumpleanosDelMes.map(x => ({
+                  '# NOMINA': x.colab.noNomina,
+                  'NOMBRE': x.colab.nombreCompleto,
+                  'DEPARTAMENTO': x.colab.departamento || '-',
+                  'PUESTO': x.colab.puesto || '-',
+                  'CUMPLEAÑOS': diaYMes(x.colab.fechaNacimiento),
+                  'EDAD QUE CUMPLE': edadQueCumple(x.colab.fechaNacimiento) ?? '-'
+                })),
+                `Cumpleanos_${new Date().toLocaleDateString('es-MX', { month: 'long' })}`
+              )}
+              disabled={!cumpleanosDelMes.length}
+              className="btn-industrial-success"
+              style={{ height: '30px', opacity: cumpleanosDelMes.length ? 1 : 0.45, cursor: cumpleanosDelMes.length ? 'pointer' : 'not-allowed' }}
+              title="Exportar los cumpleaños del mes a Excel"
+            >
+              <FileSpreadsheet size={13} /> Excel
+            </button>
+            {puedeCapturar && (
+              <>
+                <input id="cumple-upload" type="file" accept=".xlsx,.xls" onChange={handleCargarCumpleanos} style={{ display: 'none' }} />
+                <label
+                  htmlFor="cumple-upload"
+                  className="btn-industrial-primary"
+                  style={{ height: '30px', padding: '4px 10px', fontSize: '10px', display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: cargandoCumple ? 'wait' : 'pointer', opacity: cargandoCumple ? 0.6 : 1 }}
+                  title="Cargar la base de fechas de nacimiento desde Excel"
+                >
+                  <Upload size={13} /> {cargandoCumple ? 'Guardando…' : 'Cargar fechas'}
+                </label>
+              </>
+            )}
+          </div>
+        </div>
+
+        {puedeCapturar && sinFechaNacimiento > 0 && (
+          <div style={{ fontSize: '10.5px', color: 'var(--text-secondary)', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 'var(--radius-md)', padding: '7px 10px', marginBottom: '0.6rem', lineHeight: 1.45 }}>
+            <b>{sinFechaNacimiento}</b> colaborador(es) activos no tienen fecha de nacimiento, así que no pueden aparecer aquí.
+            Captúrala en <b>Directorio</b>, editando a cada quien.
+            <button
+              onClick={() => setVerFaltantes(v => !v)}
+              style={{ marginLeft: '6px', background: 'transparent', border: 'none', padding: 0, color: 'var(--brand-navy)', fontWeight: 700, fontSize: '10.5px', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              {verFaltantes ? 'Ocultar' : 'Ver quiénes'}
+            </button>
+            {verFaltantes && (
+              <div style={{ marginTop: '6px', maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                {faltantesNacimiento.map(c => (
+                  <div key={c.noNomina} style={{ fontSize: '10px', color: 'var(--text-primary)' }}>
+                    <b style={{ color: 'var(--brand-navy)' }}>{c.noNomina}</b> — {c.nombreCompleto}
+                    <span style={{ color: 'var(--text-secondary)' }}> ({c.departamento || 'sin departamento'})</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9.5px', lineHeight: '1.2' }}>
+            <thead>
+              <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
+                <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}># Nómina</th>
+                <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Nombre</th>
+                <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Departamento</th>
+                <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Puesto</th>
+                <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Cumpleaños</th>
+                <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Edad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cumpleanosDelMes.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: '1.4rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '11px' }}>
+                    {sinFechaNacimiento === colaboradores.filter(c => c.estatus !== 'BAJA').length
+                      ? 'Todavía no hay fechas de nacimiento cargadas.'
+                      : 'Nadie cumple años este mes.'}
+                  </td>
+                </tr>
+              ) : (
+                cumpleanosDelMes.map(({ colab, p }) => {
+                  const esHoy = p!.dia === diaHoy;
+                  const yaPaso = p!.dia < diaHoy;
+                  const edad = edadQueCumple(colab.fechaNacimiento);
+                  return (
+                    <tr key={colab.noNomina} style={{ borderBottom: '1px solid #f1f5f9', background: esHoy ? '#ecfdf5' : 'transparent', opacity: yaPaso ? 0.55 : 1 }}>
+                      <td style={{ padding: '5px 8px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>{colab.noNomina}</td>
+                      <td style={{ padding: '5px 8px', color: 'var(--text-primary)' }}>{colab.nombreCompleto}</td>
+                      <td style={{ padding: '5px 8px' }}><span className="badge-depto">{colab.departamento || '-'}</span></td>
+                      <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>{colab.puesto || '-'}</td>
+                      <td style={{ padding: '5px 8px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                        {diaYMes(colab.fechaNacimiento)}
+                        {esHoy && <b style={{ color: '#059669', marginLeft: '6px' }}>¡Hoy!</b>}
+                      </td>
+                      <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>{edad !== null ? `${edad} años` : '-'}</td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* SECCIÓN 3: CONTROL DE VACANTES */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '16px', marginTop: '1rem' }}>
         
         {!puedeCapturar && (
