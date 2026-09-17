@@ -7,6 +7,34 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.13.0] — 2026-09-17
+
+### Agregado
+
+- **Promociones internas** (SPEC-021):
+  - El colaborador se busca **escribiendo nombre o nómina**, con sugerencias, en
+    vez de elegirlo de una lista de más de cien personas.
+  - El **puesto destino** es ahora una lista: con «cambio de puesto» trae todos
+    los puestos del padrón; con «nueva categoría», la escala A, B, C y D.
+  - **Semáforo en las fechas de evaluación**: rojo si el corte ya pasó sin
+    calificar, ámbar si faltan tres días o menos.
+  - Al marcar una evaluación como **rechazada**, se pregunta si el caso termina
+    ahí o si se le dan **tres meses más**. La ronda anterior se archiva y la
+    tarjeta muestra que va en su segundo periodo.
+
+### Notas
+
+No se puede abrir una evaluación para un nombre tecleado que no exista: el
+campo obligatorio se satisface con la nómina elegida, no con lo escrito.
+
+El semáforo solo alarma mientras la evaluación sigue en proceso. Una
+calificación de cero cuenta como calificada, porque es una nota real.
+
+Dar tres meses más no borra nada: las calificaciones de la ronda que termina se
+guardan como periodo anterior.
+
+---
+
 ## [2.12.0] — 2026-09-16
 
 ### Agregado

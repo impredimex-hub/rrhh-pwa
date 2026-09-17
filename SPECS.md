@@ -882,3 +882,37 @@ Estos cambios se hacen documento por documento en la consola de Firebase, sobre
   previa y su motor de lectura. Lo que SPEC-006 describe sobre ese resumen ya no
   aplica. El alta y la corrección son uno por uno; la exportación a Excel y PDF
   del directorio sigue igual.
+
+## SPEC-021 — Promociones internas: captura y seguimiento
+
+- **El colaborador se busca escribiendo**, no eligiendo de un desplegable. El
+  padrón pasa de cien personas y en un teléfono esa lista obliga a girar una
+  rueda enorme. Se filtra por nombre o por nómina y se elige de los resultados.
+- **La nómina elegida se guarda aparte del texto escrito.** Un nombre tecleado a
+  medias nunca cuenta como selección: el campo obligatorio se satisface con la
+  nómina, así que no se puede abrir una evaluación para alguien que no existe.
+- **El aviso de «nadie coincide» va en el flujo normal, no flotando.** Flotando
+  tapaba el botón de abrir evaluación, que queda justo debajo, y lo volvía
+  intocable.
+- **Las bajas no aparecen** entre las sugerencias.
+- **El destino depende del tipo:** con «cambio de puesto», la lista trae todos
+  los puestos del padrón, sin acotar al departamento, porque un cambio de puesto
+  suele ser precisamente a otra área. Con «nueva categoría», la lista es la
+  escala fija A, B, C y D, que no se deduce del padrón porque las categorías no
+  se capturan como dato. Con «contrato de planta» no hay destino.
+- **Semáforo de las fechas de evaluación:** en rojo si el corte ya pasó sin
+  calificación, en ámbar si faltan tres días o menos. Solo alarma mientras la
+  evaluación sigue en proceso y ese mes no tiene calificación; en una ya
+  aprobada o rechazada sería ruido sobre algo cerrado.
+- **Una calificación de cero cuenta como calificada.** Se comprueba contra
+  `undefined` y no por valor verdadero, porque un cero es una nota real y
+  tratarlo como vacío pintaría de rojo un mes ya evaluado.
+- **Rechazar pregunta antes de escribir nada:** o el caso termina en rechazo, o
+  se abren tres meses más para volver a evaluar. Son decisiones distintas y una
+  de ellas vacía las calificaciones de la ronda en curso.
+- **La segunda oportunidad arranca hoy**, no al día siguiente del último corte:
+  ese corte suele estar en el pasado, y encadenarlo dejaría el mes 1 vencido y
+  en rojo desde el primer momento, sin que nadie hubiera podido calificarlo.
+- **La ronda que termina se archiva en `rondasPrevias`** antes de limpiar las
+  calificaciones. Perderlas en silencio borraría la única evidencia de por qué
+  se le dio otra oportunidad a alguien. La tarjeta muestra «2º periodo».
