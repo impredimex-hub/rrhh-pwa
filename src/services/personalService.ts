@@ -10,6 +10,7 @@ import { collection, doc, writeBatch, deleteDoc, updateDoc, getDoc, setDoc, quer
 import { suiteDb as db } from './suite';
 import type { Colaborador } from '../types/rrhh';
 import { normalizarNombre } from '../utils/catalogos';
+import { partesFecha, hoyISO } from '../utils/fechas';
 
 const COLLECTION_NAME = 'colaboradores';
 
@@ -100,17 +101,53 @@ export const saveColaborador = async (colaborador: Colaborador, autor: string, e
  * Dar de baja o reactivar. Es la vía normal: conserva el documento completo,
  * el historial y los permisos, y se puede revertir.
  */
-export const cambiarEstatus = async (noNomina: string, estatus: 'ACTIVO' | 'BAJA', autor: string) => {
+export const cambiarEstatus = async (
+  noNomina: string,
+  estatus: 'ACTIVO' | 'BAJA',
+  autor: string,
+  fecha?: string
+) => {
   // Se anota el día de la baja porque `actualizadoEn` no sirve para medir
   // rotación: cambia con cualquier edición, así que una baja vieja parecería
   // reciente en cuanto alguien corrija el puesto de esa persona. Al reingresar,
   // el campo se borra para no arrastrar una baja que ya no existe.
-  const hoy = new Date();
-  const iso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+  //
+  // La fecha se puede dar (SPEC-023): alguien puede salir un viernes y que la
+  // baja se capture el lunes. Si no viene, o viene mal, se usa la de hoy, que
+  // es el comportamiento que tenía esta función desde el principio.
+  const dia = partesFecha(fecha) ? String(fecha) : hoyISO();
 
   await updateDoc(doc(db, COLLECTION_NAME, String(noNomina).trim()), {
     estatus,
-    fechaBaja: estatus === 'BAJA' ? iso : deleteField(),
+    fechaBaja: estatus === 'BAJA' ? dia : deleteField(),
+    actualizadoEn: serverTimestamp(),
+    actualizadoPor: autor
+  });
+};
+
+/**
+ * Corrige o completa la fecha de una baja que ya está marcada (SPEC-023).
+ *
+ * Existe por las bajas anteriores a la versión 2.11.0, cuando `fechaBaja`
+ * todavía no se registraba: esas personas están en el padrón como BAJA pero sin
+ * día, así que no aparecen en la gráfica de rotación. El dato no se puede
+ * deducir del sistema —`actualizadoEn` cambia con cualquier edición— y solo lo
+ * tiene quien lleve el archivo de nómina.
+ *
+ * No toca `estatus`. Quien no esté dado de baja no tiene por qué recibir una
+ * fecha de baja, y la comprobación se hace arriba, en la pantalla.
+ *
+ * Como `fechaBaja`, tampoco viaja en `construirDocumento`: si lo hiciera, una
+ * importación de Excel sin esa columna borraría de un golpe todas las fechas
+ * que se hayan capturado a mano.
+ */
+export const fecharBaja = async (noNomina: string, fecha: string, autor: string) => {
+  if (!partesFecha(fecha)) {
+    throw new Error('La fecha de baja debe venir como AAAA-MM-DD.');
+  }
+
+  await updateDoc(doc(db, COLLECTION_NAME, String(noNomina).trim()), {
+    fechaBaja: String(fecha),
     actualizadoEn: serverTimestamp(),
     actualizadoPor: autor
   });
