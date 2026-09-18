@@ -179,8 +179,16 @@ export interface Suceso {
   reportadoPorNombre: string;
 }
 
-/** Catálogo de turnos. Es el mismo de la app de Mantenimiento, a propósito. */
-export type ClaveTurno = 'T1' | 'T2' | 'T3' | 'D12' | 'N12' | 'G8' | 'LIB';
+/**
+ * Catálogo de turnos. Es el mismo de la app de Mantenimiento, a propósito.
+ *
+ * `G8` se renombró a `ADM` en la versión 2.16.0 (SPEC-027), pero **sigue aquí**:
+ * los roles ya guardados tienen celdas con `G8` escrito dentro, y quitarlo las
+ * dejaría sin horario y sin hora de fin, lo que además haría que esas jornadas
+ * nunca contaran como falta. `ADM` es la clave que se ofrece de aquí en
+ * adelante; `G8` solo se lee, y se muestra como `ADM`.
+ */
+export type ClaveTurno = 'T1' | 'T2' | 'T3' | 'D12' | 'N12' | 'ADM' | 'G8' | 'LIB';
 
 export const HORARIO_TURNO: Record<ClaveTurno, string> = {
   T1: '06:00 – 14:00',
@@ -188,9 +196,13 @@ export const HORARIO_TURNO: Record<ClaveTurno, string> = {
   T3: '21:30 – 06:00',
   D12: '06:00 – 18:00',
   N12: '18:00 – 06:00',
+  ADM: '08:00 – 18:00',
   G8: '08:00 – 18:00',
   LIB: 'Horario libre'
 };
+
+/** Cómo se muestra una clave guardada. `G8` es el nombre viejo de `ADM`. */
+export const etiquetaTurno = (clave: ClaveTurno): string => (clave === 'G8' ? 'ADM' : clave);
 
 /**
  * Hora de salida de cada turno, en minutos desde la medianoche del día del rol.
@@ -203,7 +215,8 @@ export const FIN_TURNO: Record<Exclude<ClaveTurno, 'LIB'>, number> = {
   T3:  24 * 60 + 6 * 60,   // 06:00 del día siguiente
   D12: 18 * 60,            // 18:00 del mismo día
   N12: 24 * 60 + 6 * 60,   // 06:00 del día siguiente
-  G8:  18 * 60             // 18:00 del mismo día
+  ADM: 18 * 60,            // 18:00 del mismo día
+  G8:  18 * 60             // clave heredada, mismo horario que ADM
 };
 
 export type PeriodoRol = 'SEMANAL' | 'QUINCENAL' | 'MENSUAL';
