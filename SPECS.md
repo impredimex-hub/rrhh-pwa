@@ -6,8 +6,8 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.0
-**Fecha:** 5 de septiembre de 2026
+**Versión objetivo:** 2.15
+**Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
 > **Nota de origen.** La aplicación se construyó antes de que existiera la suite
@@ -28,6 +28,102 @@ Cada spec sigue esta estructura:
 - **Postcondiciones** — Estado del sistema al terminar correctamente
 - **Reglas de negocio** — Condiciones especiales y restricciones
 - **Flujos alternativos** — Casos de error o rutas opcionales
+
+---
+
+## Reglas transversales del proyecto
+
+Estas reglas no pertenecen a una spec: valen para toda la aplicación y hay que
+respetarlas en cualquier cambio futuro. **Cada una nació de un problema
+concreto, y está escrita aquí para que nadie la reinvente ni la rompa sin
+saberlo.** Quien vaya a tocar el código —persona o asistente— debería leer esta
+sección antes que ninguna otra.
+
+### R1 — Los permisos se administran como dato, no como código
+
+Un permiso nuevo **se guarda como campo en el padrón `colaboradores`** y se
+edita desde una pantalla dentro de la aplicación. Nunca como lista de nóminas
+escrita en el código ni como archivo de configuración.
+
+El motivo: un archivo de configuración obligaría a editar y recompilar cada vez
+que alguien entra, sale o cambia de área, y ataría los permisos a nombres
+escritos a mano. En el padrón, `ADMIN` los cambia solo, sin que nadie toque el
+repositorio.
+
+Campos creados con este patrón: `departamentosTurnos` (SPEC-013),
+`reporteFaltasTodas` (SPEC-015), `capturaPromociones` (SPEC-016), `verGraficas`
+(SPEC-019).
+
+Reglas que acompañan al patrón:
+
+- **Un `ADMIN` lo puede todo sin traer la marca.** El campo sirve para conceder
+  a quien no es administrador, no para limitar al que sí lo es.
+- **Ausencia equivale a «no».** Nunca se concede un privilegio por omisión.
+- **Cuando la misma regla se consulta desde varias pantallas, se escribe una
+  sola vez.** `puedeVerGraficas` vive en `src/services/permisosPadron.ts` porque
+  las gráficas aparecen en tres pestañas: repetida tres veces, tarde o temprano
+  una se quedaría atrás y alguien vería en una pestaña lo que no puede ver en
+  otra.
+
+### R2 — Hay campos que no pueden viajar en `construirDocumento`
+
+`construirDocumento` es el camino de la importación de Excel. **Todo campo que
+pase por ahí se borra cuando llega un archivo que no trae esa columna.**
+
+Por eso se escriben por su propia función, o de forma condicional:
+
+| Campo | Quién lo escribe |
+|---|---|
+| `departamentosTurnos` | `asignarDepartamentosTurnos` |
+| `reporteFaltasTodas` | `asignarReporteFaltasTodas` |
+| `capturaPromociones` | `asignarCapturaPromociones` |
+| `verGraficas` | `asignarVerGraficas` |
+| `fechaNacimiento` | condicional, y `guardarFechasNacimiento` |
+| `fechaBaja` | `cambiarEstatus` y `fecharBaja` |
+| `estatus` | condicional, y `cambiarEstatus` |
+
+Un permiso nuevo va en esta tabla, no en `construirDocumento`.
+
+### R3 — Las fechas `AAAA-MM-DD` se parten a mano
+
+**Nunca `new Date(cadena)`.** Ese constructor interpreta la cadena como UTC, y
+en México (UTC−6) todo se corre un día hacia atrás: quien nació o entró un día 1
+cae en el mes anterior. El error no se ve hasta que alguien reclama que su
+cumpleaños no salió en la lista.
+
+Las utilidades están en `src/utils/fechas.ts`: `partesFecha`, `fechaLocal`,
+`diaYMes`, `edadQueCumple`, `hoyISO`.
+
+Corolario útil: como todas las fechas viajan en ese formato, **dos fechas se
+comparan como texto**. `'2026-03-01' < '2026-03-02'` es cierto, y no hace falta
+construir un `Date` solo para saber cuál es anterior.
+
+### R4 — Las gráficas se dibujan a mano en SVG, sin librerías
+
+Todo vive en `src/components/Graficas.tsx`. **No se agregan dependencias
+nuevas.** El proyecto se compila desde el navegador de un teléfono, sin forma de
+correr `npm` para regenerar `package-lock.json`, así que una dependencia nueva
+rompería la publicación sin dejar claro por qué.
+
+### R5 — Datos que existen en el padrón y esta aplicación no toca
+
+El documento de cada colaborador trae campos que pertenecen a la suite, no a
+RRHH: `apps`, `roles`, `creadoEn`. Se conservan intactos, y por eso
+`construirDocumento` lleva lista blanca explícita en lugar de propagar el objeto
+completo.
+
+Hay además un campo **`rol`** heredado de antes de la suite. **Está muerto:**
+ninguna de las cinco aplicaciones lo lee. Todas derivan el papel del usuario de
+`roles[<id de la app>]`. Se deja donde está porque borrarlo obligaría a tocar
+más de cien documentos sin ganar nada, pero **no debe usarse ni revivirse**.
+
+### R6 — Los candados son de interfaz
+
+El proyecto `rrhh-pwa` usa sesión anónima y sus reglas de Firestore no
+distinguen usuarios (SPEC-008). Todo permiso descrito en estas specs se sostiene
+en la pantalla, no en el servidor: quien tenga conocimientos técnicos puede leer
+los datos de todos modos. Hacerlo real exigiría cambiar la autenticación de ese
+proyecto. Es deuda conocida y aceptada, no un descuido.
 
 ---
 
@@ -718,6 +814,272 @@ RH que hoy están vacantes se habilitan el día que se ocupen sin tocar código.
 
 ---
 
+---
+
+# SPEC-017 — Cumpleaños del mes
+
+- **La pestaña de Antigüedad y Vacantes muestra los cumpleaños del mes en
+  curso**, en su propia tarjeta, separada de los aniversarios de ingreso. Son
+  dos cosas distintas: una se felicita, la otra se reconoce por antigüedad, y
+  mezclarlas obligaba a columnas que no aplican a la mitad de los renglones.
+- **Solo se comparan día y mes.** El año se guarda porque sirve para la edad,
+  pero se omite si no es creíble (menos de 14 o más de 90 años): hay bases
+  donde el año viene como 1900 porque solo se capturó día y mes.
+- **La lista va ordenada por día**, no por nómina, para que se lea como
+  calendario. El cumpleaños de hoy se resalta y los que ya pasaron se atenúan.
+- **Se excluye a las bajas.**
+- **La plantilla registrada del Directorio lleva una columna `Cumpleaños`** a la
+  derecha de `Ingreso`, en día y mes. El año no se muestra ahí: la tabla es para
+  consultar la plantilla, no para calcular edades.
+- **Las fechas se siembran solas** desde `src/data/cumpleanos.ts` al abrir la
+  pestaña, sin que nadie suba ningún archivo. Escribe `guardarFechasNacimiento`,
+  que toca únicamente `fechaNacimiento`.
+- **La siembra solo rellena huecos y nunca pisa una fecha existente.** Si
+  alguien corrige en el Directorio una fecha equivocada, la lista del código no
+  debe devolverla en la siguiente visita.
+- **Solo siembra quien puede capturar**, porque las reglas de Firestore no
+  dejarían escribir a los demás. Un fallo se anota en consola, deja la pantalla
+  funcionando y se reintenta en la próxima visita.
+- **La siembra no da de alta a nadie:** solo escribe sobre nóminas que ya están
+  en el padrón. Una fecha de cumpleaños no basta para crear una persona.
+- **La lista del código no es la fuente de verdad.** Una vez sembrada, la fecha
+  vive en el padrón y se edita desde el Directorio como cualquier otro dato.
+- **`fechaNacimiento` se escribe de forma condicional en `construirDocumento`**,
+  igual que `estatus`. Si viajara sin condición, un Excel del directorio sin la
+  columna borraría todos los cumpleaños en cada importación.
+- **Las fechas `AAAA-MM-DD` se parten a mano** (`utils/fechas.ts`), nunca con
+  `new Date(cadena)`. Ese constructor interpreta la cadena como UTC, y en
+  México todo se corre un día hacia atrás: quien nació o entró un día 1 caía en
+  el mes anterior y nunca aparecía en su lista.
+
+---
+
+# SPEC-018 — Gráficas
+
+- **Se dibujan a mano en SVG** (`src/components/Graficas.tsx`), sin librería de
+  gráficas. El proyecto se compila desde el navegador de un teléfono, sin forma
+  de correr `npm` para regenerar `package-lock.json`, y el flujo de publicación
+  instala con ese archivo: una dependencia nueva rompería la compilación sin
+  dejar claro por qué.
+- **Cinco gráficas, cada una debajo de la sección que le corresponde:**
+  antigüedad bajo Aniversarios, rotación bajo Cumpleaños, plazas bajo Abrir
+  nueva vacante, incidencias bajo el Historial, y faltas bajo la Bitácora.
+- **Barras verticales para lo que se lee en orden** (meses, días, tramos de
+  años); **horizontales para categorías con nombres largos** (departamentos,
+  tipos de incidencia), porque en vertical esas etiquetas se encimarían o
+  habría que girarlas, ilegibles en un teléfono.
+- **La rotación necesita `fechaBaja`**, que escribe `cambiarEstatus` y nadie
+  más. `actualizadoEn` no sirve: cambia con cualquier edición, así que una baja
+  vieja parecería reciente en cuanto alguien corrija el puesto de esa persona.
+  Las bajas anteriores a este campo no lo traen y quedan fuera, y la gráfica lo
+  dice en lugar de fingir que no hubo ninguna.
+- **Las altas de la rotación salen de `fechaIngreso`, no de `creadoEn`.** El
+  padrón entró de una sola importación, así que `creadoEn` amontonaría a todos
+  en el mismo mes.
+- **La antigüedad se cuenta sobre el padrón activo completo**, no sobre la
+  tabla de aniversarios de arriba: esa solo trae a quienes cumplen este mes.
+- **Las incidencias se agrupan por tipo y por departamento, no por mes**: no
+  guardan fecha propia, solo el momento de captura, y las registradas antes de
+  esa versión ni siquiera lo traen.
+- **La gráfica de faltas va bajo demanda, con un botón.** Calcularla exige leer
+  las asistencias de EPP del periodo, que son un documento por persona y por
+  día; hacerlo al abrir la pestaña gastaría cuota sin que nadie lo pida.
+- **Respeta los permisos del reporte de faltas**: quien no puede ver todas las
+  áreas solo cuenta las de sus departamentos asignados, y se avisa en la nota.
+- **Si fallan las asistencias no se grafica nada.** Sin ellas, todo turno
+  terminado parecería falta, y la gráfica acusaría a gente que sí vino.
+
+---
+
+# SPEC-019 — Quién ve las gráficas
+
+- **Las gráficas se reservan a quien tenga la marca `verGraficas` en el padrón**,
+  más los administradores, que las ven siempre sin necesidad de aparecer
+  marcados. Concentran información de toda la plantilla —rotación, faltas por
+  área, incidencias por departamento— que no le toca a cualquiera que entre a
+  consultar su propio turno.
+- **El permiso se administra como dato, no como código**: vive en
+  `colaboradores` y se enciende desde la casilla «Puede ver las gráficas» de la
+  pantalla de Permisos, dentro de Sucesos y Turnos. Así, cuando se contrate a
+  alguien más de Recursos Humanos, basta con marcarlo; no hay que tocar código
+  ni recompilar.
+- **`verGraficas` no viaja en `construirDocumento`.** Si lo hiciera, un Excel
+  del directorio sin esa columna borraría el permiso en cada importación.
+- **La regla está escrita una sola vez**, en `services/permisosPadron.ts`. Las
+  gráficas aparecen en tres pestañas distintas; con la condición repetida tres
+  veces, tarde o temprano una se quedaría atrás y alguien vería en una pestaña
+  lo que no puede ver en otra.
+- **Ante la duda, no se concede.** Sin nómina, fuera del padrón o sin la marca,
+  las gráficas no se muestran.
+- **Es un candado de interfaz**, como el resto de los de esta aplicación: quien
+  tenga conocimientos puede leer los datos de todos modos. Se sostiene en que
+  las reglas de Firestore no distinguen usuarios (SPEC-008).
+
+---
+
+# SPEC-020 — Captura acotada y fecha de incidencia
+
+- **La incidencia lleva fecha capturada**, no la del guardado: se registra a
+  veces días después de ocurrida. Viene con la de hoy puesta, que es el caso
+  normal, y se puede mover. Las incidencias anteriores a este campo no la traen
+  y se muestran con un guion, sin inventarles una.
+- **El departamento va antes que el puesto en el Directorio**, porque de él
+  dependen los puestos elegibles.
+- **Los puestos se eligen de una lista acotada al departamento**, tanto en el
+  Directorio como al abrir una vacante. La lista sale del propio padrón
+  (`puestosPorDepartamento`), no de un catálogo escrito a mano: se mantiene sola
+  conforme cambia la plantilla y nadie tiene que recompilar para dar de alta un
+  puesto nuevo.
+- **Se agrupa por departamento normalizado**, para que un acento o una mayúscula
+  de más no parta el mismo departamento en dos listas.
+- **Las bajas siguen aportando sus puestos a la lista**: quien salió deja su
+  puesto vacante, y es justo el que se va a querer volver a capturar.
+- **Hay una salida «Otro puesto» con captura libre.** Sin ella no se podría
+  abrir una plaza que nunca ha existido, que es cuando más falta hace.
+- **El puesto ya capturado se agrega a la lista aunque no figure entre los del
+  departamento.** Pasa al editar a alguien con un puesto único; sin esto, abrir
+  su ficha se lo borraría en silencio.
+- **Limpiar el puesto al cambiar de departamento lo hace el formulario, no el
+  selector.** Dentro del selector no se distingue un cambio hecho a mano de
+  cargar la ficha de alguien para editarla, y abrir a un colaborador le vaciaba
+  el puesto sin que nadie lo tocara.
+- **Se retiró la carga masiva del padrón desde Excel**, junto con su vista
+  previa y su motor de lectura. Lo que SPEC-006 describe sobre ese resumen ya no
+  aplica. El alta y la corrección son uno por uno; la exportación a Excel y PDF
+  del directorio sigue igual.
+
+---
+
+# SPEC-021 — Promociones internas: captura y seguimiento
+
+- **El colaborador se busca escribiendo**, no eligiendo de un desplegable. El
+  padrón pasa de cien personas y en un teléfono esa lista obliga a girar una
+  rueda enorme. Se filtra por nombre o por nómina y se elige de los resultados.
+- **La nómina elegida se guarda aparte del texto escrito.** Un nombre tecleado a
+  medias nunca cuenta como selección: el campo obligatorio se satisface con la
+  nómina, así que no se puede abrir una evaluación para alguien que no existe.
+- **El aviso de «nadie coincide» va en el flujo normal, no flotando.** Flotando
+  tapaba el botón de abrir evaluación, que queda justo debajo, y lo volvía
+  intocable.
+- **Las bajas no aparecen** entre las sugerencias.
+- **El destino depende del tipo:** con «cambio de puesto», la lista trae todos
+  los puestos del padrón, sin acotar al departamento, porque un cambio de puesto
+  suele ser precisamente a otra área. Con «nueva categoría», la lista es la
+  escala fija A, B, C y D, que no se deduce del padrón porque las categorías no
+  se capturan como dato. Con «contrato de planta» no hay destino.
+- **Semáforo de las fechas de evaluación:** en rojo si el corte ya pasó sin
+  calificación, en ámbar si faltan tres días o menos. Solo alarma mientras la
+  evaluación sigue en proceso y ese mes no tiene calificación; en una ya
+  aprobada o rechazada sería ruido sobre algo cerrado.
+- **Una calificación de cero cuenta como calificada.** Se comprueba contra
+  `undefined` y no por valor verdadero, porque un cero es una nota real y
+  tratarlo como vacío pintaría de rojo un mes ya evaluado.
+- **Rechazar pregunta antes de escribir nada:** o el caso termina en rechazo, o
+  se abren tres meses más para volver a evaluar. Son decisiones distintas y una
+  de ellas vacía las calificaciones de la ronda en curso.
+- **La segunda oportunidad arranca hoy**, no al día siguiente del último corte:
+  ese corte suele estar en el pasado, y encadenarlo dejaría el mes 1 vencido y
+  en rojo desde el primer momento, sin que nadie hubiera podido calificarlo.
+- **La ronda que termina se archiva en `rondasPrevias`** antes de limpiar las
+  calificaciones. Perderlas en silencio borraría la única evidencia de por qué
+  se le dio otra oportunidad a alguien. La tarjeta muestra «2º periodo».
+
+---
+
+# SPEC-022 — Roles de turnos: autoría y faltas a la vista
+
+- **Un rol guardado solo lo modifica quien lo creó.** Verlo lo puede cualquiera
+  que entre a la pestaña; guardarlo, únicamente su autor. **Esto reemplaza la
+  regla por departamento de SPEC-013** para la edición.
+- **Los departamentos asignados siguen mandando sobre quién puede *crear*
+  roles.** Son dos cosas distintas: crear está acotado al área, editar a la
+  autoría.
+- **Un administrador también puede modificar cualquier rol**, y no por
+  privilegio: si el autor sale de la empresa, su rol quedaría congelado para
+  siempre y no habría forma de corregir un turno mal puesto.
+- **Las dos nóminas tienen que existir para que coincidan.** Comparar dos
+  cadenas vacías da verdadero, y un rol antiguo sin autor registrado habría
+  quedado abierto a cualquier sesión que tampoco trajera nómina.
+- **Consecuencia conocida:** tres supervisores comparten impresión
+  (flexografía y rotograbado). Con esta regla, si el autor del rol falta, sus
+  compañeros de área ya no pueden ajustarlo; hay que pedírselo a un
+  administrador. Fue la razón por la que SPEC-013 había pasado el permiso a
+  departamento, y se revierte a petición expresa.
+- **Cada rol muestra su número de faltas** a la izquierda del icono de Excel.
+  En cero se muestra igual, en gris: no mostrar número se confundiría con «no
+  se ha calculado».
+- **Se cuentan con una sola lectura de asistencias** que cubre el tramo ya
+  vivido de todos los roles juntos. Consultar rol por rol multiplicaría las
+  lecturas de Firestore en cada visita a la pestaña.
+- **Solo se consultan los días ya transcurridos**: un rol que empieza el mes que
+  viene no pide nada. La falta sigue la misma regla que el reporte: hubo turno,
+  el turno ya terminó y no hay revisión de EPP.
+- **Si la lectura falla no se muestra número.** Sin asistencias, todo turno
+  terminado parecería falta, y el contador acusaría a gente que sí vino.
+
+---
+
+# SPEC-023 — La fecha de la baja se captura
+
+### Por qué
+
+La gráfica de rotación cuenta las bajas por `fechaBaja`, un campo que se empezó
+a registrar en la versión 2.11.0. Antes de eso no existía, así que **las bajas
+anteriores están en el padrón sin día y quedan fuera de la gráfica**. La propia
+pestaña de Antigüedad y Vacantes lo dice al pie de la rotación.
+
+Ese dato **no se puede deducir del sistema**. `actualizadoEn` no sirve: cambia
+con cualquier edición del registro, así que una baja de hace un año parecería de
+ayer en cuanto alguien le corrija el puesto. Solo lo tiene quien lleve el
+archivo de nómina.
+
+Había además un defecto menor en el camino normal: `cambiarEstatus` ponía
+siempre la fecha del día, y las bajas se capturan con retraso. Quien sale un
+viernes y se registra el lunes quedaba fechado en lunes.
+
+### Flujo principal — dar de baja
+
+1. En el Directorio, `ADMIN` pulsa el icono de baja de una persona activa.
+2. Se abre el diálogo con el **último día que trabajó**, propuesto como hoy.
+3. Al guardar, se escriben `estatus: 'BAJA'` y esa fecha.
+
+### Flujo principal — completar una baja vieja
+
+1. En el Directorio, las personas de baja muestran su fecha debajo de la
+   etiqueta de estatus; **las que no la traen dicen «sin fecha» en rojo**.
+2. `ADMIN` pulsa el icono de calendario de esa fila.
+3. Captura el día y guarda. **El estatus no se toca.**
+
+### Reglas de negocio
+
+- **La fecha no puede ser posterior a hoy.** Una baja futura contaría en la
+  rotación a alguien que todavía está trabajando.
+- **La fecha no puede ser anterior al ingreso** de esa persona.
+- **Las tres comprobaciones comparan texto, no `Date`** (regla R3). El formato
+  `AAAA-MM-DD` ya ordena bien, y así no se repite el error de zona horaria.
+- **Corregir la fecha no pasa por reactivar y volver a dar de baja.** Ese rodeo
+  falsearía el dato: al reactivar, `fechaBaja` se borra, y la nueva baja
+  quedaría fechada el día de la corrección.
+- **`fecharBaja` solo escribe `fechaBaja`.** No toca `estatus`; la comprobación
+  de que la persona esté dada de baja se hace en la pantalla, que es la única
+  que ofrece el botón.
+- **`fechaBaja` no viaja en `construirDocumento`** (regla R2). Si lo hiciera,
+  una importación de Excel sin esa columna borraría de un golpe todas las
+  fechas capturadas a mano.
+- **Al reactivar, la fecha se borra**, para no arrastrar una baja que ya no
+  existe. Sigue siendo el comportamiento de `cambiarEstatus`.
+- **La exportación a Excel del Directorio incluye la columna «FECHA DE BAJA»**,
+  con `SIN FECHA` en las que faltan, para poder cotejar contra nómina fuera de
+  la aplicación. Es solo de lectura: **la importación no escribe este campo**.
+
+### Deuda
+
+Las bajas viejas siguen sin fecha hasta que alguien las capture una por una. No
+hay carga masiva: el dato no está en ningún archivo digital de la empresa, así
+que una pantalla de carga no tendría de dónde leer.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |
@@ -756,194 +1118,3 @@ y se le asigna `ADMIN`.
 
 Estos cambios se hacen documento por documento en la consola de Firebase, sobre
 `colaboradores` del proyecto suite. No requieren tocar código.
-
-## SPEC-017 — Cumpleaños del mes
-
-- **La pestaña de Antigüedad y Vacantes muestra los cumpleaños del mes en
-  curso**, en su propia tarjeta, separada de los aniversarios de ingreso. Son
-  dos cosas distintas: una se felicita, la otra se reconoce por antigüedad, y
-  mezclarlas obligaba a columnas que no aplican a la mitad de los renglones.
-- **Solo se comparan día y mes.** El año se guarda porque sirve para la edad,
-  pero se omite si no es creíble (menos de 14 o más de 90 años): hay bases
-  donde el año viene como 1900 porque solo se capturó día y mes.
-- **La lista va ordenada por día**, no por nómina, para que se lea como
-  calendario. El cumpleaños de hoy se resalta y los que ya pasaron se atenúan.
-- **Se excluye a las bajas.**
-- **La plantilla registrada del Directorio lleva una columna `Cumpleaños`** a la
-  derecha de `Ingreso`, en día y mes. El año no se muestra ahí: la tabla es para
-  consultar la plantilla, no para calcular edades.
-- **Las fechas se siembran solas** desde `src/data/cumpleanos.ts` al abrir la
-  pestaña, sin que nadie suba ningún archivo. Escribe `guardarFechasNacimiento`,
-  que toca únicamente `fechaNacimiento`.
-- **La siembra solo rellena huecos y nunca pisa una fecha existente.** Si
-  alguien corrige en el Directorio una fecha equivocada, la lista del código no
-  debe devolverla en la siguiente visita.
-- **Solo siembra quien puede capturar**, porque las reglas de Firestore no
-  dejarían escribir a los demás. Un fallo se anota en consola, deja la pantalla
-  funcionando y se reintenta en la próxima visita.
-- **La siembra no da de alta a nadie:** solo escribe sobre nóminas que ya están
-  en el padrón. Una fecha de cumpleaños no basta para crear una persona.
-- **La lista del código no es la fuente de verdad.** Una vez sembrada, la fecha
-  vive en el padrón y se edita desde el Directorio como cualquier otro dato.
-- **`fechaNacimiento` se escribe de forma condicional en `construirDocumento`**,
-  igual que `estatus`. Si viajara sin condición, un Excel del directorio sin la
-  columna borraría todos los cumpleaños en cada importación.
-- **Las fechas `AAAA-MM-DD` se parten a mano** (`utils/fechas.ts`), nunca con
-  `new Date(cadena)`. Ese constructor interpreta la cadena como UTC, y en
-  México todo se corre un día hacia atrás: quien nació o entró un día 1 caía en
-  el mes anterior y nunca aparecía en su lista.
-
-## SPEC-018 — Gráficas
-
-- **Se dibujan a mano en SVG** (`src/components/Graficas.tsx`), sin librería de
-  gráficas. El proyecto se compila desde el navegador de un teléfono, sin forma
-  de correr `npm` para regenerar `package-lock.json`, y el flujo de publicación
-  instala con ese archivo: una dependencia nueva rompería la compilación sin
-  dejar claro por qué.
-- **Cinco gráficas, cada una debajo de la sección que le corresponde:**
-  antigüedad bajo Aniversarios, rotación bajo Cumpleaños, plazas bajo Abrir
-  nueva vacante, incidencias bajo el Historial, y faltas bajo la Bitácora.
-- **Barras verticales para lo que se lee en orden** (meses, días, tramos de
-  años); **horizontales para categorías con nombres largos** (departamentos,
-  tipos de incidencia), porque en vertical esas etiquetas se encimarían o
-  habría que girarlas, ilegibles en un teléfono.
-- **La rotación necesita `fechaBaja`**, que escribe `cambiarEstatus` y nadie
-  más. `actualizadoEn` no sirve: cambia con cualquier edición, así que una baja
-  vieja parecería reciente en cuanto alguien corrija el puesto de esa persona.
-  Las bajas anteriores a este campo no lo traen y quedan fuera, y la gráfica lo
-  dice en lugar de fingir que no hubo ninguna.
-- **Las altas de la rotación salen de `fechaIngreso`, no de `creadoEn`.** El
-  padrón entró de una sola importación, así que `creadoEn` amontonaría a todos
-  en el mismo mes.
-- **La antigüedad se cuenta sobre el padrón activo completo**, no sobre la
-  tabla de aniversarios de arriba: esa solo trae a quienes cumplen este mes.
-- **Las incidencias se agrupan por tipo y por departamento, no por mes**: no
-  guardan fecha propia, solo el momento de captura, y las registradas antes de
-  esa versión ni siquiera lo traen.
-- **La gráfica de faltas va bajo demanda, con un botón.** Calcularla exige leer
-  las asistencias de EPP del periodo, que son un documento por persona y por
-  día; hacerlo al abrir la pestaña gastaría cuota sin que nadie lo pida.
-- **Respeta los permisos del reporte de faltas**: quien no puede ver todas las
-  áreas solo cuenta las de sus departamentos asignados, y se avisa en la nota.
-- **Si fallan las asistencias no se grafica nada.** Sin ellas, todo turno
-  terminado parecería falta, y la gráfica acusaría a gente que sí vino.
-
-## SPEC-019 — Quién ve las gráficas
-
-- **Las gráficas se reservan a quien tenga la marca `verGraficas` en el padrón**,
-  más los administradores, que las ven siempre sin necesidad de aparecer
-  marcados. Concentran información de toda la plantilla —rotación, faltas por
-  área, incidencias por departamento— que no le toca a cualquiera que entre a
-  consultar su propio turno.
-- **El permiso se administra como dato, no como código**: vive en
-  `colaboradores` y se enciende desde la casilla «Puede ver las gráficas» de la
-  pantalla de Permisos, dentro de Sucesos y Turnos. Así, cuando se contrate a
-  alguien más de Recursos Humanos, basta con marcarlo; no hay que tocar código
-  ni recompilar.
-- **`verGraficas` no viaja en `construirDocumento`.** Si lo hiciera, un Excel
-  del directorio sin esa columna borraría el permiso en cada importación.
-- **La regla está escrita una sola vez**, en `services/permisosPadron.ts`. Las
-  gráficas aparecen en tres pestañas distintas; con la condición repetida tres
-  veces, tarde o temprano una se quedaría atrás y alguien vería en una pestaña
-  lo que no puede ver en otra.
-- **Ante la duda, no se concede.** Sin nómina, fuera del padrón o sin la marca,
-  las gráficas no se muestran.
-- **Es un candado de interfaz**, como el resto de los de esta aplicación: quien
-  tenga conocimientos puede leer los datos de todos modos. Se sostiene en que
-  las reglas de Firestore no distinguen usuarios (SPEC-008).
-
-## SPEC-020 — Captura acotada y fecha de incidencia
-
-- **La incidencia lleva fecha capturada**, no la del guardado: se registra a
-  veces días después de ocurrida. Viene con la de hoy puesta, que es el caso
-  normal, y se puede mover. Las incidencias anteriores a este campo no la traen
-  y se muestran con un guion, sin inventarles una.
-- **El departamento va antes que el puesto en el Directorio**, porque de él
-  dependen los puestos elegibles.
-- **Los puestos se eligen de una lista acotada al departamento**, tanto en el
-  Directorio como al abrir una vacante. La lista sale del propio padrón
-  (`puestosPorDepartamento`), no de un catálogo escrito a mano: se mantiene sola
-  conforme cambia la plantilla y nadie tiene que recompilar para dar de alta un
-  puesto nuevo.
-- **Se agrupa por departamento normalizado**, para que un acento o una mayúscula
-  de más no parta el mismo departamento en dos listas.
-- **Las bajas siguen aportando sus puestos a la lista**: quien salió deja su
-  puesto vacante, y es justo el que se va a querer volver a capturar.
-- **Hay una salida «Otro puesto» con captura libre.** Sin ella no se podría
-  abrir una plaza que nunca ha existido, que es cuando más falta hace.
-- **El puesto ya capturado se agrega a la lista aunque no figure entre los del
-  departamento.** Pasa al editar a alguien con un puesto único; sin esto, abrir
-  su ficha se lo borraría en silencio.
-- **Limpiar el puesto al cambiar de departamento lo hace el formulario, no el
-  selector.** Dentro del selector no se distingue un cambio hecho a mano de
-  cargar la ficha de alguien para editarla, y abrir a un colaborador le vaciaba
-  el puesto sin que nadie lo tocara.
-- **Se retiró la carga masiva del padrón desde Excel**, junto con su vista
-  previa y su motor de lectura. Lo que SPEC-006 describe sobre ese resumen ya no
-  aplica. El alta y la corrección son uno por uno; la exportación a Excel y PDF
-  del directorio sigue igual.
-
-## SPEC-021 — Promociones internas: captura y seguimiento
-
-- **El colaborador se busca escribiendo**, no eligiendo de un desplegable. El
-  padrón pasa de cien personas y en un teléfono esa lista obliga a girar una
-  rueda enorme. Se filtra por nombre o por nómina y se elige de los resultados.
-- **La nómina elegida se guarda aparte del texto escrito.** Un nombre tecleado a
-  medias nunca cuenta como selección: el campo obligatorio se satisface con la
-  nómina, así que no se puede abrir una evaluación para alguien que no existe.
-- **El aviso de «nadie coincide» va en el flujo normal, no flotando.** Flotando
-  tapaba el botón de abrir evaluación, que queda justo debajo, y lo volvía
-  intocable.
-- **Las bajas no aparecen** entre las sugerencias.
-- **El destino depende del tipo:** con «cambio de puesto», la lista trae todos
-  los puestos del padrón, sin acotar al departamento, porque un cambio de puesto
-  suele ser precisamente a otra área. Con «nueva categoría», la lista es la
-  escala fija A, B, C y D, que no se deduce del padrón porque las categorías no
-  se capturan como dato. Con «contrato de planta» no hay destino.
-- **Semáforo de las fechas de evaluación:** en rojo si el corte ya pasó sin
-  calificación, en ámbar si faltan tres días o menos. Solo alarma mientras la
-  evaluación sigue en proceso y ese mes no tiene calificación; en una ya
-  aprobada o rechazada sería ruido sobre algo cerrado.
-- **Una calificación de cero cuenta como calificada.** Se comprueba contra
-  `undefined` y no por valor verdadero, porque un cero es una nota real y
-  tratarlo como vacío pintaría de rojo un mes ya evaluado.
-- **Rechazar pregunta antes de escribir nada:** o el caso termina en rechazo, o
-  se abren tres meses más para volver a evaluar. Son decisiones distintas y una
-  de ellas vacía las calificaciones de la ronda en curso.
-- **La segunda oportunidad arranca hoy**, no al día siguiente del último corte:
-  ese corte suele estar en el pasado, y encadenarlo dejaría el mes 1 vencido y
-  en rojo desde el primer momento, sin que nadie hubiera podido calificarlo.
-- **La ronda que termina se archiva en `rondasPrevias`** antes de limpiar las
-  calificaciones. Perderlas en silencio borraría la única evidencia de por qué
-  se le dio otra oportunidad a alguien. La tarjeta muestra «2º periodo».
-
-## SPEC-022 — Roles de turnos: autoría y faltas a la vista
-
-- **Un rol guardado solo lo modifica quien lo creó.** Verlo lo puede cualquiera
-  que entre a la pestaña; guardarlo, únicamente su autor. **Esto reemplaza la
-  regla por departamento de SPEC-013** para la edición.
-- **Los departamentos asignados siguen mandando sobre quién puede *crear*
-  roles.** Son dos cosas distintas: crear está acotado al área, editar a la
-  autoría.
-- **Un administrador también puede modificar cualquier rol**, y no por
-  privilegio: si el autor sale de la empresa, su rol quedaría congelado para
-  siempre y no habría forma de corregir un turno mal puesto.
-- **Las dos nóminas tienen que existir para que coincidan.** Comparar dos
-  cadenas vacías da verdadero, y un rol antiguo sin autor registrado habría
-  quedado abierto a cualquier sesión que tampoco trajera nómina.
-- **Consecuencia conocida:** tres supervisores comparten impresión
-  (flexografía y rotograbado). Con esta regla, si el autor del rol falta, sus
-  compañeros de área ya no pueden ajustarlo; hay que pedírselo a un
-  administrador. Fue la razón por la que SPEC-013 había pasado el permiso a
-  departamento, y se revierte a petición expresa.
-- **Cada rol muestra su número de faltas** a la izquierda del icono de Excel.
-  En cero se muestra igual, en gris: no mostrar número se confundiría con «no
-  se ha calculado».
-- **Se cuentan con una sola lectura de asistencias** que cubre el tramo ya
-  vivido de todos los roles juntos. Consultar rol por rol multiplicaría las
-  lecturas de Firestore en cada visita a la pestaña.
-- **Solo se consultan los días ya transcurridos**: un rol que empieza el mes que
-  viene no pide nada. La falta sigue la misma regla que el reporte: hubo turno,
-  el turno ya terminó y no hay revisión de EPP.
-- **Si la lectura falla no se muestra número.** Sin asistencias, todo turno
-  terminado parecería falta, y el contador acusaría a gente que sí vino.

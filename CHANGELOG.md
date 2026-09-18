@@ -7,6 +7,46 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.15.0] — 2026-09-18
+
+### Agregado
+
+- **La fecha de la baja se captura** (SPEC-023). Al dar de baja se pregunta el
+  último día que trabajó la persona, propuesto como hoy; antes se ponía siempre
+  la del día, y las bajas se registran con retraso.
+- **Las bajas viejas se pueden fechar.** En el Directorio, quien está de baja
+  muestra su fecha bajo la etiqueta de estatus, y las que no la traen dicen
+  «sin fecha» en rojo. Un icono de calendario permite capturarla sin tocar el
+  estatus. Son las bajas anteriores a la 2.11.0, que no aparecían en la gráfica
+  de rotación.
+- **Columna «FECHA DE BAJA» en la exportación a Excel** del Directorio, para
+  cotejar contra nómina cuáles siguen pendientes.
+
+### Cambiado
+
+- **`SPECS.md` reordenado.** Las SPEC-017 a SPEC-022 estaban escritas con un
+  nivel de título distinto y colocadas después de las secciones de cierre, así
+  que se leían como apéndice y no aparecían en el índice del documento. Ahora
+  siguen en secuencia con el resto.
+- El encabezado de `SPECS.md` decía «versión objetivo 2.0» desde el 5 de
+  septiembre.
+
+### Notas
+
+Se agregó a `SPECS.md` una sección de **reglas transversales** (R1 a R6) con las
+decisiones que valen para toda la aplicación y no pertenecen a ninguna spec: los
+permisos como dato, los campos que no pueden viajar en `construirDocumento`, el
+manejo de fechas, las gráficas sin librerías, los campos del padrón que esta
+app no toca y el alcance real de los candados. Estaban dispersas en comentarios
+del código y en specs sueltas; quien llegue nuevo al repositorio no tenía cómo
+deducirlas.
+
+Se documenta ahí también que el campo **`rol`** del padrón está muerto: ninguna
+de las cinco aplicaciones lo lee, todas derivan el papel de `roles[<app>]`. Se
+deja donde está y no debe revivirse.
+
+---
+
 ## [2.14.0] — 2026-09-17
 
 ### Cambiado
