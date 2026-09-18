@@ -7,6 +7,43 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.16.0] — 2026-09-18
+
+### Agregado
+
+- **Promociones internas tiene su propia pestaña** (SPEC-024), a la derecha de
+  Capacitación. Antes era una sección al final de esa pestaña y había que bajar
+  por toda la lista de cursos para llegar.
+
+### Cambiado
+
+- **El nombre del rol de turnos se arma solo** (SPEC-025):
+  `DEPARTAMENTO · Periodo · dd/mm/aa al dd/mm/aa`. El campo pasa a ser de solo
+  lectura y se rehace con cada cambio de departamento, periodo o fecha. Cada
+  quien titulaba sus roles a su manera y encontrar uno dependía de recordar
+  cómo lo había llamado su autor.
+- **`G8` ahora se llama `ADM`** (SPEC-027). La clave vieja sigue reconociéndose
+  y se muestra como `ADM`, para no dejar sin horario las celdas ya guardadas.
+- **El nombre del colaborador ocupa dos renglones fijos** en la cuadrícula del
+  rol (SPEC-026), y su columna mide 200 px. Los nombres largos se montaban
+  sobre las casillas de turno de los primeros días.
+
+### Corregido
+
+- **La fecha propuesta al abrir una promoción se calculaba en UTC**
+  (`toISOString`), así que después de las 18:00 proponía el día siguiente. Se
+  detectó al separar el módulo. Mismo defecto en la fecha de inicio de un rol
+  de turnos nuevo; ambos usan ya `hoyISO()` (regla R3).
+
+### Notas
+
+Los roles y las celdas ya guardados **no se convierten solos**: un rol viejo
+conserva su nombre hasta que alguien lo abra y lo guarde, y una celda con `G8`
+queda así hasta que se toque. Reescribir en masa documentos que nadie pidió
+tocar es más riesgoso que convivir un tiempo con dos estilos.
+
+---
+
 ## [2.15.0] — 2026-09-18
 
 ### Agregado

@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.15
+**Versión objetivo:** 2.16
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1077,6 +1077,116 @@ viernes y se registra el lunes quedaba fechado en lunes.
 Las bajas viejas siguen sin fecha hasta que alguien las capture una por una. No
 hay carga masiva: el dato no está en ningún archivo digital de la empresa, así
 que una pantalla de carga no tendría de dónde leer.
+
+---
+
+# SPEC-024 — Promociones internas en su propia pestaña
+
+### Por qué
+
+Promociones vivía como una sección al final de Capacitación. Son dos cosas
+distintas: una programa cursos para grupos, la otra sigue el avance de una
+persona hacia otro puesto durante tres meses. Compartir pestaña obligaba a bajar
+por toda la lista de cursos para llegar a lo que se venía a ver.
+
+### Reglas de negocio
+
+- **La pestaña va a la derecha de Capacitación**, de donde salió.
+- **El permiso no cambia.** Sigue siendo `capturaPromociones` en el padrón, más
+  los administradores (SPEC-016, regla R1). La pestaña la ve cualquiera; lo que
+  el permiso decide es quién captura.
+- **El módulo se suscribe por su cuenta** a promociones y al padrón. Antes
+  Capacitación traía ambas cosas aunque el usuario nunca bajara a la sección; al
+  separarse, cada pestaña lee solo lo suyo.
+- El comportamiento descrito en la SPEC-021 —semáforo, calificaciones mensuales,
+  flujo de rechazo con segunda oportunidad— **no cambia**.
+
+### Defecto corregido al separar
+
+La fecha de inicio propuesta se calculaba con `new Date().toISOString()`, que
+convierte a UTC: después de las 18:00 en México proponía el día siguiente. Ahora
+usa `hoyISO()` (regla R3).
+
+---
+
+# SPEC-025 — El nombre del rol de turnos se arma solo
+
+### Por qué
+
+Cada quien titulaba sus roles a su manera: «Flexo semana del 21 de septiembre al
+3 de octubre» junto a «Tintas 21-03 oct» y «Mantenimiento Semana 39». Con la
+lista creciendo, encontrar un rol dependía de recordar cómo lo había llamado su
+autor, y dos roles del mismo periodo no se podían comparar de un vistazo.
+
+### Cómo se arma
+
+`DEPARTAMENTO · Periodo · dd/mm/aa al dd/mm/aa`
+
+Por ejemplo: `TINTAS · Quincenal · 05/10/26 al 18/10/26`.
+
+El rango sale de `diasDelPeriodo`, o sea del primer y el último día que el rol
+realmente cubre. En un rol mensual eso es el mes natural de la fecha de inicio,
+no treinta días contados desde ella.
+
+### Reglas de negocio
+
+- **El campo no se escribe.** Se muestra de solo lectura, para que quien
+  programa vea con qué nombre va a quedar antes de guardar.
+- **Se rehace con cada cambio de cabecera** y también al guardar. Así no puede
+  quedar describiendo un rango o un área que ya se cambió.
+- **Un rol nuevo nace con el nombre puesto**; no hay un momento en que esté
+  vacío, y por eso desapareció la validación de «el rol necesita un nombre».
+- **Los roles ya guardados conservan su nombre viejo** hasta que alguien los
+  abra y los guarde. No se renombran solos: reescribir documentos que nadie
+  pidió tocar es más riesgoso que convivir un tiempo con dos estilos.
+- **Dos roles pueden llamarse igual** si comparten área, periodo y fechas. Se
+  distinguen por su identificador, no por el nombre, así que no estorba; y si
+  aparecen dos idénticos, probablemente sobre uno.
+
+---
+
+# SPEC-026 — El nombre del colaborador ocupa dos renglones fijos
+
+### Por qué
+
+En la cuadrícula del rol, un nombre largo se salía de su columna y se montaba
+sobre las casillas de turno del lunes y el martes, tapando lo que se estaba
+capturando.
+
+### Reglas de negocio
+
+- **La columna mide 200 px fijos**, encabezado y celdas.
+- **El nombre ocupa siempre dos renglones**, aunque quepa en uno. La altura se
+  reserva para que todas las filas midan igual; con altura variable, la
+  cuadrícula se desalinea del encabezado de días conforme se baja.
+- **Lo que no cabe en dos renglones se recorta**, y el nombre completo queda en
+  el `title` de la celda.
+- El número de nómina va debajo, fuera de esos dos renglones.
+
+---
+
+# SPEC-027 — `G8` se llama `ADM`
+
+### Alcance
+
+La clave de turno `G8` (08:00 – 18:00) pasa a llamarse `ADM`. El horario y todo
+lo demás del catálogo queda igual.
+
+### Reglas de negocio
+
+- **`G8` sigue existiendo en el catálogo, pero ya no se ofrece.** Los roles
+  guardados tienen celdas con `G8` escrito dentro: quitarlo las dejaría sin
+  horario y sin hora de fin, y una jornada sin hora de fin **nunca contaría como
+  falta** (SPEC-014). El dato viejo se lee; lo que se escribe de aquí en
+  adelante es `ADM`.
+- **Se muestra siempre como `ADM`**, a través de `etiquetaTurno`. Quien capture
+  no llega a ver la clave vieja ni en la cuadrícula, ni en el portapapeles, ni
+  en las exportaciones.
+- **Una celda guardada con `G8` se ofrece aparte en su desplegable**, o el campo
+  saldría vacío sobre un turno que sí está puesto.
+- **Las celdas viejas se convierten al guardar**, no antes: al tocar esa celda y
+  elegir `ADM`, queda escrita la clave nueva. No hay conversión masiva, por lo
+  mismo que en la SPEC-025.
 
 ---
 
