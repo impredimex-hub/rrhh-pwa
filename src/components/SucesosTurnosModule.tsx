@@ -3,7 +3,7 @@ import { Plus, Trash2, FileSpreadsheet, FileText, Edit2, Copy, ClipboardPaste, E
 import type {
   Colaborador, Suceso, TipoSuceso, RolTurnos, PeriodoRol, ClaveTurno, AsignacionTurno
 } from '../types/rrhh';
-import { ETIQUETA_SUCESO, HORARIO_TURNO } from '../types/rrhh';
+import { ETIQUETA_SUCESO, HORARIO_TURNO, etiquetaTurno } from '../types/rrhh';
 import { subscribeColaboradores, asignarDepartamentosTurnos, asignarReporteFaltasTodas, asignarCapturaPromociones, asignarVerGraficas } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
 import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino } from '../services/turnoService';
@@ -11,12 +11,44 @@ import { subscribeAsistenciasRango, obtenerAsistenciasRango } from '../services/
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { puedeVerGraficas } from '../services/permisosPadron';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
+import { hoyISO, partesFecha } from '../utils/fechas';
 import { BarrasVerticales, BarrasHorizontales, COLORES } from './Graficas';
 
-const CLAVES_TURNO: ClaveTurno[] = ['T1', 'T2', 'T3', 'D12', 'N12', 'G8', 'LIB'];
+const CLAVES_TURNO: ClaveTurno[] = ['T1', 'T2', 'T3', 'D12', 'N12', 'ADM', 'LIB'];
 const DIAS_CORTOS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-const hoyISO = () => new Date().toISOString().split('T')[0];
+/** Etiqueta corta del periodo, para armar el nombre del rol. */
+const ETIQUETA_PERIODO: Record<PeriodoRol, string> = {
+  SEMANAL: 'Semanal',
+  QUINCENAL: 'Quincenal',
+  MENSUAL: 'Mensual'
+};
+
+/** Una fecha `AAAA-MM-DD` como `dd/mm/aa`. */
+const ddmmaa = (iso: string): string => {
+  const f = partesFecha(iso);
+  if (!f) return '';
+  const dos = (n: number) => String(n).padStart(2, '0');
+  return `${dos(f.dia)}/${dos(f.mes)}/${String(f.anio).slice(-2)}`;
+};
+
+/**
+ * Nombre del rol, armado solo (SPEC-025).
+ *
+ * Antes lo escribía cada quien y no había dos iguales: «Flexo semana del 21 de
+ * septiembre al 3 de octubre» junto a «Tintas 21-03 oct». Con la lista
+ * creciendo, encontrar un rol dependía de recordar cómo lo había titulado su
+ * autor.
+ *
+ * Se arma con lo que ya define al rol —departamento, periodo y rango—, así que
+ * no puede quedar desfasado del contenido.
+ */
+const nombreDelRol = (departamento: string, periodo: PeriodoRol, fechaInicio: string): string => {
+  const ds = diasDelPeriodo(fechaInicio, periodo);
+  if (!departamento || !ds.length) return '';
+  return `${departamento} · ${ETIQUETA_PERIODO[periodo]} · ${ddmmaa(ds[0])} al ${ddmmaa(ds[ds.length - 1])}`;
+};
+
 
 /** Fecha ISO a Date local, sin pasar por UTC (que recorrería un día). */
 const desdeISO = (iso: string) => {
@@ -315,15 +347,21 @@ export const SucesosTurnosModule: React.FC = () => {
     });
   }, [activos, buscaPermisos]);
 
-  const nuevoRol = (): RolTurnos => ({
-    nombre: '',
-    departamento: misDepartamentos[0] || '',
-    periodo: 'SEMANAL',
-    fechaInicio: hoyISO(),
-    asignaciones: {},
-    creadoPorNomina: sesion?.nomina || '',
-    creadoPorNombre: sesion?.nombre || ''
-  });
+  const nuevoRol = (): RolTurnos => {
+    const departamento = misDepartamentos[0] || '';
+    const periodo: PeriodoRol = 'SEMANAL';
+    const fechaInicio = hoyISO();
+    return {
+      // Nace con nombre puesto (SPEC-025); no hay un momento en que esté vacío.
+      nombre: nombreDelRol(departamento, periodo, fechaInicio),
+      departamento,
+      periodo,
+      fechaInicio,
+      asignaciones: {},
+      creadoPorNomina: sesion?.nomina || '',
+      creadoPorNombre: sesion?.nombre || ''
+    };
+  };
 
   const dias = useMemo(
     () => editandoRol ? diasDelPeriodo(editandoRol.fechaInicio, editandoRol.periodo) : [],
@@ -382,7 +420,7 @@ export const SucesosTurnosModule: React.FC = () => {
     return out;
   };
 
-  const cambiarCabecera = (campo: 'nombre' | 'departamento' | 'periodo' | 'fechaInicio', valor: string) => {
+  const cambiarCabecera = (campo: 'departamento' | 'periodo' | 'fechaInicio', valor: string) => {
     setEditandoRol(prev => {
       if (!prev) return prev;
       const sig = { ...prev, [campo]: campo === 'periodo' ? (valor as PeriodoRol) : valor };
@@ -394,6 +432,9 @@ export const SucesosTurnosModule: React.FC = () => {
         // asignaciones de la anterior ya no corresponden a nadie del rol.
         sig.asignaciones = {};
       }
+      // El nombre se rehace con cada cambio de cabecera (SPEC-025): es lo que
+      // impide que quede describiendo un rango o un área que ya cambió.
+      sig.nombre = nombreDelRol(sig.departamento, sig.periodo, sig.fechaInicio);
       return sig;
     });
   };
@@ -459,13 +500,17 @@ export const SucesosTurnosModule: React.FC = () => {
   const guardarRol = async () => {
     if (!editandoRol) return;
     if (!puedeTocarRol(editandoRol)) return;
-    if (!editandoRol.nombre.trim()) { alert('El rol necesita un nombre.'); return; }
     if (!editandoRol.fechaInicio) { alert('El rol necesita una fecha de inicio.'); return; }
     if (!editandoRol.departamento) { alert('El rol necesita un departamento.'); return; }
 
+    // El nombre se arma aquí y no se toma del estado, para que un rol viejo
+    // abierto y vuelto a guardar quede con el nombre nuevo (SPEC-025).
+    const nombre = nombreDelRol(editandoRol.departamento, editandoRol.periodo, editandoRol.fechaInicio);
+    if (!nombre) { alert('Falta el departamento o la fecha de inicio.'); return; }
+
     setGuardandoRol(true);
     try {
-      await saveRolTurnos({ ...editandoRol, nombre: editandoRol.nombre.trim() });
+      await saveRolTurnos({ ...editandoRol, nombre });
       setEditandoRol(null);
       setPortapapeles(null);
     } catch (err) {
@@ -503,7 +548,7 @@ export const SucesosTurnosModule: React.FC = () => {
       ds.forEach(f => {
         const a = rol.asignaciones[claveCelda(p.noNomina, f)];
         if (!a) { fila[f] = ''; return; }
-        const turno = a.turno === 'LIB' ? `LIB ${a.horaInicio || ''}-${a.horaFin || ''}` : a.turno;
+        const turno = a.turno === 'LIB' ? `LIB ${a.horaInicio || ''}-${a.horaFin || ''}` : etiquetaTurno(a.turno);
         // Misma regla que la pantalla: el «Asistió» en cuanto hay revisión, y
         // la falta solo si el turno ya terminó. Un turno en curso sale sin
         // marca, para no reportar como falta una jornada que no ha acabado.
@@ -631,7 +676,7 @@ export const SucesosTurnosModule: React.FC = () => {
               '# Nómina': per.noNomina,
               'Colaborador': per.nombreCompleto,
               'Departamento': deptoRol,
-              'Turno': a.turno === 'LIB' ? `LIB ${a.horaInicio || ''}-${a.horaFin || ''}` : a.turno,
+              'Turno': a.turno === 'LIB' ? `LIB ${a.horaInicio || ''}-${a.horaFin || ''}` : etiquetaTurno(a.turno),
               'Rol': rol.nombre
             });
           }
@@ -874,10 +919,14 @@ export const SucesosTurnosModule: React.FC = () => {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <label style={SUB}>NOMBRE DEL ROL *</label>
+              <label style={SUB}>NOMBRE DEL ROL</label>
+              {/* No se escribe: se arma con el departamento, el periodo y el
+                  rango (SPEC-025). Se muestra para que quien programa vea con
+                  qué nombre va a quedar antes de guardar. */}
               <input
-                type="text" value={editandoRol.nombre} placeholder="Ej. FLEXO SEMANA 38"
-                onChange={e => cambiarCabecera('nombre', e.target.value)} disabled={soloLectura}
+                type="text" readOnly
+                value={nombreDelRol(editandoRol.departamento, editandoRol.periodo, editandoRol.fechaInicio) || 'Se arma solo al elegir departamento y fechas'}
+                style={{ background: 'var(--bg-light)', color: 'var(--text-secondary)', cursor: 'default' }}
               />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -922,7 +971,7 @@ export const SucesosTurnosModule: React.FC = () => {
 
           {portapapeles && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', background: 'var(--brand-navy-light)', border: '1px solid var(--brand-navy)', borderRadius: '10px', padding: '8px 12px', marginTop: '10px', fontSize: '11.5px', color: 'var(--brand-navy)' }}>
-              Turno copiado: <b>{portapapeles.turno}</b>
+              Turno copiado: <b>{etiquetaTurno(portapapeles.turno)}</b>
               {portapapeles.turno === 'LIB' && ` ${portapapeles.horaInicio}–${portapapeles.horaFin}`}
               <button
                 onClick={() => setPortapapeles(null)}
@@ -944,7 +993,7 @@ export const SucesosTurnosModule: React.FC = () => {
               <table style={{ borderCollapse: 'separate', borderSpacing: 0, fontSize: '11px', minWidth: '100%' }}>
                 <thead>
                   <tr>
-                    <th style={{ position: 'sticky', left: 0, zIndex: 3, background: '#F3F6FA', minWidth: '185px', maxWidth: '185px', padding: '6px 8px', textAlign: 'left', fontSize: '9px', textTransform: 'uppercase', color: 'var(--brand-navy)', borderBottom: '1px solid var(--border-light)', borderRight: '1px solid var(--border-light)' }}>
+                    <th style={{ position: 'sticky', left: 0, zIndex: 3, background: '#F3F6FA', width: '200px', minWidth: '200px', maxWidth: '200px', padding: '6px 8px', textAlign: 'left', fontSize: '9px', textTransform: 'uppercase', color: 'var(--brand-navy)', borderBottom: '1px solid var(--border-light)', borderRight: '1px solid var(--border-light)' }}>
                       Colaborador
                     </th>
                     {dias.map(f => {
@@ -963,8 +1012,21 @@ export const SucesosTurnosModule: React.FC = () => {
                 <tbody>
                   {personasDelRol.map(p => (
                     <tr key={p.noNomina}>
-                      <td style={{ position: 'sticky', left: 0, zIndex: 2, background: '#fff', minWidth: '185px', maxWidth: '185px', padding: '6px 8px', fontWeight: 600, fontSize: '10.5px', lineHeight: 1.25, whiteSpace: 'normal', overflowWrap: 'anywhere', borderBottom: '1px solid var(--border-light)', borderRight: '1px solid var(--border-light)', boxShadow: '1px 0 0 var(--border-light)' }}>
-                        {p.nombreCompleto}
+                      <td style={{ position: 'sticky', left: 0, zIndex: 2, background: '#fff', width: '200px', minWidth: '200px', maxWidth: '200px', padding: '6px 8px', fontWeight: 600, fontSize: '10.5px', borderBottom: '1px solid var(--border-light)', borderRight: '1px solid var(--border-light)', boxShadow: '1px 0 0 var(--border-light)' }}>
+                        {/* Dos renglones fijos para el nombre (SPEC-026). La
+                            altura se reserva aunque el nombre ocupe uno solo,
+                            para que todas las filas midan igual y el texto
+                            largo no se monte sobre las casillas de turno. */}
+                        <div
+                          title={p.nombreCompleto}
+                          style={{
+                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden', wordBreak: 'break-word',
+                            lineHeight: '13px', height: '26px'
+                          }}
+                        >
+                          {p.nombreCompleto}
+                        </div>
                         <span style={{ display: 'block', fontWeight: 400, fontSize: '9px', color: 'var(--text-light)' }}>#{p.noNomina}</span>
                       </td>
                       {dias.map(f => {
@@ -985,6 +1047,10 @@ export const SucesosTurnosModule: React.FC = () => {
                                 }}
                               >
                                 <option value="">—</option>
+                                {/* Una celda guardada con la clave vieja G8 se
+                                    ofrece aparte, o el desplegable saldría en
+                                    blanco sobre un turno que sí existe. */}
+                                {a?.turno === 'G8' && <option value="G8">ADM</option>}
                                 {CLAVES_TURNO.map(t => <option key={t} value={t}>{t}</option>)}
                               </select>
                               {(() => {
