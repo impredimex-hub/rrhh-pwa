@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, Trash2, FileSpreadsheet, FileText, ChevronLeft, ChevronRight, UserMinus, UserCheck, AlertTriangle, Eye, Pencil, X } from 'lucide-react';
+import { UserPlus, Trash2, FileSpreadsheet, FileText, ChevronLeft, ChevronRight, UserMinus, UserCheck, AlertTriangle, Eye, Pencil, X, CalendarDays } from 'lucide-react';
 import type { Colaborador } from '../types/rrhh';
-import { saveColaboradoresBatch, subscribeColaboradores, deleteColaborador, cambiarEstatus, cambiarNomina, ordenarPorNomina } from '../services/personalService';
+import { saveColaboradoresBatch, subscribeColaboradores, deleteColaborador, cambiarEstatus, cambiarNomina, ordenarPorNomina, fecharBaja } from '../services/personalService';
 import { abrirContratoPlanta } from '../services/promocionService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { DEPARTAMENTOS } from '../utils/catalogos';
 import { SelectorPuesto } from './SelectorPuesto';
-import { diaYMes } from '../utils/fechas';
+import { diaYMes, hoyISO, partesFecha } from '../utils/fechas';
 import { usePermisos, useSesion } from '../services/SesionContext';
 
 export const PersonalModule: React.FC = () => {
@@ -25,6 +25,12 @@ export const PersonalModule: React.FC = () => {
   // Nómina que se está editando. Null significa alta nueva.
   const [editando, setEditando] = useState<string | null>(null);
   const [porRenombrar, setPorRenombrar] = useState<{de:string; a:string} | null>(null);
+  /**
+   * Diálogo de la fecha de baja (SPEC-023). `modo` distingue los dos usos:
+   * `baja` marca la baja y la fecha de un solo golpe; `fechar` solo corrige la
+   * fecha de alguien que ya está dado de baja, sin tocar su estatus.
+   */
+  const [dialogoBaja, setDialogoBaja] = useState<{ colab: Colaborador; fecha: string; modo: 'baja' | 'fechar' } | null>(null);
 
   const [formData, setFormData] = useState<Partial<Colaborador>>({
     noNomina: '',
@@ -154,13 +160,56 @@ export const PersonalModule: React.FC = () => {
   };
 
   const alternarEstatus = async (colab: Colaborador) => {
-    const nuevo = colab.estatus === 'ACTIVO' ? 'BAJA' : 'ACTIVO';
-    const verbo = nuevo === 'BAJA' ? 'dar de baja a' : 'reactivar a';
-    if (!confirm(`¿Seguro que quieres ${verbo} ${colab.nombreCompleto} (nómina ${colab.noNomina})?`)) return;
+    // La baja pasa por el diálogo, porque hay que preguntar el día. La
+    // reactivación no: ahí la fecha se borra y no hay nada que capturar.
+    if (colab.estatus === 'ACTIVO') {
+      setDialogoBaja({ colab, fecha: hoyISO(), modo: 'baja' });
+      return;
+    }
+    if (!confirm(`¿Seguro que quieres reactivar a ${colab.nombreCompleto} (nómina ${colab.noNomina})?`)) return;
     try {
-      await cambiarEstatus(colab.noNomina, nuevo, autor);
+      await cambiarEstatus(colab.noNomina, 'ACTIVO', autor);
     } catch (error: any) {
       alert('Error al cambiar el estatus: ' + (error?.message || 'Error desconocido'));
+    }
+  };
+
+  /**
+   * Qué tiene de malo una fecha de baja, o `null` si está bien.
+   *
+   * Las tres comprobaciones se hacen comparando texto, nunca con `Date`: el
+   * formato `AAAA-MM-DD` ya ordena correctamente y así no se repite el error de
+   * zona horaria que documenta `utils/fechas`.
+   */
+  const problemaConLaFecha = (colab: Colaborador, fecha: string): string | null => {
+    if (!partesFecha(fecha)) return 'Falta la fecha, o no es una fecha válida.';
+    // Una baja futura descuadraría la rotación del mes en curso: contaría a
+    // alguien que todavía está trabajando.
+    if (fecha > hoyISO()) return 'La baja no puede ser posterior a hoy.';
+    if (colab.fechaIngreso && partesFecha(colab.fechaIngreso) && fecha < colab.fechaIngreso) {
+      return `La baja no puede ser anterior a su ingreso (${colab.fechaIngreso}).`;
+    }
+    return null;
+  };
+
+  const confirmarDialogoBaja = async () => {
+    if (!dialogoBaja) return;
+    const { colab, fecha, modo } = dialogoBaja;
+    const problema = problemaConLaFecha(colab, fecha);
+    if (problema) { alert(problema); return; }
+
+    setLoading(true);
+    try {
+      if (modo === 'baja') {
+        await cambiarEstatus(colab.noNomina, 'BAJA', autor, fecha);
+      } else {
+        await fecharBaja(colab.noNomina, fecha, autor);
+      }
+      setDialogoBaja(null);
+    } catch (error: any) {
+      alert('No se pudo guardar la fecha: ' + (error?.message || 'Error desconocido'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -185,7 +234,10 @@ export const PersonalModule: React.FC = () => {
       'INGRESO': c.fechaIngreso || '-',
       'CUMPLEAÑOS': c.fechaNacimiento || '-',
       'DEPARTAMENTO': c.departamento || '-',
-      'ESTATUS': c.estatus
+      'ESTATUS': c.estatus,
+      // Va al Excel para poder cotejar contra nómina cuáles bajas siguen sin
+      // fecha. Es solo de lectura: la importación no escribe este campo.
+      'FECHA DE BAJA': c.estatus === 'BAJA' ? (c.fechaBaja || 'SIN FECHA') : '-'
     }));
     exportToExcel(data, 'IMPREDIMEX_Plantilla_Registrada');
   };
@@ -351,6 +403,14 @@ export const PersonalModule: React.FC = () => {
                       <span style={{ display: 'inline-block', background: colab.estatus === 'ACTIVO' ? 'var(--green-light)' : 'var(--red-light)', color: colab.estatus === 'ACTIVO' ? 'var(--green-dark)' : 'var(--brand-red)', fontSize: '8.5px', padding: '2px 5px', borderRadius: '3px', fontWeight: 'bold' }}>
                         {colab.estatus}
                       </span>
+                      {/* La fecha de la baja se muestra aquí para que se vea de
+                          un vistazo a quién le falta, que es lo que deja huecos
+                          en la gráfica de rotación (SPEC-023). */}
+                      {colab.estatus === 'BAJA' && (
+                        <div style={{ fontSize: '8.5px', marginTop: '2px', whiteSpace: 'nowrap', color: colab.fechaBaja ? 'var(--text-secondary)' : 'var(--brand-red)', fontWeight: colab.fechaBaja ? 400 : 700 }}>
+                          {colab.fechaBaja || 'sin fecha'}
+                        </div>
+                      )}
                     </td>
                     {puedeEditarPadron && (
                       <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}>
@@ -368,6 +428,18 @@ export const PersonalModule: React.FC = () => {
                         >
                           {colab.estatus === 'ACTIVO' ? <UserMinus size={13} /> : <UserCheck size={13} />}
                         </button>
+                        {/* Solo para quien ya está de baja: corregir el día sin
+                            tener que reactivar y volver a dar de baja, que
+                            falsearía la fecha (SPEC-023). */}
+                        {colab.estatus === 'BAJA' && (
+                          <button
+                            onClick={() => setDialogoBaja({ colab, fecha: colab.fechaBaja || '', modo: 'fechar' })}
+                            style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: colab.fechaBaja ? 'var(--brand-navy)' : 'var(--brand-red)', padding: '2px 4px' }}
+                            title={colab.fechaBaja ? 'Corregir la fecha de baja' : 'Falta la fecha de baja'}
+                          >
+                            <CalendarDays size={13} />
+                          </button>
+                        )}
                         <button
                           onClick={() => setPorEliminar(colab)}
                           style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-red)', padding: '2px 4px' }}
@@ -433,6 +505,64 @@ export const PersonalModule: React.FC = () => {
               <button onClick={confirmarRenombrado} disabled={loading}
                 style={{ flex: 1, padding: '11px', borderRadius: '9px', border: '1px solid var(--brand-navy)', background: '#fff', color: 'var(--brand-navy)', fontWeight: 600, fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}>
                 {loading ? 'Cambiando…' : 'Cambiar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fecha de la baja (SPEC-023) */}
+      {dialogoBaja && (
+        <div style={capaModal} onClick={() => !loading && setDialogoBaja(null)}>
+          <div style={{ ...cajaModal, maxWidth: '440px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px', fontWeight: 700, color: 'var(--brand-navy)', marginBottom: '.7rem' }}>
+              <CalendarDays size={18} />
+              {dialogoBaja.modo === 'baja' ? 'Dar de baja' : 'Fecha de la baja'}
+            </div>
+
+            <div style={{ fontSize: '12.5px', color: 'var(--brand-navy-dark)', lineHeight: 1.6, marginBottom: '.9rem' }}>
+              <strong>{dialogoBaja.colab.nombreCompleto}</strong>, nómina <strong>{dialogoBaja.colab.noNomina}</strong>.
+              {dialogoBaja.colab.fechaIngreso && <> Ingresó el {dialogoBaja.colab.fechaIngreso}.</>}
+            </div>
+
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--brand-navy)', marginBottom: '4px' }}>
+              Último día que trabajó
+            </label>
+            <input
+              type="date"
+              value={dialogoBaja.fecha}
+              max={hoyISO()}
+              min={dialogoBaja.colab.fechaIngreso || undefined}
+              onChange={e => setDialogoBaja({ ...dialogoBaja, fecha: e.target.value })}
+              style={{ width: '100%', height: '38px', padding: '4px 10px', fontSize: '13px', fontFamily: 'inherit', borderRadius: '8px', border: '1px solid var(--border-mid)', marginBottom: '.9rem' }}
+            />
+
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.6, background: 'var(--bg-light)', borderRadius: '8px', padding: '10px 12px', marginBottom: '1rem' }}>
+              {dialogoBaja.modo === 'baja' ? (
+                <>
+                  La persona conserva su historial y se puede reactivar. Esta fecha es la que cuenta
+                  para la <strong>gráfica de rotación</strong>, así que si la baja ocurrió antes de hoy,
+                  corrígela aquí: después ya no se puede cambiar sin volver a pasar por esta ventana.
+                </>
+              ) : (
+                <>
+                  Solo cambia la fecha; el estatus se queda en BAJA.
+                  <br /><br />
+                  Sirve para las bajas anteriores a la versión 2.11.0, que no traen día y por eso no
+                  aparecen en la gráfica de rotación. <strong>El dato no está en el sistema</strong>:
+                  tiene que salir del archivo de nómina.
+                </>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button onClick={() => setDialogoBaja(null)} disabled={loading}
+                style={{ flex: 1.4, padding: '11px', borderRadius: '9px', border: 'none', background: 'var(--brand-navy)', color: '#fff', fontWeight: 700, fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={confirmarDialogoBaja} disabled={loading || !dialogoBaja.fecha}
+                style={{ flex: 1, padding: '11px', borderRadius: '9px', border: '1px solid var(--brand-navy)', background: '#fff', color: 'var(--brand-navy)', fontWeight: 600, fontSize: '13px', fontFamily: 'inherit', cursor: dialogoBaja.fecha ? 'pointer' : 'not-allowed', opacity: dialogoBaja.fecha ? 1 : .5 }}>
+                {loading ? 'Guardando…' : 'Guardar'}
               </button>
             </div>
           </div>
