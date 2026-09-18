@@ -9,6 +9,22 @@
  * que su cumpleaños no salió en la lista.
  */
 
+/**
+ * El día de hoy como `AAAA-MM-DD`, armado con los valores locales.
+ *
+ * No se usa `toISOString()`, que convierte a UTC: después de las 18:00 en
+ * México devolvería el día siguiente, y una baja marcada por la tarde quedaría
+ * fechada en mañana.
+ *
+ * Como todas las fechas del padrón viajan en este formato, dos de ellas se
+ * pueden comparar como texto: `'2026-03-01' < '2026-03-02'` es cierto. Eso
+ * evita tener que construir un `Date` solo para saber cuál es anterior.
+ */
+export const hoyISO = (): string => {
+  const hoy = new Date();
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+};
+
 /** Parte una fecha `AAAA-MM-DD` sin que la zona horaria la mueva de día. */
 export const partesFecha = (iso?: string): { anio: number; mes: number; dia: number } | null => {
   if (!iso) return null;
