@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Users, Award, ClipboardList, GraduationCap, BookOpen, CalendarClock, WifiOff, Power } from 'lucide-react';
+import { Users, Award, ClipboardList, GraduationCap, TrendingUp, BookOpen, CalendarClock, WifiOff, Power } from 'lucide-react';
 import { PersonalModule } from './components/PersonalModule';
 import { AntiguedadVacantesModule } from './components/AntiguedadVacantesModule';
 import { IncidenciasModule } from './components/IncidenciasModule';
 import { CapacitacionModule } from './components/CapacitacionModule';
+import { PromocionesModule } from './components/PromocionesModule';
 import { CursosModule } from './components/CursosModule';
 import { SucesosTurnosModule } from './components/SucesosTurnosModule';
 import { LoginScreen } from './components/LoginScreen';
@@ -17,7 +18,7 @@ const ETIQUETA_PAPEL: Record<string, string> = {
 };
 
 function App() {
-  const [pestanaActiva, setPestanaActiva] = useState<'personal' | 'antiguedad' | 'incidencias' | 'capacitacion' | 'cursos' | 'sucesos'>('personal');
+  const [pestanaActiva, setPestanaActiva] = useState<'personal' | 'antiguedad' | 'incidencias' | 'capacitacion' | 'promociones' | 'cursos' | 'sucesos'>('personal');
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
 
   const [sesion, setSesion] = useState<Sesion | null>(null);
@@ -86,6 +87,8 @@ function App() {
     { id: 'antiguedad', label: 'Antigüedad y Vacantes', icon: Award },
     { id: 'incidencias', label: 'Incidencias', icon: ClipboardList },
     { id: 'capacitacion', label: 'Capacitación', icon: GraduationCap },
+    // A la derecha de Capacitación, de donde salió (SPEC-024).
+    { id: 'promociones', label: 'Promociones', icon: TrendingUp },
     { id: 'cursos', label: 'Cursos', icon: BookOpen },
     { id: 'sucesos', label: 'Sucesos y Turnos', icon: CalendarClock },
   ];
@@ -211,6 +214,7 @@ function App() {
           {pestanaActiva === 'antiguedad' && <AntiguedadVacantesModule />}
           {pestanaActiva === 'incidencias' && <IncidenciasModule />}
           {pestanaActiva === 'capacitacion' && <CapacitacionModule />}
+          {pestanaActiva === 'promociones' && <PromocionesModule />}
           {pestanaActiva === 'cursos' && <CursosModule />}
           {pestanaActiva === 'sucesos' && <SucesosTurnosModule />}
         </main>
