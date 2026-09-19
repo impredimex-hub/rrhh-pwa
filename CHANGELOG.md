@@ -7,6 +7,27 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.18.0] — 2026-09-18
+
+### Cambiado
+
+- **Excel, PDF y Actualizar son ahora botones redondos** de solo icono
+  (SPEC-029), del mismo alto que el resto de la fila: verde, rojo y azul
+  marino. Con el texto dentro no cabían y Actualizar se bajaba a un segundo
+  renglón. Actualizar conserva el número de marcados en una marca roja sobre la
+  esquina, y su icono gira mientras guarda.
+- **Con un curso filtrado, Excel y PDF llevan las dos tablas**: pendientes y
+  completados. En Excel son dos hojas; en el PDF, dos tablas una tras otra con
+  su subtítulo y su total. Sin curso filtrado el reporte sale como antes.
+
+### Corregido
+
+- **El nombre de los archivos exportados se fechaba en UTC**, así que después
+  de las 18:00 salían con la fecha del día siguiente. Afectaba a todas las
+  pestañas que exportan.
+
+---
+
 ## [2.17.0] — 2026-09-18
 
 ### Agregado

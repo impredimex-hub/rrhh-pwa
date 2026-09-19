@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.17
+**Versión objetivo:** 2.18
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1265,6 +1265,52 @@ proyecto `rrhh-pwa` nombran las colecciones una por una, hay que darle de alta
 antes de que esto funcione; si usan una regla general para toda sesión
 autenticada, ya queda cubierta. El síntoma de que falta es que Actualizar falle
 con permiso denegado.
+
+---
+
+# SPEC-029 — Botones redondos y reporte de las dos tablas
+
+### Por qué
+
+Con el texto dentro, los botones Excel, PDF y Actualizar no cabían en la fila de
+filtros y Actualizar se bajaba solo a un segundo renglón, encimado bajo los
+demás.
+
+Y el reporte servía a medias: exportaba únicamente a los pendientes, así que
+para saber cómo iba un curso había que sacar el archivo y compararlo a mano
+contra la pantalla.
+
+### Reglas de negocio
+
+- **Los tres botones son redondos, de 30 px, solo con icono**, del mismo alto
+  que el resto de la fila. Verde para Excel, rojo para PDF, azul marino para
+  Actualizar.
+- **Actualizar conserva su número** en una marca roja sobre la esquina. Al
+  quitarle el texto, sin ese número no habría forma de saber cuántos van
+  marcados sin contar casillas a mano.
+- **El icono gira mientras guarda.** Es la única señal que queda de que está
+  trabajando, porque ya no hay texto que diga «Guardando…».
+- **Con un curso filtrado, Excel y PDF llevan las dos tablas**: pendientes y
+  completados. De nada sirve la lista de quién falta sin saber quién ya lo tomó.
+- **Sin curso filtrado no hay completados**, y el reporte sale como antes, de
+  una sola tabla.
+- **En Excel son dos hojas**, «Pendientes» y «Completados». En el PDF, dos
+  tablas una tras otra, cada una con su subtítulo y su total.
+- **Una tabla vacía se omite** en lugar de salir con el encabezado solo. Si las
+  dos están vacías, no se descarga nada y se avisa.
+
+### Implementación
+
+Se agregaron `exportToExcelSheets` y `exportToPDFSections` a `utils/exportUtils`
+**sin tocar** `exportToExcel` ni `exportToPDF`, que siguen usando las demás
+pestañas.
+
+### Defecto corregido de paso
+
+El nombre de los archivos exportados se fechaba con `toISOString()`, que
+convierte a UTC: después de las 18:00 en México el archivo salía con la fecha
+del día siguiente. Afectaba a todas las pestañas que exportan, y ya usa la fecha
+local (regla R3).
 
 ---
 
