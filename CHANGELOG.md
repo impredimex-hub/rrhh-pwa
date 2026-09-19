@@ -7,6 +7,40 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.21.0] — 2026-09-18
+
+### Agregado
+
+- **Se puede revertir una falta y darla por asistencia** (SPEC-032), para
+  cuando no se hizo la revisión de EPP pero la persona sí vino a trabajar. En
+  el reporte de faltas aparece un botón **Sí vino** en cada renglón; pide el
+  motivo, y la corrección queda firmada con nombre y fecha.
+- **Lista de faltas revertidas** junto al reporte, con el motivo y quién la
+  hizo. La ve cualquiera que abra el reporte, tenga o no el permiso.
+- **Permiso `revertirFaltas` en el padrón**, con su casilla en la pantalla de
+  permisos. **Es el único permiso que no concede el papel de administrador:**
+  se pidió que lo tuviera una sola persona, así que sin la marca no se tiene,
+  aunque se sea ADMIN.
+
+### Cambiado
+
+- Las correcciones se suman a las revisiones de EPP **dentro de
+  `asistenciaService`**, no en cada pantalla. Las faltas se cuentan en tres
+  lugares —el reporte, el número junto a cada rol y la gráfica— y así los tres
+  las respetan sin poder quedarse atrás.
+
+### Notas
+
+**Antes de usarlo hay que revisar las reglas de Firestore:** `asistenciaManual`
+es una colección nueva, igual que `cursosCompletados`. El síntoma de que falta
+es que el botón falle con permiso denegado.
+
+Esto es un parche, no la solución. Mientras las revisiones de EPP no sean
+efectivamente obligatorias para todos, seguirán apareciendo faltas falsas y
+habrá que revertirlas a mano, una por una.
+
+---
+
 ## [2.20.0] — 2026-09-18
 
 ### Cambiado

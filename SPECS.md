@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.20
+**Versión objetivo:** 2.21
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1411,6 +1411,86 @@ Esta regla también deja fuera a los tres supervisores que comparten impresión,
 que fue el motivo por el que el permiso se había puesto por departamento y no
 por persona. Cada uno seguirá pudiendo crear roles de su área, pero no tocar el
 del compañero.
+
+---
+
+# SPEC-032 — Revertir una falta que no lo fue
+
+### Por qué
+
+La asistencia se infiere: una falta es un turno asignado que ya terminó sin que
+exista revisión de EPP de esa persona ese día (SPEC-014). El riesgo estaba
+documentado y aceptado, y ocurrió: una semana en que no se hicieron las
+revisiones dejó marcadas como ausentes a personas que sí vinieron a trabajar.
+
+Sin una salida, el único remedio sería borrar el rol, que además falsearía todo
+lo demás.
+
+### Quién puede
+
+**Solo quien tenga marcado `revertirFaltas` en el padrón.**
+
+Este permiso **rompe a propósito el patrón de todos los demás: ser ADMIN no
+basta.** Se pidió expresamente que lo tuviera una sola persona, y si el papel lo
+concediera, cualquier administrador podría borrar faltas sin que nadie lo
+hubiera decidido.
+
+Eso no lo convierte en un candado. Un administrador administra la pantalla de
+permisos y podría marcarse a sí mismo; la regla R6 ya dice que los candados de
+esta app son de interfaz. **Lo que sostiene el permiso no es el bloqueo, es la
+firma:** cada corrección guarda quién la hizo, cuándo y por qué, y se muestra en
+una lista junto al reporte.
+
+### Flujo principal
+
+1. Se genera el reporte de faltas del periodo.
+2. Quien tiene el permiso ve en cada renglón un botón **Sí vino**.
+3. Al pulsarlo se pide el motivo, propuesto como «No se hizo la revisión de EPP,
+   pero sí asistió». Sin motivo no se guarda.
+4. La falta desaparece del reporte y pasa a la lista de revertidas.
+
+### Reglas de negocio
+
+- **Una corrección vale lo mismo que una revisión de EPP.** Se unen en un solo
+  conjunto dentro de `asistenciaService`, no en cada pantalla, porque las faltas
+  se cuentan en **tres** lugares: el reporte, el número junto a cada rol y la
+  gráfica. Separadas, tarde o temprano uno de los tres se quedaría sin mirar las
+  correcciones y seguiría acusando a quien ya se dio por presente.
+- **El motivo es obligatorio.** Un permiso que borra faltas sin dejar razón no
+  se puede auditar.
+- **Se puede deshacer**, y entonces esa persona vuelve a contar como falta.
+- **La lista de revertidas la ve cualquiera** que abra el reporte, tenga o no el
+  permiso. El valor de esta lista es justamente que se vea: una corrección que
+  solo conoce quien la hizo no es distinta de borrar el dato.
+- **No se corrige en bloque.** Van de una en una, con su motivo. Una semana
+  entera sin revisiones son muchas pulsaciones, y así debe sentirse: el arreglo
+  de fondo es que se hagan las revisiones, no que sea cómodo revertirlas.
+- **Solo aparece sobre faltas que ya existen.** No se puede dar por presente a
+  alguien que no tenía turno asignado.
+
+### Cómo se guarda
+
+**Un documento por mes**, en la colección `asistenciaManual`, con un mapa
+`nómina_fecha → corrección` adentro. Un rango semanal o quincenal toca uno o dos
+documentos; uno mensual, uno solo. Un documento por corrección obligaría a
+consultar la colección entera cada vez que se cuentan faltas, que es tres veces
+por visita a la pestaña.
+
+Se esperan pocas: existen para la excepción, no para el uso diario.
+
+### Pendiente de configuración
+
+`asistenciaManual` es una colección nueva. Si las reglas de Firestore nombran
+las colecciones una por una, hay que darla de alta, igual que
+`cursosCompletados` (SPEC-028). El síntoma de que falta es que el botón **Sí
+vino** falle con permiso denegado.
+
+### Lo que esto no arregla
+
+Sigue siendo un parche sobre el riesgo de fondo: la asistencia se infiere de una
+revisión que puede no hacerse. Mientras las revisiones de EPP no sean
+efectivamente obligatorias para todos, seguirán apareciendo faltas falsas y
+alguien tendrá que revertirlas a mano, una por una.
 
 ---
 
