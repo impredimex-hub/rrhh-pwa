@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.21
+**Versión objetivo:** 2.22
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1491,6 +1491,67 @@ Sigue siendo un parche sobre el riesgo de fondo: la asistencia se infiere de una
 revisión que puede no hacerse. Mientras las revisiones de EPP no sean
 efectivamente obligatorias para todos, seguirán apareciendo faltas falsas y
 alguien tendrá que revertirlas a mano, una por una.
+
+---
+
+# SPEC-033 — Calendario de cumplimiento de cursos
+
+### Por qué
+
+La Matriz de Capacitaciones decía qué cursos hay y a quién van dirigidos, pero
+no si se están tomando. Para saber si un curso se está quedando atrás había que
+entrar a Cursos, filtrar por ese curso y contar a mano los pendientes.
+
+### Flujo principal
+
+1. En la Matriz de Capacitaciones se pulsa el botón redondo azul marino, a la
+   izquierda de Excel.
+2. Se abre el calendario del mes en curso. Cada curso aparece en el día de su
+   **fecha compromiso**, con su color.
+3. Debajo va el detalle de los cursos de ese mes: título, instructor, cuántos
+   participantes le tocan, cuántos ya lo tomaron y cuántos faltan.
+4. Se navega mes a mes con las flechas.
+
+### Reglas de negocio
+
+- **La fecha compromiso es `fechaFin`.** Es la que marca si un curso ya debió
+  estar cubierto.
+- **El color solo aparece cuando la fecha ya pasó.** Antes no hay nada que
+  juzgar: todavía hay tiempo de tomarlo. Un curso que no vence sale en gris
+  aunque no lo haya tomado nadie.
+
+  | Estado | Cuándo | Color |
+  |---|---|---|
+  | En tiempo | La fecha compromiso no ha pasado | Gris |
+  | Completo | Venció y lo tomó el grupo entero | Verde |
+  | Incompleto | Venció y va del 50 % para arriba | Amarillo |
+  | Atrasado | Venció y va por debajo del 50 % | Rojo |
+  | Sin participantes | Venció y no le toca a nadie del padrón activo | Gris claro |
+
+- **El 50 % exacto cuenta como incompleto, no como atrasado.** Se pidieron los
+  cortes «menos del 50», «arriba del 50.1» y «100», que dejaban fuera el 50
+  justo. La mitad del grupo capacitada no es lo mismo que nadie.
+- **Los participantes son los del padrón activo** a quienes aplica el curso por
+  departamento y puesto. Una baja deja de contar, así que un curso puede subir
+  de porcentaje sin que nadie lo tome.
+- **Quien tomó el curso nunca supera al total.** Si alguien cambió de área
+  después de tomarlo, el conteo guardado podría pasarse del padrón de hoy, y un
+  «21 de 20» se leería como un error de la aplicación.
+- **Un curso sin documento de completados cuenta como cero.** Que falte no es un
+  error: significa que nadie lo ha tomado todavía.
+
+### Cómo se lee
+
+Los completados se piden **al abrir el calendario**, no al cargar la pestaña:
+mientras nadie lo consulte, no se descarga nada. Es una lectura por curso, de
+unos kilobytes cada una.
+
+### Regla compartida
+
+`cursoAplicaA` se movió a `utils/cursos`, porque ahora la usan dos pestañas:
+**Cursos** para armar la matriz de pendientes y **Capacitación** para contar
+participantes. Escrita dos veces, una acabaría contando distinto de la otra y
+los dos números nunca cuadrarían. Es la misma razón de la regla R1.
 
 ---
 

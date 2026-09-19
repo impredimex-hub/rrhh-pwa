@@ -7,6 +7,30 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.22.0] — 2026-09-19
+
+### Agregado
+
+- **Calendario de cumplimiento en la Matriz de Capacitaciones** (SPEC-033).
+  Botón redondo azul marino a la izquierda de Excel. Muestra cada curso en su
+  fecha compromiso, con el detalle del mes: instructor, cuántos participantes
+  le tocan, cuántos lo tomaron y cuántos faltan.
+- **Semáforo por curso**, solo cuando la fecha compromiso ya pasó: verde al
+  100 %, amarillo del 50 % para arriba, rojo por debajo del 50 %. Los que aún
+  no vencen salen en gris.
+
+### Cambiado
+
+- `cursoAplicaA` se movió a `utils/cursos` y ahora la comparten Cursos y
+  Capacitación. Escrita dos veces, una acabaría contando distinto de la otra.
+
+### Corregido
+
+- En `types/rrhh.ts`, el comentario de `RegistroCursoCompletado` había quedado
+  separado de su interfaz al agregar `AsistenciaManual` en la versión 2.21.
+
+---
+
 ## [2.21.0] — 2026-09-18
 
 ### Agregado
