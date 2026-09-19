@@ -48,6 +48,14 @@ export interface Colaborador {
    */
   verGraficas?: boolean;
   /**
+   * Puede revertir una falta y darla por asistencia (SPEC-032).
+   *
+   * **Este permiso no lo implica ser ADMIN**, a diferencia de los demás: se
+   * pidió expresamente que lo tuviera una sola persona. Como todos, vive en el
+   * padrón y no viaja en `construirDocumento` (reglas R1 y R2).
+   */
+  revertirFaltas?: boolean;
+  /**
    * Opcional a propósito: al importar desde Excel se omite para que el
    * documento conserve el estatus que ya tenía y una baja no reviva sola.
    */
@@ -149,6 +157,25 @@ export interface CursoCapacitacion {
  * su nómina; no es un documento propio. La calificación es opcional porque no
  * todos los cursos llevan examen.
  */
+/**
+ * Una falta revertida a mano (SPEC-032).
+ *
+ * La asistencia se infiere de la revisión de EPP: si no hubo revisión, la
+ * persona aparece ausente aunque haya venido. Esto es la excepción, y por eso
+ * guarda motivo y firma de quién la hizo.
+ */
+export interface AsistenciaManual {
+  noNomina: string;
+  /** `AAAA-MM-DD`. */
+  fecha: string;
+  nombreCompleto?: string;
+  departamento?: string;
+  motivo: string;
+  porNomina: string;
+  porNombre: string;
+  creadoEn?: number;
+}
+
 export interface RegistroCursoCompletado {
   /** Día en que se marcó como cursado, `AAAA-MM-DD`. */
   fecha: string;
