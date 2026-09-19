@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, FileSpreadsheet, FileText, ChevronDown, Check, Eye } from 'lucide-react';
+import { Plus, Trash2, Edit2, FileSpreadsheet, FileText, ChevronDown, Check, Eye, CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import type { Colaborador, CursoCapacitacion } from '../types/rrhh';
 import { subscribeColaboradores } from '../services/personalService';
 import { subscribeCursos, saveCurso, deleteCurso } from '../services/capacitacionService';
 import { usePermisos } from '../services/SesionContext';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
+import { cursoAplicaA, avanceDelCurso, COLOR_AVANCE } from '../utils/cursos';
+import { contarCompletadosDeCursos } from '../services/cursoCompletadoService';
+import { hoyISO } from '../utils/fechas';
 
 export const CapacitacionModule: React.FC = () => {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
@@ -27,6 +30,57 @@ export const CapacitacionModule: React.FC = () => {
     estatus: 'PROGRAMADO'
   });
   const { puedeCapturar } = usePermisos();
+
+  /* ── Calendario de cumplimiento (SPEC-033) ─────────────────────────────
+     Los completados se leen **al abrir**, no al cargar la pestaña: mientras
+     nadie pida el calendario, no se descarga nada. */
+  const [calendarioAbierto, setCalendarioAbierto] = useState(false);
+  const [mesCalendario, setMesCalendario] = useState(hoyISO().slice(0, 7));
+  const [tomaronPorCurso, setTomaronPorCurso] = useState<Record<string, number>>({});
+  const [cargandoCalendario, setCargandoCalendario] = useState(false);
+
+  const abrirCalendario = async () => {
+    setCalendarioAbierto(true);
+    setMesCalendario(hoyISO().slice(0, 7));
+    setCargandoCalendario(true);
+    try {
+      setTomaronPorCurso(await contarCompletadosDeCursos(cursos.map(c => c.id || '').filter(Boolean)));
+    } finally {
+      setCargandoCalendario(false);
+    }
+  };
+
+  /** Cuántas personas del padrón activo le tocan a un curso. */
+  const participantesDe = (curso: CursoCapacitacion) =>
+    colaboradores.filter(c => c.estatus === 'ACTIVO' && cursoAplicaA(c, curso)).length;
+
+  /**
+   * Resumen de un curso: participantes, cuántos lo tomaron, cuántos faltan y
+   * en qué color va.
+   */
+  const resumenDeCurso = (curso: CursoCapacitacion) => {
+    const total = participantesDe(curso);
+    const tomaron = tomaronPorCurso[curso.id || ''] || 0;
+    // Nunca más de los que son: si alguien cambió de área después de tomarlo,
+    // el conteo guardado podría superar al padrón de hoy.
+    const tomaronReal = Math.min(tomaron, total);
+    const { estado, porcentaje } = avanceDelCurso(curso, total, tomaronReal);
+    return { total, tomaron: tomaronReal, faltan: Math.max(0, total - tomaronReal), estado, porcentaje };
+  };
+
+  /** Mes anterior o siguiente, contando sobre el texto `AAAA-MM` (regla R3). */
+  const moverMes = (pasos: number) => {
+    let anio = Number(mesCalendario.slice(0, 4));
+    let mes = Number(mesCalendario.slice(5, 7)) + pasos;
+    while (mes > 12) { mes -= 12; anio += 1; }
+    while (mes < 1) { mes += 12; anio -= 1; }
+    setMesCalendario(`${anio}-${String(mes).padStart(2, '0')}`);
+  };
+
+  /** Los cursos cuya fecha compromiso cae en el mes que se está viendo. */
+  const cursosDelMes = cursos
+    .filter(c => (c.fechaFin || '').slice(0, 7) === mesCalendario)
+    .sort((a, b) => (a.fechaFin || '').localeCompare(b.fechaFin || ''));
 
   useEffect(() => {
     const unsubColab = subscribeColaboradores((data) => setColaboradores(data));
@@ -402,6 +456,11 @@ export const CapacitacionModule: React.FC = () => {
             <div className="sec-title" style={{ margin: 0 }}>Matriz de Capacitaciones ({cursos.length})</div>
           </div>
           <div style={{ display: 'flex', gap: '6px' }}>
+            {/* Calendario de cumplimiento (SPEC-033). Va antes que Excel
+                porque se consulta más que lo que se exporta. */}
+            <button onClick={abrirCalendario} className="btn-circular btn-circular-navy" title="Calendario de cumplimiento">
+              <CalendarDays size={14} />
+            </button>
             <button onClick={handleExportExcel} className="btn-circular btn-circular-excel" title="Exportar a Excel">
               <FileSpreadsheet size={14} />
             </button>
@@ -512,6 +571,136 @@ export const CapacitacionModule: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* ── CALENDARIO DE CUMPLIMIENTO (SPEC-033) ────────────────────────── */}
+      {calendarioAbierto && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,20,60,.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '16px', zIndex: 60, overflowY: 'auto' }}
+          onClick={() => setCalendarioAbierto(false)}
+        >
+          <div
+            className="card-industrial"
+            style={{ width: '100%', maxWidth: '760px', marginTop: '12px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CalendarDays size={18} color="var(--brand-navy)" />
+                <div className="sec-title" style={{ margin: 0 }}>Calendario de cumplimiento</div>
+              </div>
+              <button onClick={() => setCalendarioAbierto(false)} title="Cerrar"
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-navy)', padding: 0, display: 'flex' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '10px' }}>
+              Cada curso se coloca en su <b>fecha compromiso</b>. El color solo aparece cuando esa fecha
+              ya pasó: verde si lo tomó todo el grupo, amarillo si va a la mitad o más, y rojo si va por
+              debajo de la mitad. Los que aún no vencen se muestran en gris.
+            </div>
+
+            {/* Navegación del mes */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '10px' }}>
+              <button onClick={() => moverMes(-1)} title="Mes anterior"
+                style={{ border: '1px solid var(--border-mid)', background: '#fff', borderRadius: '50%', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--brand-navy)' }}>
+                <ChevronLeft size={14} />
+              </button>
+              <div style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--brand-navy)', minWidth: '150px', textAlign: 'center', textTransform: 'capitalize' }}>
+                {new Date(Number(mesCalendario.slice(0, 4)), Number(mesCalendario.slice(5, 7)) - 1, 1)
+                  .toLocaleDateString('es-MX', { month: 'long', year: 'numeric' })}
+              </div>
+              <button onClick={() => moverMes(1)} title="Mes siguiente"
+                style={{ border: '1px solid var(--border-mid)', background: '#fff', borderRadius: '50%', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--brand-navy)' }}>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+
+            {/* Cuadrícula del mes */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '3px', marginBottom: '12px' }}>
+              {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(d => (
+                <div key={d} style={{ fontSize: '8.5px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', textAlign: 'center', padding: '2px 0' }}>{d}</div>
+              ))}
+              {(() => {
+                const anio = Number(mesCalendario.slice(0, 4));
+                const mes = Number(mesCalendario.slice(5, 7));
+                // `new Date(anio, mes-1, dia)` con números es seguro; lo que no
+                // se puede es construirlo desde la cadena (regla R3).
+                const primerDia = new Date(anio, mes - 1, 1).getDay();
+                const diasDelMes = new Date(anio, mes, 0).getDate();
+                const celdas: React.ReactNode[] = [];
+
+                for (let i = 0; i < primerDia; i++) celdas.push(<div key={`v${i}`} />);
+
+                for (let d = 1; d <= diasDelMes; d++) {
+                  const iso = `${mesCalendario}-${String(d).padStart(2, '0')}`;
+                  const delDia = cursosDelMes.filter(c => c.fechaFin === iso);
+                  const esHoy = iso === hoyISO();
+                  celdas.push(
+                    <div key={iso} style={{
+                      minHeight: '54px', border: '1px solid ' + (esHoy ? 'var(--brand-navy)' : 'var(--border-light)'),
+                      borderRadius: '6px', padding: '3px', background: '#fff'
+                    }}>
+                      <div style={{ fontSize: '8.5px', fontWeight: esHoy ? 700 : 400, color: esHoy ? 'var(--brand-navy)' : 'var(--text-light)', marginBottom: '2px' }}>{d}</div>
+                      {delDia.map(c => {
+                        const r = resumenDeCurso(c);
+                        const col = COLOR_AVANCE[r.estado];
+                        return (
+                          <div key={c.id} title={`${c.titulo} — ${r.tomaron} de ${r.total}`}
+                            style={{
+                              background: col.fondo, color: col.texto, border: `1px solid ${col.borde}`,
+                              borderRadius: '4px', padding: '1px 3px', fontSize: '7.5px', fontWeight: 700,
+                              marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                            }}>
+                            {c.titulo}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                }
+                return celdas;
+              })()}
+            </div>
+
+            {/* Detalle del mes */}
+            {cargandoCalendario ? (
+              <div style={{ textAlign: 'center', padding: '1rem', fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                Contando quién ya lo tomó…
+              </div>
+            ) : cursosDelMes.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '1.2rem', fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                No hay cursos con fecha compromiso en este mes.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {cursosDelMes.map(c => {
+                  const r = resumenDeCurso(c);
+                  const col = COLOR_AVANCE[r.estado];
+                  return (
+                    <div key={c.id} style={{ background: col.fondo, border: `1px solid ${col.borde}`, borderRadius: '8px', padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                        <div style={{ fontSize: '11.5px', fontWeight: 700, color: col.texto }}>{c.titulo}</div>
+                        <div style={{ fontSize: '9px', fontWeight: 700, color: col.texto, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+                          {col.etiqueta}{r.total > 0 && ` · ${r.porcentaje}%`}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '10px', color: col.texto, opacity: .85, marginTop: '3px', lineHeight: 1.5 }}>
+                        Instructor: {c.instructor || 'sin instructor'} · Fecha compromiso: {c.fechaFin || '—'}
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: col.texto, marginTop: '4px' }}>
+                        <b>{r.total}</b> participante{r.total === 1 ? '' : 's'} ·
+                        {' '}<b>{r.tomaron}</b> lo tomaron ·
+                        {' '}<b>{r.faltan}</b> falta{r.faltan === 1 ? '' : 'n'}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

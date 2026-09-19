@@ -7,6 +7,7 @@ import { subscribeCursos } from '../services/capacitacionService';
 import { subscribeCompletados, guardarCompletados, guardarCalificacion, quitarCompletado } from '../services/cursoCompletadoService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { hoyISO } from '../utils/fechas';
+import { cursoAplicaA } from '../utils/cursos';
 import { exportToExcel, exportToPDF, exportToExcelSheets, exportToPDFSections } from '../utils/exportUtils';
 
 export const CursosModule: React.FC = () => {
@@ -151,18 +152,9 @@ export const CursosModule: React.FC = () => {
     return mins > 0 ? `${horas}h ${mins}m` : `${horas}h`;
   };
 
-  const estaAsignado = (colab: Colaborador, curso: CursoCapacitacion): boolean => {
-    const depto = (colab.departamento || '').toUpperCase().trim();
-    const puesto = (colab.puesto || '').toUpperCase().trim();
-
-    const deptosObj = (curso.departamentosObjetivo || []).map(d => d.toUpperCase().trim());
-    const puestosObj = (curso.puestosObjetivo || []).map(p => p.toUpperCase().trim());
-
-    const deptoCoincide = deptosObj.includes('TODOS') || deptosObj.includes('GENERAL') || deptosObj.includes(depto);
-    const puestoCoincide = puestosObj.length === 0 || puestosObj.includes(puesto);
-
-    return deptoCoincide && puestoCoincide;
-  };
+  // La regla vive en `utils/cursos` porque Capacitación la usa también, para
+  // contar participantes en el calendario (SPEC-033).
+  const estaAsignado = cursoAplicaA;
 
   const obtenerEstadoCurso = (colab: Colaborador, curso: CursoCapacitacion): 'Programado' | 'No asistencia' | null => {
     if (!estaAsignado(colab, curso)) return null;
