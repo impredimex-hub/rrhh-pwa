@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.16
+**Versión objetivo:** 2.17
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1187,6 +1187,84 @@ lo demás del catálogo queda igual.
 - **Las celdas viejas se convierten al guardar**, no antes: al tocar esa celda y
   elegir `ADM`, queda escrita la clave nueva. No hay conversión masiva, por lo
   mismo que en la SPEC-025.
+
+---
+
+# SPEC-028 — Quién ya cursó, y quién falta
+
+### Por qué
+
+Un curso que se imparte a toda la planta se parte en varias sesiones, y hasta
+ahora llevar la cuenta era trabajo manual: quién lo tomó, a quién le falta, qué
+calificación sacó cada quien. La pestaña de Cursos mostraba el estatus del
+**curso** (programado, no asistencia), no el de **cada persona**.
+
+### Flujo principal
+
+1. Se filtra por un curso. Sin curso elegido no hay a quién dar por cursado, así
+   que las columnas de captura no aparecen.
+2. La tabla de arriba lista a **quienes faltan** de tomarlo.
+3. Se palomea la casilla **Cursado** de quienes asistieron, y opcionalmente su
+   **Calif.**
+4. Se pulsa **Actualizar**: esas personas pasan a la sección **Completados** y
+   desaparecen de la tabla de arriba.
+
+### Reglas de negocio
+
+- **Marcar y guardar son dos momentos distintos.** Las casillas viven en
+  pantalla y solo se escriben al pulsar Actualizar. Una sesión de treinta
+  personas cuesta **una** escritura, no treinta, y quien se equivoca de casilla
+  la desmarca sin que haya pasado nada.
+- **La calificación es opcional**, porque no todos los cursos llevan examen. Se
+  habilita solo al marcar Cursado: capturar una nota para alguien que no asistió
+  no significa nada.
+- **Una calificación fuera de 0 a 100 detiene el guardado.** Guardarla como
+  vacía sin avisar perdería la captura en silencio.
+- **En Completados la calificación se puede corregir**, porque el examen se
+  suele calificar días después de la sesión. Ahí sí se guarda al salir del
+  campo: es un dato suelto y esperar a un botón confundiría.
+- **Se puede regresar a alguien a pendientes.** Marcar es un clic y equivocarse
+  también; sin esa salida, una casilla mal picada dejaría a esa persona como
+  capacitada para siempre.
+- **Se guarda quién registró y en qué día**, y se muestra en Completados. La
+  trazabilidad no la dan las reglas de Firestore (SPEC-008, regla R6) sino los
+  datos que la app graba.
+- **La captura la hace quien tenga permiso de captura.** Los demás ven las dos
+  tablas completas, pero sin casillas, sin botón y sin poder corregir.
+
+### Cómo se guarda
+
+**Un documento por curso**, en la colección `cursosCompletados`, con un mapa
+`nómina → registro` adentro. Con 122 personas pesa unos 7 KB, y saber quién
+falta es restarle el padrón que la app ya tiene en memoria.
+
+Un documento por persona y por curso daría 122 documentos por curso, y armar la
+lista de pendientes obligaría a leerlos todos cada vez que alguien abre la
+pestaña. Es el mismo error que hoy le cuesta a EPP más de un giga al mes.
+
+**Solo se lee el curso filtrado**, y solo mientras lo está: un documento, no la
+colección.
+
+Cada nómina se escribe bajo su propia clave con `merge`, así que dos personas
+capturando el mismo curso al mismo tiempo no se pisan.
+
+### Cambios de presentación
+
+- **Se retiraron las columnas Departamento y Estatus**, también del selector de
+  columnas y de las exportaciones. Departamento sigue estando como filtro.
+- **La columna de fecha ya no repite el título del curso** en pantalla: la
+  columna de al lado ya lo lleva, y el título la ensanchaba de más. En las
+  exportaciones sí se conserva, porque ahí pueden ir varios cursos a la vez y
+  dos columnas llamadas «Fecha» se confundirían entre sí.
+- **Excel y PDF exportan a los pendientes**, que es lo que la tabla muestra.
+
+### Pendiente de configuración
+
+La colección `cursosCompletados` es nueva. Si las reglas de Firestore del
+proyecto `rrhh-pwa` nombran las colecciones una por una, hay que darle de alta
+antes de que esto funcione; si usan una regla general para toda sesión
+autenticada, ya queda cubierta. El síntoma de que falta es que Actualizar falle
+con permiso denegado.
 
 ---
 

@@ -7,6 +7,37 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.17.0] — 2026-09-18
+
+### Agregado
+
+- **Control de quién ya cursó cada curso** (SPEC-028). Al filtrar por un curso
+  aparecen las columnas **Cursado** y **Calif.**, y un botón **Actualizar** a la
+  derecha de PDF que pasa a los palomeados a una sección nueva,
+  **Completados**. La tabla de arriba queda mostrando solo a quienes faltan.
+- La calificación es opcional y se puede corregir después desde Completados.
+- Se puede regresar a alguien a pendientes, por si se palomeó de más.
+
+### Cambiado
+
+- **Se retiraron las columnas Departamento y Estatus** de la pestaña de Cursos,
+  del selector de columnas y de las exportaciones. Departamento sigue estando
+  como filtro.
+- **La columna de fecha ya no repite el título del curso** en pantalla, que era
+  lo que la ensanchaba. En las exportaciones se conserva, porque ahí pueden ir
+  varios cursos y dos columnas «Fecha» se confundirían.
+- Excel y PDF exportan a los pendientes, que es lo que la tabla muestra.
+
+### Notas
+
+**Antes de usarlo hay que revisar las reglas de Firestore** del proyecto
+`rrhh-pwa`: `cursosCompletados` es una colección nueva. Si las reglas nombran
+las colecciones una por una, hay que darla de alta; si son generales para
+cualquier sesión autenticada, ya queda cubierta. El síntoma de que falta es que
+Actualizar falle con permiso denegado.
+
+---
+
 ## [2.16.0] — 2026-09-18
 
 ### Agregado
