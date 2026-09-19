@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.19
+**Versión objetivo:** 2.20
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1351,6 +1351,66 @@ Quedaron redondos, de 30 px y solo con icono, en:
 El icono verde de Excel que aparece **dentro de cada renglón** de la lista de
 roles de turnos se queda como está: es una acción de fila, sin fondo ni forma
 de botón, y redondearlo lo haría competir visualmente con los de la cabecera.
+
+---
+
+# SPEC-031 — Un rol de turnos solo lo modifica quien lo creó
+
+### Qué cambia
+
+Hasta la versión 2.19, un administrador también podía guardar el rol de otra
+persona. Ya no: **la edición queda reservada a su autor, sin excepciones.** Ni
+administradores ni RRHH.
+
+### Por qué se retiró la excepción
+
+Quien programa un turno responde por él. Que otro pudiera cambiarlo sin que se
+notara rompía esa responsabilidad: el rol seguía diciendo «creado por» una
+persona mientras su contenido podía ser de otra.
+
+### Qué hace un administrador en su lugar
+
+**Puede borrar el rol, no editarlo.**
+
+Esa salida tiene que existir. La razón por la que un administrador podía editar
+era que, si el autor dejaba la empresa, su rol quedaba congelado para siempre.
+Ese problema no desaparece al retirar el permiso; empeora, porque el rol
+tampoco se podría retirar de la lista. Y no es un estorbo cosmético: **la
+asistencia se calcula sobre los turnos asignados** (SPEC-014), así que un rol
+equivocado que nadie puede tocar seguiría generando faltas falsas contra gente
+que sí vino a trabajar, indefinidamente.
+
+Borrar no es modificar. Un administrador no puede cambiarle un turno a nadie;
+lo que puede es retirar un rol que quedó mal y que su autor ya no puede
+corregir. El rol se rehace desde cero, a nombre de quien lo rehizo, y la
+autoría sigue siendo honesta.
+
+### Reglas de negocio
+
+- **Guardar un rol: solo su autor**, comparando la nómina de la sesión contra
+  `creadoPorNomina`.
+- **Borrar un rol: su autor o un administrador.**
+- **Verlo lo puede cualquiera.** Un rol ajeno se abre en modo lectura, con el
+  aviso de quién lo creó y a quién hay que pedirle el cambio.
+- **Un rol sin autor registrado no lo edita nadie**, porque comparar dos
+  nóminas vacías daría verdadero y lo dejaría abierto a cualquiera. Un
+  administrador sí puede borrarlo, que es justo para lo que sirve esa salida.
+- **Quién puede crear roles no cambia**: sigue siendo el permiso
+  `departamentosTurnos` del padrón, que administra un ADMIN (SPEC-013, regla
+  R1). Un administrador no se queda sin control; lo ejerce antes, decidiendo
+  quién programa, y no después corrigiendo lo programado.
+
+### Consecuencia aceptada
+
+Si el autor de un rol está de vacaciones, incapacitado o ya no trabaja aquí,
+**su rol no se puede corregir**: hay que borrarlo y rehacerlo. Con roles
+semanales o quincenales el costo es bajo; con uno mensual a media captura,
+significa volver a capturarlo completo.
+
+Esta regla también deja fuera a los tres supervisores que comparten impresión,
+que fue el motivo por el que el permiso se había puesto por departamento y no
+por persona. Cada uno seguirá pudiendo crear roles de su área, pero no tocar el
+del compañero.
 
 ---
 

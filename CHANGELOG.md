@@ -7,6 +7,32 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.20.0] — 2026-09-18
+
+### Cambiado
+
+- **Un rol de turnos solo lo modifica quien lo creó** (SPEC-031). Se retiró la
+  excepción que permitía a un administrador guardar el rol de otra persona.
+  Tampoco RRHH. El aviso que se muestra al abrir un rol ajeno lo dice y señala
+  a quién pedirle el cambio.
+- **Un administrador puede borrar un rol, no editarlo.** La excepción anterior
+  existía porque el rol de alguien que deja la empresa quedaba congelado; sin
+  ninguna salida, además quedaría imborrable y seguiría generando faltas falsas,
+  porque la asistencia se calcula sobre los turnos asignados. Borrar no es
+  modificar: el rol se rehace desde cero a nombre de quien lo rehizo.
+
+### Notas
+
+Quién puede **crear** roles no cambió: sigue siendo el permiso
+`departamentosTurnos` del padrón. Un administrador ejerce el control antes,
+decidiendo quién programa, y no después corrigiendo lo programado.
+
+**Consecuencia aceptada:** si el autor está de vacaciones, incapacitado o ya no
+trabaja aquí, su rol no se corrige, se rehace. En uno mensual a media captura
+eso significa capturarlo completo otra vez.
+
+---
+
 ## [2.19.0] — 2026-09-18
 
 ### Cambiado
