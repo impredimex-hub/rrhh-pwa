@@ -1,4 +1,4 @@
-import { doc, setDoc, updateDoc, deleteField, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteField, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import type { RegistroCursoCompletado } from '../types/rrhh';
 
@@ -81,4 +81,33 @@ export const quitarCompletado = async (cursoId: string, nomina: string) => {
     [`registros.${nomina}`]: deleteField(),
     actualizadoEn: serverTimestamp()
   });
+};
+
+/**
+ * Cuántos tomaron cada curso, para el calendario de Capacitación (SPEC-033).
+ *
+ * Lee un documento por curso, y **solo al abrir el calendario**, no al cargar
+ * la pestaña: mientras nadie lo pida, no se descarga nada. Con los cursos que
+ * suele haber son unas pocas lecturas de unos kilobytes.
+ *
+ * Un curso sin documento todavía es uno que nadie ha tomado, y cuenta como
+ * cero; que falte no es un error.
+ */
+export const contarCompletadosDeCursos = async (
+  cursoIds: string[]
+): Promise<Record<string, number>> => {
+  const cuenta: Record<string, number> = {};
+  for (const id of cursoIds) {
+    if (!id) continue;
+    try {
+      const snap = await getDoc(doc(db, COLLECTION_NAME, id));
+      cuenta[id] = Object.keys(snap.data()?.registros || {}).length;
+    } catch (err) {
+      // Se sigue con los demás: un curso sin número se nota, y detener todo
+      // dejaría el calendario en blanco.
+      console.error(`No se pudieron leer los completados del curso ${id}`, err);
+      cuenta[id] = 0;
+    }
+  }
+  return cuenta;
 };
