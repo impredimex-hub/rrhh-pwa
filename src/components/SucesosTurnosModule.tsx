@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, FileSpreadsheet, FileText, Edit2, Copy, ClipboardPaste, Eraser, X, ChevronLeft, ShieldCheck, Eye, Check, FileWarning } from 'lucide-react';
 import type {
-  Colaborador, Suceso, TipoSuceso, RolTurnos, PeriodoRol, ClaveTurno, AsignacionTurno
+  Colaborador, Suceso, TipoSuceso, RolTurnos, PeriodoRol, ClaveTurno, AsignacionTurno, AsistenciaManual
 } from '../types/rrhh';
 import { ETIQUETA_SUCESO, HORARIO_TURNO, etiquetaTurno } from '../types/rrhh';
-import { subscribeColaboradores, asignarDepartamentosTurnos, asignarReporteFaltasTodas, asignarCapturaPromociones, asignarVerGraficas } from '../services/personalService';
+import { subscribeColaboradores, asignarDepartamentosTurnos, asignarReporteFaltasTodas, asignarCapturaPromociones, asignarVerGraficas, asignarRevertirFaltas } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
 import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino } from '../services/turnoService';
 import { subscribeAsistenciasRango, obtenerAsistenciasRango } from '../services/asistenciaService';
 import { usePermisos, useSesion } from '../services/SesionContext';
-import { puedeVerGraficas } from '../services/permisosPadron';
+import { puedeVerGraficas, puedeRevertirFaltas } from '../services/permisosPadron';
+import { marcarAsistenciaManual, quitarAsistenciaManual, obtenerManualesDetalle } from '../services/asistenciaManualService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { hoyISO, partesFecha } from '../utils/fechas';
 import { BarrasVerticales, BarrasHorizontales, COLORES } from './Graficas';
@@ -346,6 +347,19 @@ export const SucesosTurnosModule: React.FC = () => {
     }
   };
 
+  const alternarRevertirFaltas = async (c: Colaborador) => {
+    if (!esAdmin || guardandoPermiso) return;
+    setGuardandoPermiso(c.noNomina);
+    try {
+      await asignarRevertirFaltas(c.noNomina, !c.revertirFaltas, sesion?.nomina || '');
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo guardar el permiso. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      setGuardandoPermiso('');
+    }
+  };
+
   /** Quien ya tiene algún permiso, primero; luego el resto. */
   const personasPermisos = useMemo(() => {
     const t = buscaPermisos.trim().toUpperCase();
@@ -644,6 +658,18 @@ export const SucesosTurnosModule: React.FC = () => {
     [papel, sesion, colaboradores]
   );
 
+  /**
+   * Revertir una falta (SPEC-032). Ser ADMIN no basta: se pidió que lo tuviera
+   * una sola persona, y la regla vive en `permisosPadron` porque es la única
+   * que decide si una falta cuenta o no.
+   */
+  const puedeRevertir = useMemo(
+    () => puedeRevertirFaltas(sesion?.nomina, colaboradores),
+    [sesion, colaboradores]
+  );
+  const [repManuales, setRepManuales] = useState<AsistenciaManual[]>([]);
+  const [revirtiendo, setRevirtiendo] = useState('');
+
   const puedeReporteTodas = useMemo(() => {
     if (esAdmin) return true;
     if (!sesion) return false;
@@ -701,6 +727,8 @@ export const SucesosTurnosModule: React.FC = () => {
 
       filas.sort((x, y) => x['Fecha'].localeCompare(y['Fecha']) || x['Colaborador'].localeCompare(y['Colaborador']));
       setRepFilas(filas);
+      // Las del periodo, para poder mostrarlas y deshacerlas (SPEC-032).
+      setRepManuales(await obtenerManualesDetalle(repDesde, repHasta));
     } catch (err) {
       console.error(err);
       // Sin asistencias, todo turno terminado parecería falta: mejor no
@@ -784,9 +812,69 @@ export const SucesosTurnosModule: React.FC = () => {
     return [...cuenta.entries()].map(([etiqueta, valor]) => ({ etiqueta, valor }));
   }, [grafFaltas]);
 
+  /**
+   * Da por presente a quien no tuvo revisión de EPP pero sí vino.
+   *
+   * La fila se retira de la lista en el momento, sin volver a generar el
+   * reporte: rehacerlo son varias lecturas de Firestore por cada corrección, y
+   * el resultado sería el mismo.
+   */
+  const revertirFalta = async (fila: Record<string, string>) => {
+    if (!puedeRevertir || revirtiendo) return;
+    const nom = fila['# Nómina'];
+    const fecha = fila['Fecha'];
+
+    const motivo = window.prompt(
+      `Dar por presente a ${fila['Colaborador']} el ${fecha}.\n\n¿Por qué? Queda registrado con tu nombre.`,
+      'No se hizo la revisión de EPP, pero sí asistió'
+    );
+    if (motivo === null) return;                 // canceló
+    if (!motivo.trim()) { alert('Hace falta el motivo.'); return; }
+
+    setRevirtiendo(`${nom}|${fecha}`);
+    try {
+      const reg: AsistenciaManual = {
+        noNomina: nom,
+        fecha,
+        nombreCompleto: fila['Colaborador'],
+        departamento: fila['Departamento'],
+        motivo: motivo.trim(),
+        porNomina: sesion?.nomina || '',
+        porNombre: sesion?.nombre || ''
+      };
+      await marcarAsistenciaManual(reg);
+      setRepFilas(prev => (prev || []).filter(f => !(f['# Nómina'] === nom && f['Fecha'] === fecha)));
+      setRepManuales(prev => [...prev, reg].sort((a, b) => a.fecha.localeCompare(b.fecha)));
+    } catch (err: any) {
+      alert('No se pudo guardar la corrección: ' + (err?.message || 'Error desconocido'));
+    } finally {
+      setRevirtiendo('');
+    }
+  };
+
+  /** Deshace una corrección: esa persona vuelve a contar como falta. */
+  const deshacerReversion = async (reg: AsistenciaManual) => {
+    if (!puedeRevertir || revirtiendo) return;
+    if (!window.confirm(`¿Volver a contar como falta a ${reg.nombreCompleto || reg.noNomina} el ${reg.fecha}?`)) return;
+    setRevirtiendo(`${reg.noNomina}|${reg.fecha}`);
+    try {
+      await quitarAsistenciaManual(reg.noNomina, reg.fecha);
+      setRepManuales(prev => prev.filter(x => !(x.noNomina === reg.noNomina && x.fecha === reg.fecha)));
+      // La falta vuelve al reporte solo al regenerarlo: reconstruirla aquí
+      // exigiría repetir toda la lógica de turnos, con el riesgo de que las
+      // dos versiones dejen de coincidir.
+      alert('Listo. Vuelve a generar el reporte para verla de nuevo en la lista.');
+    } catch (err: any) {
+      alert('No se pudo deshacer: ' + (err?.message || 'Error desconocido'));
+    } finally {
+      setRevirtiendo('');
+    }
+  };
+
   const abrirReporte = () => {
     setRepDepto(puedeReporteTodas ? '__TODOS__' : (departamentos[0] || ''));
     setRepFilas(null);
+    setRepManuales([]);
     setRepError('');
     setModalReporte(true);
   };
@@ -813,8 +901,11 @@ export const SucesosTurnosModule: React.FC = () => {
           ninguno marcado solo consulta. Tú, como administrador, puedes programar
           todos sin necesidad de aparecer aquí. Las casillas de abajo son
           aparte y no conceden permiso para programar nada: una da acceso al
-          reporte de faltas de todas las áreas, la otra permite capturar y
-          calificar promociones internas. Cada marca se guarda al instante.
+          reporte de faltas de todas las áreas, otra permite capturar y
+          calificar promociones internas, otra ver las gráficas. La última,
+          revertir una falta, <b>es la única que ni siquiera un administrador
+          tiene por su papel</b>: se necesita la marca. Cada marca se guarda al
+          instante.
         </p>
 
         <input
@@ -833,7 +924,7 @@ export const SucesosTurnosModule: React.FC = () => {
               const suyos = (c.departamentosTurnos || []).map(d => d.trim().toUpperCase());
               const ocupado = guardandoPermiso === c.noNomina;
               return (
-                <div key={c.noNomina} style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '9px 11px', background: (suyos.length || c.reporteFaltasTodas || c.capturaPromociones || c.verGraficas) ? 'var(--brand-navy-light)' : '#fff', opacity: ocupado ? 0.55 : 1 }}>
+                <div key={c.noNomina} style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '9px 11px', background: (suyos.length || c.reporteFaltasTodas || c.capturaPromociones || c.verGraficas || c.revertirFaltas) ? 'var(--brand-navy-light)' : '#fff', opacity: ocupado ? 0.55 : 1 }}>
                   <div style={{ fontWeight: 700, fontSize: '11.5px', color: 'var(--brand-navy-dark)' }}>
                     {c.nombreCompleto}
                   </div>
@@ -894,6 +985,22 @@ export const SucesosTurnosModule: React.FC = () => {
                       style={{ width: '14px', height: '14px', accentColor: 'var(--brand-navy)', cursor: ocupado ? 'wait' : 'pointer' }}
                     />
                     Puede ver las gráficas
+                  </label>
+
+                  {/* Este permiso no lo concede el papel de administrador
+                      (SPEC-032): solo se tiene si está marcado aquí. */}
+                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed var(--border-mid)', fontSize: '10px', color: 'var(--text-secondary)', cursor: ocupado ? 'wait' : 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!c.revertirFaltas}
+                      disabled={ocupado}
+                      onChange={() => alternarRevertirFaltas(c)}
+                      style={{ width: '14px', height: '14px', accentColor: 'var(--brand-red)', cursor: ocupado ? 'wait' : 'pointer', marginTop: '1px', flexShrink: 0 }}
+                    />
+                    <span>
+                      <b style={{ color: 'var(--brand-red)' }}>Puede revertir una falta</b> y darla por asistencia
+                      cuando no se hizo la revisión de EPP. Cada corrección queda firmada con su nombre y su motivo.
+                    </span>
                   </label>
                 </div>
               );
@@ -1397,6 +1504,9 @@ export const SucesosTurnosModule: React.FC = () => {
                             {['Fecha', '# Nómina', 'Colaborador', 'Depto.', 'Turno'].map(h => (
                               <th key={h} style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                             ))}
+                            {puedeRevertir && (
+                              <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase', whiteSpace: 'nowrap', textAlign: 'center' }}>Sí vino</th>
+                            )}
                           </tr>
                         </thead>
                         <tbody>
@@ -1407,10 +1517,65 @@ export const SucesosTurnosModule: React.FC = () => {
                               <td style={{ padding: '5px 8px' }}>{r['Colaborador']}</td>
                               <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>{r['Departamento']}</td>
                               <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}>{r['Turno']}</td>
+                              {puedeRevertir && (
+                                <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                                  {/* Solo aparece para quien tiene el permiso
+                                      (SPEC-032). Pide motivo antes de escribir. */}
+                                  <button
+                                    onClick={() => revertirFalta(r)}
+                                    disabled={revirtiendo === `${r['# Nómina']}|${r['Fecha']}`}
+                                    title="Sí asistió: no se le hizo revisión de EPP"
+                                    style={{
+                                      border: '1px solid var(--green-dark)', background: 'var(--green-light)',
+                                      color: 'var(--green-dark)', borderRadius: '6px', padding: '2px 7px',
+                                      fontSize: '9.5px', fontWeight: 700, fontFamily: 'inherit',
+                                      cursor: revirtiendo ? 'wait' : 'pointer', whiteSpace: 'nowrap'
+                                    }}
+                                  >
+                                    <Check size={10} strokeWidth={3} /> Sí vino
+                                  </button>
+                                </td>
+                              )}
                             </tr>
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                  )}
+
+                  {/* Lo corregido a mano en el mismo periodo (SPEC-032). Se
+                      muestra siempre que haya algo, tenga o no permiso quien
+                      mira: el valor de esta lista es que se vea. */}
+                  {repManuales.length > 0 && (
+                    <div style={{ marginTop: '12px', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '9px 11px', background: 'var(--bg-light)' }}>
+                      <div style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--brand-navy)', marginBottom: '6px' }}>
+                        Faltas revertidas a mano en el periodo ({repManuales.length})
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '8px' }}>
+                        Estas personas no aparecen como falta porque alguien dio fe de que sí asistieron.
+                        No cuentan en el reporte ni en el número de faltas de su rol.
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                        {repManuales.map(m => (
+                          <div key={`${m.noNomina}_${m.fecha}`} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', fontSize: '10px', background: '#fff', border: '1px solid var(--border-light)', borderRadius: '7px', padding: '6px 8px' }}>
+                            <div style={{ lineHeight: 1.45 }}>
+                              <b style={{ color: 'var(--brand-navy)' }}>{m.fecha}</b> · {m.nombreCompleto || m.noNomina} <span style={{ color: 'var(--text-light)' }}>#{m.noNomina}</span>
+                              <div style={{ color: 'var(--text-secondary)' }}>{m.motivo}</div>
+                              <div style={{ color: 'var(--text-light)', fontSize: '9px' }}>por {m.porNombre || m.porNomina}</div>
+                            </div>
+                            {puedeRevertir && (
+                              <button
+                                onClick={() => deshacerReversion(m)}
+                                disabled={revirtiendo === `${m.noNomina}|${m.fecha}`}
+                                title="Volver a contarla como falta"
+                                style={{ border: 'none', background: 'transparent', cursor: revirtiendo ? 'wait' : 'pointer', color: 'var(--brand-red)', padding: '2px 4px', flexShrink: 0 }}
+                              >
+                                <X size={13} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
