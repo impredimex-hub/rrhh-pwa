@@ -151,13 +151,6 @@ export interface CursoCapacitacion {
 }
 
 /**
- * Constancia de que una persona cursó un curso (SPEC-028).
- *
- * Vive dentro del documento del curso en `cursosCompletados`, bajo la clave de
- * su nómina; no es un documento propio. La calificación es opcional porque no
- * todos los cursos llevan examen.
- */
-/**
  * Una falta revertida a mano (SPEC-032).
  *
  * La asistencia se infiere de la revisión de EPP: si no hubo revisión, la
@@ -176,6 +169,13 @@ export interface AsistenciaManual {
   creadoEn?: number;
 }
 
+/**
+ * Constancia de que una persona cursó un curso (SPEC-028).
+ *
+ * Vive dentro del documento del curso en `cursosCompletados`, bajo la clave de
+ * su nómina; no es un documento propio. La calificación es opcional porque no
+ * todos los cursos llevan examen.
+ */
 export interface RegistroCursoCompletado {
   /** Día en que se marcó como cursado, `AAAA-MM-DD`. */
   fecha: string;
