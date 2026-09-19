@@ -162,3 +162,28 @@ th, td {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+
+/* Botones redondos de acción: Excel, PDF y Actualizar (SPEC-030).
+   Escrito una sola vez porque aparecen en seis pestañas; repetido en cada
+   una, tarde o temprano una se quedaría distinta de las demás. */
+.btn-circular {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: filter .15s ease;
+}
+.btn-circular:hover:not(:disabled) { filter: brightness(1.12); }
+.btn-circular:disabled { opacity: .45; cursor: not-allowed; }
+
+.btn-circular-excel { background: var(--green); }
+.btn-circular-pdf   { background: var(--brand-red); }
+.btn-circular-navy  { background: var(--brand-navy); }
