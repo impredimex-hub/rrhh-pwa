@@ -142,6 +142,21 @@ export interface CursoCapacitacion {
   estatus: 'PROGRAMADO' | 'EN_CURSO' | 'FINALIZADO';
 }
 
+/**
+ * Constancia de que una persona cursó un curso (SPEC-028).
+ *
+ * Vive dentro del documento del curso en `cursosCompletados`, bajo la clave de
+ * su nómina; no es un documento propio. La calificación es opcional porque no
+ * todos los cursos llevan examen.
+ */
+export interface RegistroCursoCompletado {
+  /** Día en que se marcó como cursado, `AAAA-MM-DD`. */
+  fecha: string;
+  calificacion?: number;
+  porNomina?: string;
+  porNombre?: string;
+}
+
 /* ───────────────── Sucesos y rol de turnos (v2.4) ───────────────── */
 
 export type TipoSuceso =
