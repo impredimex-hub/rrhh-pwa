@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { FileSpreadsheet, FileText, ChevronLeft, ChevronRight, SlidersHorizontal, Check, Filter, X } from 'lucide-react';
-import type { Colaborador, CursoCapacitacion } from '../types/rrhh';
+import { FileSpreadsheet, FileText, ChevronLeft, ChevronRight, SlidersHorizontal, Check, Filter, X, RefreshCw, Undo2 } from 'lucide-react';
+import type { Colaborador, CursoCapacitacion, RegistroCursoCompletado } from '../types/rrhh';
+import { CALIFICACION_MIN, CALIFICACION_MAX } from '../types/rrhh';
 import { subscribeColaboradores, ordenarPorNomina } from '../services/personalService';
 import { subscribeCursos } from '../services/capacitacionService';
+import { subscribeCompletados, guardarCompletados, guardarCalificacion, quitarCompletado } from '../services/cursoCompletadoService';
+import { usePermisos, useSesion } from '../services/SesionContext';
+import { hoyISO } from '../utils/fechas';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 export const CursosModule: React.FC = () => {
@@ -36,6 +40,21 @@ export const CursosModule: React.FC = () => {
   const [columnasVisibles, setColumnasVisibles] = useState<Record<string, boolean>>({});
   const [menuColumnasAbierto, setMenuColumnasAbierto] = useState(false);
 
+  /* ── Quién ya cursó (SPEC-028) ──────────────────────────────────────────
+     Marcar y guardar son dos momentos distintos: las casillas viven aquí, en
+     pantalla, y solo se escriben al pulsar Actualizar. Así una sesión de
+     treinta personas cuesta **una** escritura, no treinta, y quien se
+     equivoca de casilla puede desmarcarla sin que haya pasado nada. */
+  const [completados, setCompletados] = useState<Record<string, RegistroCursoCompletado>>({});
+  const [marcados, setMarcados] = useState<Record<string, boolean>>({});
+  const [califs, setCalifs] = useState<Record<string, string>>({});
+  const [guardandoCursado, setGuardandoCursado] = useState(false);
+  const { puedeCapturar } = usePermisos();
+  const sesion = useSesion();
+
+  /** Curso sobre el que se está trabajando. Sin uno elegido no hay qué marcar. */
+  const cursoActivo = aplicados?.curso ? cursos.find(c => c.id === aplicados.curso) || null : null;
+
   useEffect(() => {
     const unsubColab = subscribeColaboradores((data) => setColaboradores(ordenarPorNomina(data)));
     const unsubCursos = subscribeCursos((data) => setCursos(data));
@@ -50,9 +69,7 @@ export const CursosModule: React.FC = () => {
     const columnasBase: Record<string, boolean> = {
       noNomina: true,
       nombre: true,
-      departamento: true,
-      puesto: true,
-      estatus: true
+      puesto: true
     };
     cursos.forEach(curso => {
       if (curso.id) {
@@ -96,6 +113,16 @@ export const CursosModule: React.FC = () => {
   useEffect(() => {
     setPaginaActual(1);
   }, [filtroTexto, filtroDepto, filtroPuesto, filtroCurso]);
+
+  // Solo se lee el curso filtrado, y solo mientras está filtrado: un documento
+  // de unos 7 KB en lugar de la colección entera.
+  useEffect(() => {
+    if (!cursoActivo?.id) { setCompletados({}); setMarcados({}); setCalifs({}); return; }
+    setMarcados({});
+    setCalifs({});
+    const unsub = subscribeCompletados(cursoActivo.id, setCompletados);
+    return () => unsub();
+  }, [cursoActivo?.id]);
 
   const departamentosDisponibles = Array.from(
     new Set(colaboradores.map(c => (c.departamento || '').trim().toUpperCase()).filter(Boolean))
@@ -195,18 +222,113 @@ export const CursosModule: React.FC = () => {
     setPaginaActual(1);
   };
 
-  const totalPaginas = Math.ceil(listaFiltrada.length / elementosPorPagina) || 1;
+  /**
+   * La tabla de arriba son los **pendientes**: quien ya está en completados
+   * sale de ella y aparece abajo (SPEC-028). Sin curso filtrado no hay a quién
+   * dar por cursado, así que se muestran todos.
+   */
+  const pendientes = cursoActivo
+    ? listaFiltrada.filter(c => !completados[c.noNomina])
+    : listaFiltrada;
+
+  /** Quienes ya cursaron, en el orden del padrón y con sus datos al día. */
+  const listaCompletados = cursoActivo
+    ? ordenarPorNomina(colaboradores.filter(c => !!completados[c.noNomina]))
+    : [];
+
+  const cuantosMarcados = Object.values(marcados).filter(Boolean).length;
+
+  const alternarMarcado = (nomina: string) => {
+    if (!puedeCapturar) return;
+    setMarcados(prev => ({ ...prev, [nomina]: !prev[nomina] }));
+  };
+
+  /** Una calificación válida, o `undefined` si el campo va vacío. */
+  const leerCalif = (valor: string): number | undefined => {
+    const v = (valor || '').trim();
+    if (!v) return undefined;
+    const n = Number(v);
+    if (isNaN(n) || n < CALIFICACION_MIN || n > CALIFICACION_MAX) return undefined;
+    return n;
+  };
+
+  const actualizarCursados = async () => {
+    if (!cursoActivo?.id || !puedeCapturar || guardandoCursado) return;
+
+    const nuevos: Record<string, RegistroCursoCompletado> = {};
+    Object.entries(marcados).forEach(([nomina, marcado]) => {
+      if (!marcado) return;
+      nuevos[nomina] = {
+        fecha: hoyISO(),
+        calificacion: leerCalif(califs[nomina]),
+        porNomina: sesion?.nomina || '',
+        porNombre: sesion?.nombre || ''
+      };
+    });
+
+    if (Object.keys(nuevos).length === 0) {
+      alert('No hay nadie marcado. Palomea la casilla Cursado de quienes tomaron el curso.');
+      return;
+    }
+
+    // Una calificación fuera de rango se guardaría como vacía sin avisar; más
+    // vale detenerse que dar por buena una captura que se va a perder.
+    const malas = Object.entries(marcados)
+      .filter(([n, m]) => m && (califs[n] || '').trim() && leerCalif(califs[n]) === undefined)
+      .map(([n]) => n);
+    if (malas.length) {
+      alert(`Hay calificaciones fuera de ${CALIFICACION_MIN} a ${CALIFICACION_MAX} en las nóminas: ${malas.join(', ')}.`);
+      return;
+    }
+
+    setGuardandoCursado(true);
+    try {
+      await guardarCompletados(cursoActivo.id, nuevos);
+      setMarcados({});
+      setCalifs({});
+      setPaginaActual(1);
+    } catch (err: any) {
+      alert('No se pudo guardar: ' + (err?.message || 'Error desconocido'));
+    } finally {
+      setGuardandoCursado(false);
+    }
+  };
+
+  const cambiarCalifCompletado = async (nomina: string, valor: string) => {
+    if (!cursoActivo?.id || !puedeCapturar) return;
+    const v = (valor || '').trim();
+    if (v && leerCalif(v) === undefined) {
+      alert(`La calificación debe ir de ${CALIFICACION_MIN} a ${CALIFICACION_MAX}.`);
+      return;
+    }
+    try {
+      await guardarCalificacion(cursoActivo.id, nomina, leerCalif(v));
+    } catch (err: any) {
+      alert('No se pudo guardar la calificación: ' + (err?.message || 'Error desconocido'));
+    }
+  };
+
+  const regresarAPendientes = async (colab: Colaborador) => {
+    if (!cursoActivo?.id || !puedeCapturar) return;
+    if (!confirm(`¿Regresar a ${colab.nombreCompleto} a la lista de pendientes?`)) return;
+    try {
+      await quitarCompletado(cursoActivo.id, colab.noNomina);
+    } catch (err: any) {
+      alert('No se pudo quitar: ' + (err?.message || 'Error desconocido'));
+    }
+  };
+
+  const totalPaginas = Math.ceil(pendientes.length / elementosPorPagina) || 1;
   const indexInicio = (paginaActual - 1) * elementosPorPagina;
-  const colaboradoresPaginados = listaFiltrada.slice(indexInicio, indexInicio + elementosPorPagina);
+  const colaboradoresPaginados = pendientes.slice(indexInicio, indexInicio + elementosPorPagina);
 
   // Exportar a Excel respetando columnas visibles y filtros activos
   const handleExportExcel = () => {
-    const data = listaFiltrada.map(c => {
+    const data = pendientes.map(c => {
       const rowData: Record<string, any> = {};
 
       if (columnasVisibles.noNomina !== false) rowData['# NOMINA'] = c.noNomina;
       if (columnasVisibles.nombre !== false) rowData['NOMBRE'] = c.nombreCompleto;
-      if (columnasVisibles.departamento !== false) rowData['DEPARTAMENTO'] = c.departamento || '-';
       if (columnasVisibles.puesto !== false) rowData['PUESTO'] = c.puesto || '-';
 
       cursos.forEach(curso => {
@@ -222,7 +344,6 @@ export const CursosModule: React.FC = () => {
         }
       });
 
-      if (columnasVisibles.estatus !== false) rowData['ESTATUS'] = c.estatus;
 
       return rowData;
     });
@@ -235,7 +356,6 @@ export const CursosModule: React.FC = () => {
     const headers: string[] = [];
     if (columnasVisibles.noNomina !== false) headers.push('# Nómina');
     if (columnasVisibles.nombre !== false) headers.push('Nombre');
-    if (columnasVisibles.departamento !== false) headers.push('Departamento');
     if (columnasVisibles.puesto !== false) headers.push('Puesto');
 
     cursos.forEach(curso => {
@@ -243,14 +363,12 @@ export const CursosModule: React.FC = () => {
       if (columnasVisibles[`fecha_${curso.id}`] !== false) headers.push(`Fecha (${curso.titulo})`);
     });
 
-    if (columnasVisibles.estatus !== false) headers.push('Estatus');
 
-    const rows = listaFiltrada.map(c => {
+    const rows = pendientes.map(c => {
       const rowArr: (string | number)[] = [];
 
       if (columnasVisibles.noNomina !== false) rowArr.push(c.noNomina);
       if (columnasVisibles.nombre !== false) rowArr.push(c.nombreCompleto);
-      if (columnasVisibles.departamento !== false) rowArr.push(c.departamento || '-');
       if (columnasVisibles.puesto !== false) rowArr.push(c.puesto || '-');
 
       cursos.forEach(curso => {
@@ -263,7 +381,6 @@ export const CursosModule: React.FC = () => {
         }
       });
 
-      if (columnasVisibles.estatus !== false) rowArr.push(c.estatus);
 
       return rowArr;
     });
@@ -280,7 +397,7 @@ export const CursosModule: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div className="bar-accent"></div>
             <div className="sec-title" style={{ margin: 0 }}>
-              Control de Cursos Asignados por Colaborador{aplicados ? ` (${listaFiltrada.length})` : ''}
+              Control de Cursos Asignados por Colaborador{aplicados ? ` (${pendientes.length})` : ''}
             </div>
           </div>
 
@@ -372,9 +489,7 @@ export const CursosModule: React.FC = () => {
                   {[
                     { key: 'noNomina', label: '# Nómina' },
                     { key: 'nombre', label: 'Nombre' },
-                    { key: 'departamento', label: 'Departamento' },
                     { key: 'puesto', label: 'Puesto' },
-                    { key: 'estatus', label: 'Estatus' },
                   ].map(col => (
                     <div
                       key={col.key}
@@ -425,6 +540,28 @@ export const CursosModule: React.FC = () => {
               style={{ height: '30px', opacity: aplicados ? 1 : 0.45, cursor: aplicados ? 'pointer' : 'not-allowed' }}>
               <FileText size={13} /> PDF
             </button>
+
+            {/* Pasa a Completados a todos los palomeados (SPEC-028). Una sola
+                escritura para toda la sesión. */}
+            {puedeCapturar && (
+              <button
+                onClick={actualizarCursados}
+                disabled={!cursoActivo || cuantosMarcados === 0 || guardandoCursado}
+                className="btn-industrial"
+                title={
+                  !cursoActivo ? 'Primero filtra por un curso'
+                  : cuantosMarcados === 0 ? 'Palomea a quienes tomaron el curso'
+                  : `Pasar ${cuantosMarcados} a Completados`
+                }
+                style={{
+                  height: '30px',
+                  opacity: (cursoActivo && cuantosMarcados > 0 && !guardandoCursado) ? 1 : 0.45,
+                  cursor: (cursoActivo && cuantosMarcados > 0 && !guardandoCursado) ? 'pointer' : 'not-allowed'
+                }}
+              >
+                <RefreshCw size={13} /> {guardandoCursado ? 'Guardando…' : `Actualizar${cuantosMarcados ? ` (${cuantosMarcados})` : ''}`}
+              </button>
+            )}
           </div>
         </div>
 
@@ -444,7 +581,6 @@ export const CursosModule: React.FC = () => {
               <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
                 {columnasVisibles.noNomina !== false && <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}># Nómina</th>}
                 {columnasVisibles.nombre !== false && <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Nombre</th>}
-                {columnasVisibles.departamento !== false && <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Departamento</th>}
                 {columnasVisibles.puesto !== false && <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Puesto</th>}
 
                 {cursos.map(cur => (
@@ -455,20 +591,25 @@ export const CursosModule: React.FC = () => {
                       </th>
                     )}
                     {columnasVisibles[`fecha_${cur.id}`] !== false && (
-                      <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: '#5A6A80', textTransform: 'uppercase', background: 'rgba(0,32,96,0.01)' }}>
-                        Fecha ({cur.titulo})
+                      <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: '#5A6A80', textTransform: 'uppercase', background: 'rgba(0,32,96,0.01)', whiteSpace: 'nowrap' }}>
+                        Fecha
                       </th>
                     )}
                   </React.Fragment>
                 ))}
 
-                {columnasVisibles.estatus !== false && <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Estatus</th>}
+                {cursoActivo && (
+                  <>
+                    <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>Cursado</th>
+                    <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>Calif.</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
               {colaboradoresPaginados.length === 0 ? (
                 <tr>
-                  <td colSpan={5 + cursos.length * 2} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
+                  <td colSpan={3 + cursos.length * 2 + (cursoActivo ? 2 : 0)} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
                     Sin registros que coincidan con los filtros.
                   </td>
                 </tr>
@@ -484,15 +625,6 @@ export const CursosModule: React.FC = () => {
                       <td style={{ padding: '5px 8px', fontWeight: 600 }}>{colab.nombreCompleto}</td>
                     )}
 
-                    {columnasVisibles.departamento !== false && (
-                      <td style={{ padding: '5px 8px' }}>
-                        {colab.departamento ? (
-                          <span style={{ display: 'inline-block', background: 'var(--brand-navy-light)', color: 'var(--brand-navy)', fontSize: '8.5px', padding: '2px 5px', borderRadius: '3px', fontWeight: 600 }}>
-                            {colab.departamento}
-                          </span>
-                        ) : '-'}
-                      </td>
-                    )}
 
                     {columnasVisibles.puesto !== false && (
                       <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>{colab.puesto || '-'}</td>
@@ -538,12 +670,42 @@ export const CursosModule: React.FC = () => {
                       );
                     })}
 
-                    {columnasVisibles.estatus !== false && (
-                      <td style={{ padding: '5px 8px' }}>
-                        <span style={{ display: 'inline-block', background: colab.estatus === 'ACTIVO' ? 'var(--green-light)' : 'var(--red-light)', color: colab.estatus === 'ACTIVO' ? 'var(--green-dark)' : 'var(--brand-red)', fontSize: '8.5px', padding: '2px 5px', borderRadius: '3px', fontWeight: 'bold' }}>
-                          {colab.estatus}
-                        </span>
-                      </td>
+                    {cursoActivo && (
+                      <>
+                        <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                          <div
+                            onClick={() => alternarMarcado(colab.noNomina)}
+                            title={puedeCapturar ? 'Marcar como cursado' : 'No tienes permiso de captura'}
+                            style={{
+                              width: '16px', height: '16px', margin: '0 auto', borderRadius: '3px',
+                              border: '1.5px solid ' + (marcados[colab.noNomina] ? 'var(--brand-navy)' : 'var(--border-mid)'),
+                              background: marcados[colab.noNomina] ? 'var(--brand-navy)' : '#fff',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              cursor: puedeCapturar ? 'pointer' : 'not-allowed'
+                            }}
+                          >
+                            {marcados[colab.noNomina] && <Check size={11} color="#fff" strokeWidth={3} />}
+                          </div>
+                        </td>
+                        <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                          {/* Opcional: hay cursos sin examen. */}
+                          <input
+                            type="number" inputMode="numeric"
+                            min={CALIFICACION_MIN} max={CALIFICACION_MAX}
+                            value={califs[colab.noNomina] || ''}
+                            onChange={e => setCalifs(prev => ({ ...prev, [colab.noNomina]: e.target.value }))}
+                            disabled={!puedeCapturar || !marcados[colab.noNomina]}
+                            placeholder="—"
+                            title={marcados[colab.noNomina] ? 'Calificación (opcional)' : 'Primero marca Cursado'}
+                            style={{
+                              width: '52px', height: '24px', padding: '2px 4px', fontSize: '10px',
+                              textAlign: 'center', fontFamily: 'inherit', borderRadius: '5px',
+                              border: '1px solid var(--border-mid)',
+                              background: marcados[colab.noNomina] ? '#fff' : 'var(--bg-light)'
+                            }}
+                          />
+                        </td>
+                      </>
                     )}
                   </tr>
                 ))
@@ -556,7 +718,7 @@ export const CursosModule: React.FC = () => {
         {totalPaginas > 1 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '8px', borderTop: '1px solid var(--border-light)', fontSize: '10px', color: 'var(--text-secondary)' }}>
             <div>
-              Mostrando {indexInicio + 1} - {Math.min(indexInicio + elementosPorPagina, listaFiltrada.length)} de {listaFiltrada.length}
+              Mostrando {indexInicio + 1} - {Math.min(indexInicio + elementosPorPagina, pendientes.length)} de {pendientes.length}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <button
@@ -582,6 +744,97 @@ export const CursosModule: React.FC = () => {
         </>
         )}
       </div>
+
+      {/* ── SECCIÓN: COMPLETADOS (SPEC-028) ───────────────────────────────
+          Quienes ya cursaron el curso filtrado. Salen de la tabla de arriba,
+          que así queda mostrando únicamente a los que faltan. */}
+      {cursoActivo && (
+        <div className="card-industrial" style={{ marginTop: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '2px solid var(--brand-navy-light)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="bar-accent"></div>
+              <div className="sec-title" style={{ margin: 0 }}>Completados ({listaCompletados.length})</div>
+            </div>
+            <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>{cursoActivo.titulo}</div>
+          </div>
+
+          {listaCompletados.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '1.6rem 1rem', color: 'var(--text-secondary)', fontSize: '12px', lineHeight: 1.5 }}>
+              Todavía nadie tiene este curso registrado.
+              <span style={{ display: 'block', fontSize: '11px', color: 'var(--text-light)', marginTop: '4px' }}>
+                Palomea arriba la casilla <b style={{ color: 'var(--brand-navy)' }}>Cursado</b> y pulsa <b style={{ color: 'var(--brand-navy)' }}>Actualizar</b>.
+              </span>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9.5px', lineHeight: '1.2' }}>
+                <thead>
+                  <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
+                    <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}># Nómina</th>
+                    <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Nombre</th>
+                    <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Puesto</th>
+                    <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: '#5A6A80', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Registrado</th>
+                    <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase', textAlign: 'center' }}>Calif.</th>
+                    {puedeCapturar && <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase', textAlign: 'center' }}></th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {listaCompletados.map(colab => {
+                    const reg = completados[colab.noNomina];
+                    return (
+                      <tr key={colab.noNomina} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                        <td style={{ padding: '5px 8px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>{colab.noNomina}</td>
+                        <td style={{ padding: '5px 8px', fontWeight: 600 }}>{colab.nombreCompleto}</td>
+                        <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>{colab.puesto || '-'}</td>
+                        <td style={{ padding: '5px 8px', fontSize: '8.5px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                          {reg?.fecha || '-'}
+                          {reg?.porNombre && (
+                            <div style={{ fontSize: '8px', color: 'var(--text-light)' }}>por {reg.porNombre}</div>
+                          )}
+                        </td>
+                        <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                          {/* Editable: el examen se suele calificar días después
+                              de la sesión. */}
+                          <input
+                            type="number" inputMode="numeric"
+                            min={CALIFICACION_MIN} max={CALIFICACION_MAX}
+                            defaultValue={reg?.calificacion ?? ''}
+                            key={`${colab.noNomina}-${reg?.calificacion ?? ''}`}
+                            onBlur={e => {
+                              const v = e.target.value.trim();
+                              const actual = reg?.calificacion === undefined ? '' : String(reg.calificacion);
+                              if (v !== actual) cambiarCalifCompletado(colab.noNomina, v);
+                            }}
+                            disabled={!puedeCapturar}
+                            placeholder="—"
+                            style={{
+                              width: '52px', height: '24px', padding: '2px 4px', fontSize: '10px',
+                              textAlign: 'center', fontFamily: 'inherit', borderRadius: '5px',
+                              border: '1px solid var(--border-mid)',
+                              background: puedeCapturar ? '#fff' : 'var(--bg-light)'
+                            }}
+                          />
+                        </td>
+                        {puedeCapturar && (
+                          <td style={{ padding: '5px 8px', textAlign: 'center' }}>
+                            <button
+                              onClick={() => regresarAPendientes(colab)}
+                              title="Regresar a pendientes"
+                              style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-red)', padding: '2px 4px' }}
+                            >
+                              <Undo2 size={13} />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
