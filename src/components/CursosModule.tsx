@@ -7,7 +7,22 @@ import { subscribeCursos } from '../services/capacitacionService';
 import { subscribeCompletados, guardarCompletados, guardarCalificacion, quitarCompletado } from '../services/cursoCompletadoService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { hoyISO } from '../utils/fechas';
-import { exportToExcel, exportToPDF } from '../utils/exportUtils';
+import { exportToExcel, exportToPDF, exportToExcelSheets, exportToPDFSections } from '../utils/exportUtils';
+
+/** Los tres botones de acción de la barra: redondos, solo icono, 30 px. */
+const BOTON_REDONDO: React.CSSProperties = {
+  width: '30px',
+  height: '30px',
+  minWidth: '30px',
+  padding: 0,
+  border: 'none',
+  borderRadius: '50%',
+  color: '#fff',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  flexShrink: 0
+};
 
 export const CursosModule: React.FC = () => {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
@@ -348,7 +363,33 @@ export const CursosModule: React.FC = () => {
       return rowData;
     });
 
-    exportToExcel(data, 'IMPREDIMEX_Matriz_Cursos');
+    // Con un curso filtrado el reporte lleva las dos tablas (SPEC-029): de
+    // nada sirve la lista de pendientes sin saber quién ya lo tomó.
+    if (!cursoActivo) {
+      exportToExcel(data, 'IMPREDIMEX_Matriz_Cursos');
+      return;
+    }
+
+    const dataCompletados = listaCompletados.map(c => {
+      const reg = completados[c.noNomina];
+      return {
+        '# NOMINA': c.noNomina,
+        'NOMBRE': c.nombreCompleto,
+        'PUESTO': c.puesto || '-',
+        'CURSO': cursoActivo.titulo,
+        'REGISTRADO EL': reg?.fecha || '-',
+        'REGISTRO POR': reg?.porNombre || '-',
+        'CALIF.': reg?.calificacion === undefined ? '-' : reg.calificacion
+      };
+    });
+
+    exportToExcelSheets(
+      [
+        { nombre: 'Pendientes', data },
+        { nombre: 'Completados', data: dataCompletados }
+      ],
+      'IMPREDIMEX_Matriz_Cursos'
+    );
   };
 
   // Exportar a PDF respetando columnas visibles y filtros activos
@@ -385,7 +426,35 @@ export const CursosModule: React.FC = () => {
       return rowArr;
     });
 
-    exportToPDF('IMPREDIMEX — Asignación de Cursos por Colaborador', headers, rows, 'Matriz_Cursos');
+    if (!cursoActivo) {
+      exportToPDF('IMPREDIMEX — Asignación de Cursos por Colaborador', headers, rows, 'Matriz_Cursos');
+      return;
+    }
+
+    // Las dos tablas, una tras otra, en el mismo PDF (SPEC-029).
+    const rowsCompletados = listaCompletados.map(c => {
+      const reg = completados[c.noNomina];
+      return [
+        c.noNomina,
+        c.nombreCompleto,
+        c.puesto || '-',
+        reg?.fecha || '-',
+        reg?.calificacion === undefined ? '-' : String(reg.calificacion)
+      ];
+    });
+
+    exportToPDFSections(
+      `IMPREDIMEX — ${cursoActivo.titulo}`,
+      [
+        { subtitulo: 'Pendientes de cursar', headers, rows },
+        {
+          subtitulo: 'Completados',
+          headers: ['# Nómina', 'Nombre', 'Puesto', 'Registrado el', 'Calif.'],
+          rows: rowsCompletados
+        }
+      ],
+      'Matriz_Cursos'
+    );
   };
 
   return (
@@ -530,38 +599,53 @@ export const CursosModule: React.FC = () => {
               )}
             </div>
 
-            <button onClick={handleExportExcel} disabled={!aplicados} className="btn-industrial-success"
+            {/* Redondos y solo con icono (SPEC-029): con el texto dentro, la
+                fila de filtros se partía en dos renglones. Miden lo mismo de
+                alto que los demás botones para que la fila quede pareja. */}
+            <button onClick={handleExportExcel} disabled={!aplicados}
               title={aplicados ? 'Exportar a Excel' : 'Primero pulsa Filtrar'}
-              style={{ height: '30px', opacity: aplicados ? 1 : 0.45, cursor: aplicados ? 'pointer' : 'not-allowed' }}>
-              <FileSpreadsheet size={13} /> Excel
+              style={{ ...BOTON_REDONDO, background: 'var(--green)', opacity: aplicados ? 1 : 0.45, cursor: aplicados ? 'pointer' : 'not-allowed' }}>
+              <FileSpreadsheet size={14} />
             </button>
-            <button onClick={handleExportPDF} disabled={!aplicados} className="btn-industrial-danger"
+
+            <button onClick={handleExportPDF} disabled={!aplicados}
               title={aplicados ? 'Exportar a PDF' : 'Primero pulsa Filtrar'}
-              style={{ height: '30px', opacity: aplicados ? 1 : 0.45, cursor: aplicados ? 'pointer' : 'not-allowed' }}>
-              <FileText size={13} /> PDF
+              style={{ ...BOTON_REDONDO, background: 'var(--brand-red)', opacity: aplicados ? 1 : 0.45, cursor: aplicados ? 'pointer' : 'not-allowed' }}>
+              <FileText size={14} />
             </button>
 
             {/* Pasa a Completados a todos los palomeados (SPEC-028). Una sola
                 escritura para toda la sesión. */}
-            {puedeCapturar && (
-              <button
-                onClick={actualizarCursados}
-                disabled={!cursoActivo || cuantosMarcados === 0 || guardandoCursado}
-                className="btn-industrial"
-                title={
-                  !cursoActivo ? 'Primero filtra por un curso'
-                  : cuantosMarcados === 0 ? 'Palomea a quienes tomaron el curso'
-                  : `Pasar ${cuantosMarcados} a Completados`
-                }
-                style={{
-                  height: '30px',
-                  opacity: (cursoActivo && cuantosMarcados > 0 && !guardandoCursado) ? 1 : 0.45,
-                  cursor: (cursoActivo && cuantosMarcados > 0 && !guardandoCursado) ? 'pointer' : 'not-allowed'
-                }}
-              >
-                <RefreshCw size={13} /> {guardandoCursado ? 'Guardando…' : `Actualizar${cuantosMarcados ? ` (${cuantosMarcados})` : ''}`}
-              </button>
-            )}
+            {puedeCapturar && (() => {
+              const listo = !!cursoActivo && cuantosMarcados > 0 && !guardandoCursado;
+              return (
+                <button
+                  onClick={actualizarCursados}
+                  disabled={!listo}
+                  title={
+                    !cursoActivo ? 'Primero filtra por un curso'
+                    : cuantosMarcados === 0 ? 'Palomea a quienes tomaron el curso'
+                    : `Pasar ${cuantosMarcados} a Completados`
+                  }
+                  style={{ ...BOTON_REDONDO, background: 'var(--brand-navy)', position: 'relative', opacity: listo ? 1 : 0.45, cursor: listo ? 'pointer' : 'not-allowed' }}
+                >
+                  <RefreshCw size={14} style={guardandoCursado ? { animation: 'spin 1s linear infinite' } : undefined} />
+                  {/* Cuántos van marcados. Sin este número, al quitarle el
+                      texto al botón no habría forma de saberlo sin contar
+                      casillas a mano. */}
+                  {cuantosMarcados > 0 && !guardandoCursado && (
+                    <span style={{
+                      position: 'absolute', top: '-3px', right: '-3px', minWidth: '15px', height: '15px',
+                      borderRadius: '999px', background: 'var(--brand-red)', color: '#fff',
+                      fontSize: '9px', fontWeight: 700, lineHeight: '15px', textAlign: 'center',
+                      padding: '0 3px', border: '1.5px solid #fff'
+                    }}>
+                      {cuantosMarcados}
+                    </span>
+                  )}
+                </button>
+              );
+            })()}
           </div>
         </div>
 
