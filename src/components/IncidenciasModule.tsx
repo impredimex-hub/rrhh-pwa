@@ -398,11 +398,11 @@ export const IncidenciasModule: React.FC = () => {
             <div className="sec-title" style={{ margin: 0 }}>Historial de Incidencias ({incidencias.length})</div>
           </div>
           <div style={{ display: 'flex', gap: '6px' }}>
-            <button onClick={handleExportExcel} className="btn-industrial-success" style={{ height: '30px' }}>
-              <FileSpreadsheet size={13} /> Excel
+            <button onClick={handleExportExcel} className="btn-circular btn-circular-excel" title="Exportar a Excel">
+              <FileSpreadsheet size={14} />
             </button>
-            <button onClick={handleExportPDF} className="btn-industrial-danger" style={{ height: '30px' }}>
-              <FileText size={13} /> PDF
+            <button onClick={handleExportPDF} className="btn-circular btn-circular-pdf" title="Exportar a PDF">
+              <FileText size={14} />
             </button>
           </div>
         </div>

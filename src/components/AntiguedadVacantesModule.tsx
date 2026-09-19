@@ -392,11 +392,10 @@ export const AntiguedadVacantesModule: React.FC = () => {
                 `Cumpleanos_${new Date().toLocaleDateString('es-MX', { month: 'long' })}`
               )}
               disabled={!cumpleanosDelMes.length}
-              className="btn-industrial-success"
-              style={{ height: '30px', opacity: cumpleanosDelMes.length ? 1 : 0.45, cursor: cumpleanosDelMes.length ? 'pointer' : 'not-allowed' }}
+              className="btn-circular btn-circular-excel"
               title="Exportar los cumpleaños del mes a Excel"
             >
-              <FileSpreadsheet size={13} /> Excel
+              <FileSpreadsheet size={14} />
             </button>
           </div>
         </div>

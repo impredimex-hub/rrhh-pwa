@@ -356,11 +356,11 @@ export const PersonalModule: React.FC = () => {
 
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             <input type="text" placeholder="Buscar colaborador…" value={filtro} onChange={(e) => setFiltro(e.target.value)} style={{ width: '150px', height: '30px', padding: '4px 8px', fontSize: '10px' }} />
-            <button onClick={handleExportExcel} className="btn-industrial-success" style={{ height: '30px' }}>
-              <FileSpreadsheet size={13} /> Excel
+            <button onClick={handleExportExcel} className="btn-circular btn-circular-excel" title="Exportar a Excel">
+              <FileSpreadsheet size={14} />
             </button>
-            <button onClick={handleExportPDF} className="btn-industrial-danger" style={{ height: '30px' }}>
-              <FileText size={13} /> PDF
+            <button onClick={handleExportPDF} className="btn-circular btn-circular-pdf" title="Exportar a PDF">
+              <FileText size={14} />
             </button>
           </div>
         </div>

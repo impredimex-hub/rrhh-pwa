@@ -223,8 +223,8 @@ export const PromocionesModule: React.FC = () => {
             <div className="sec-title" style={{ margin: 0 }}>Promociones Internas ({promociones.length})</div>
           </div>
           {promociones.length > 0 && (
-            <button onClick={exportarPromocionesExcel} className="btn-industrial-success" style={{ height: '30px' }}>
-              <FileSpreadsheet size={13} /> Excel
+            <button onClick={exportarPromocionesExcel} className="btn-circular btn-circular-excel" title="Exportar a Excel">
+              <FileSpreadsheet size={14} />
             </button>
           )}
         </div>

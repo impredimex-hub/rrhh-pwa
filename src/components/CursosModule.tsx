@@ -9,21 +9,6 @@ import { usePermisos, useSesion } from '../services/SesionContext';
 import { hoyISO } from '../utils/fechas';
 import { exportToExcel, exportToPDF, exportToExcelSheets, exportToPDFSections } from '../utils/exportUtils';
 
-/** Los tres botones de acción de la barra: redondos, solo icono, 30 px. */
-const BOTON_REDONDO: React.CSSProperties = {
-  width: '30px',
-  height: '30px',
-  minWidth: '30px',
-  padding: 0,
-  border: 'none',
-  borderRadius: '50%',
-  color: '#fff',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  flexShrink: 0
-};
-
 export const CursosModule: React.FC = () => {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [cursos, setCursos] = useState<CursoCapacitacion[]>([]);
@@ -600,17 +585,17 @@ export const CursosModule: React.FC = () => {
             </div>
 
             {/* Redondos y solo con icono (SPEC-029): con el texto dentro, la
-                fila de filtros se partía en dos renglones. Miden lo mismo de
-                alto que los demás botones para que la fila quede pareja. */}
+                fila de filtros se partía en dos renglones. El estilo vive en
+                `index.css` porque estos botones salen en seis pestañas. */}
             <button onClick={handleExportExcel} disabled={!aplicados}
-              title={aplicados ? 'Exportar a Excel' : 'Primero pulsa Filtrar'}
-              style={{ ...BOTON_REDONDO, background: 'var(--green)', opacity: aplicados ? 1 : 0.45, cursor: aplicados ? 'pointer' : 'not-allowed' }}>
+              className="btn-circular btn-circular-excel"
+              title={aplicados ? 'Exportar a Excel' : 'Primero pulsa Filtrar'}>
               <FileSpreadsheet size={14} />
             </button>
 
             <button onClick={handleExportPDF} disabled={!aplicados}
-              title={aplicados ? 'Exportar a PDF' : 'Primero pulsa Filtrar'}
-              style={{ ...BOTON_REDONDO, background: 'var(--brand-red)', opacity: aplicados ? 1 : 0.45, cursor: aplicados ? 'pointer' : 'not-allowed' }}>
+              className="btn-circular btn-circular-pdf"
+              title={aplicados ? 'Exportar a PDF' : 'Primero pulsa Filtrar'}>
               <FileText size={14} />
             </button>
 
@@ -627,7 +612,8 @@ export const CursosModule: React.FC = () => {
                     : cuantosMarcados === 0 ? 'Palomea a quienes tomaron el curso'
                     : `Pasar ${cuantosMarcados} a Completados`
                   }
-                  style={{ ...BOTON_REDONDO, background: 'var(--brand-navy)', position: 'relative', opacity: listo ? 1 : 0.45, cursor: listo ? 'pointer' : 'not-allowed' }}
+                  className="btn-circular btn-circular-navy"
+                  style={{ position: 'relative' }}
                 >
                   <RefreshCw size={14} style={guardandoCursado ? { animation: 'spin 1s linear infinite' } : undefined} />
                   {/* Cuántos van marcados. Sin este número, al quitarle el

@@ -1350,8 +1350,8 @@ export const SucesosTurnosModule: React.FC = () => {
                     </div>
                     {repFilas.length > 0 && (
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <button onClick={() => exportToExcel(repFilas, `IMPREDIMEX_Faltas_${etiquetaPeriodo}`)} className="btn-industrial-success" style={{ height: '28px' }}>
-                          <FileSpreadsheet size={12} /> Excel
+                        <button onClick={() => exportToExcel(repFilas, `IMPREDIMEX_Faltas_${etiquetaPeriodo}`)} className="btn-circular btn-circular-excel" title="Exportar a Excel">
+                          <FileSpreadsheet size={14} />
                         </button>
                         <button
                           onClick={() => exportToPDF(
@@ -1360,9 +1360,9 @@ export const SucesosTurnosModule: React.FC = () => {
                             repFilas.map(r => [r['Fecha'], r['# Nómina'], r['Colaborador'], r['Departamento'], r['Turno'], r['Rol']]),
                             `Reporte_Faltas_${etiquetaPeriodo}`
                           )}
-                          className="btn-industrial-danger" style={{ height: '28px' }}
+                          className="btn-circular btn-circular-pdf" title="Exportar a PDF"
                         >
-                          <FileText size={12} /> PDF
+                          <FileText size={14} />
                         </button>
                       </div>
                     )}
@@ -1411,11 +1411,11 @@ export const SucesosTurnosModule: React.FC = () => {
             <div className="sec-title" style={{ margin: 0 }}>Bitácora de Sucesos ({sucesosFiltrados.length})</div>
           </div>
           <div style={{ display: 'flex', gap: '6px' }}>
-            <button onClick={exportarSucesosExcel} className="btn-industrial-success" style={{ height: '30px' }}>
-              <FileSpreadsheet size={13} /> Excel
+            <button onClick={exportarSucesosExcel} className="btn-circular btn-circular-excel" title="Exportar a Excel">
+              <FileSpreadsheet size={14} />
             </button>
-            <button onClick={exportarSucesosPDF} className="btn-industrial-danger" style={{ height: '30px' }}>
-              <FileText size={13} /> PDF
+            <button onClick={exportarSucesosPDF} className="btn-circular btn-circular-pdf" title="Exportar a PDF">
+              <FileText size={14} />
             </button>
           </div>
         </div>
