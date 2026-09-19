@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.18
+**Versión objetivo:** 2.19
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1311,6 +1311,46 @@ El nombre de los archivos exportados se fechaba con `toISOString()`, que
 convierte a UTC: después de las 18:00 en México el archivo salía con la fecha
 del día siguiente. Afectaba a todas las pestañas que exportan, y ya usa la fecha
 local (regla R3).
+
+---
+
+# SPEC-030 — Los botones de exportar son redondos en toda la aplicación
+
+### Alcance
+
+Lo que la SPEC-029 hizo en Cursos se extiende a las seis pestañas que exportan.
+Quedaron redondos, de 30 px y solo con icono, en:
+
+| Pestaña | Botones |
+|---|---|
+| Directorio | Excel, PDF |
+| Antigüedad y Vacantes | Excel (cumpleaños del mes) |
+| Incidencias | Excel, PDF |
+| Capacitación | Excel, PDF |
+| Promociones | Excel |
+| Cursos | Excel, PDF, Actualizar |
+| Sucesos y Turnos | Excel y PDF de la bitácora; Excel y PDF del reporte de faltas |
+
+### Reglas de negocio
+
+- **El estilo se escribe una sola vez**, en `index.css`, como las clases
+  `.btn-circular`, `.btn-circular-excel`, `.btn-circular-pdf` y
+  `.btn-circular-navy`. Repetido en cada pestaña, tarde o temprano una se
+  quedaría distinta de las demás. Es la misma razón por la que
+  `puedeVerGraficas` vive en un solo archivo (regla R1).
+- **Cursos también usa esas clases.** La copia local que tenía se retiró, o
+  habría dos definiciones del mismo botón.
+- **Todos llevan `title`.** Sin texto, es lo único que dice qué hacen.
+- **El estado deshabilitado lo da el CSS**, con `:disabled`, y no cada pantalla
+  por su cuenta con opacidad y cursor inline.
+- **Los botones de exportar del reporte de faltas medían 28 px** y ahora miden
+  30, como todos.
+
+### Lo que no cambió
+
+El icono verde de Excel que aparece **dentro de cada renglón** de la lista de
+roles de turnos se queda como está: es una acción de fila, sin fondo ni forma
+de botón, y redondearlo lo haría competir visualmente con los de la cabecera.
 
 ---
 

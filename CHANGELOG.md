@@ -7,6 +7,27 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.19.0] — 2026-09-18
+
+### Cambiado
+
+- **Los botones de Excel y PDF son redondos en toda la aplicación** (SPEC-030):
+  Directorio, Antigüedad y Vacantes, Incidencias, Capacitación, Promociones y
+  Sucesos y Turnos, además de Cursos, que ya los tenía. Son quince botones en
+  siete pantallas.
+- **El estilo se escribió una sola vez** en `index.css`, como clases
+  `.btn-circular`. Cursos dejó de usar su copia local, para que no haya dos
+  definiciones del mismo botón.
+- Los botones de exportar del reporte de faltas medían 28 px y ahora miden 30,
+  como todos los demás.
+
+### Notas
+
+El icono verde de Excel que va dentro de cada renglón de la lista de roles de
+turnos **no cambió**: es una acción de fila, no un botón de cabecera.
+
+---
+
 ## [2.18.0] — 2026-09-18
 
 ### Cambiado
