@@ -135,7 +135,6 @@ export const SucesosTurnosModule: React.FC = () => {
     [activos]
   );
 
-  /** Solo quien lo creó, o un administrador, puede tocar un rol. */
   /**
    * Departamentos que esta sesión puede programar. Un ADMIN los puede todos;
    * el resto, solo los que tenga asignados en el padrón. Sin asignación, la
@@ -166,12 +165,19 @@ export const SucesosTurnosModule: React.FC = () => {
    * únicamente su autor. Los departamentos asignados siguen mandando sobre
    * quién puede **crear** roles, que es otra cosa.
    *
-   * Un administrador también puede, y no por privilegio: si el autor sale de
-   * la empresa, su rol quedaría congelado para siempre y no habría forma de
-   * corregir un turno mal puesto.
+   * **Nadie más, tampoco un administrador ni RRHH** (SPEC-031). Hasta la
+   * versión 2.19 un administrador sí podía, como salida de emergencia por si
+   * el autor dejaba la empresa. Se retiró a petición expresa: quien programa
+   * un turno responde por él, y que otro pueda cambiarlo sin que se note
+   * rompe esa responsabilidad.
+   *
+   * La salida de emergencia no desapareció, se movió: un administrador puede
+   * **borrar** un rol, no editarlo (`puedeBorrarRol`). Sin eso, un rol de
+   * alguien que ya no está quedaría congelado y además imborrable, y seguiría
+   * generando faltas falsas para siempre, porque la asistencia se calcula
+   * sobre los turnos asignados (SPEC-014).
    */
-  const puedeTocarRol = (rol: RolTurnos) => {
-    if (esAdmin) return true;
+  const puedeEditarRol = (rol: RolTurnos) => {
     const autor = String(rol.creadoPorNomina || '').trim();
     const yo = String(sesion?.nomina || '').trim();
     // Ambas nóminas deben existir: comparar dos vacíos da verdadero, y un rol
@@ -180,6 +186,16 @@ export const SucesosTurnosModule: React.FC = () => {
     if (!autor || !yo) return false;
     return autor === yo;
   };
+
+  /**
+   * Quién puede **borrar** un rol: su autor, o un administrador.
+   *
+   * Borrar no es modificar. Un administrador no puede cambiarle un turno a
+   * nadie —eso lo impide `puedeEditarRol`—, pero sí retirar un rol que quedó
+   * mal y que su autor ya no puede corregir. El rol se rehace desde cero, con
+   * el nombre de quien lo rehizo, y la autoría sigue siendo honesta.
+   */
+  const puedeBorrarRol = (rol: RolTurnos) => esAdmin || puedeEditarRol(rol);
 
   /* ══════════════════ SUCESOS ══════════════════ */
 
@@ -499,7 +515,7 @@ export const SucesosTurnosModule: React.FC = () => {
 
   const guardarRol = async () => {
     if (!editandoRol) return;
-    if (!puedeTocarRol(editandoRol)) return;
+    if (!puedeEditarRol(editandoRol)) return;
     if (!editandoRol.fechaInicio) { alert('El rol necesita una fecha de inicio.'); return; }
     if (!editandoRol.departamento) { alert('El rol necesita un departamento.'); return; }
 
@@ -894,7 +910,7 @@ export const SucesosTurnosModule: React.FC = () => {
     // Un rol ya guardado que no es propio se abre solo para mirarlo: sin
     // botón de guardar y con la cuadrícula deshabilitada, para que nadie
     // capture un periodo entero y descubra al final que no puede guardarlo.
-    const soloLectura = !puedeTocarRol(editandoRol);
+    const soloLectura = !puedeEditarRol(editandoRol);
 
     return (
       <div>
@@ -913,7 +929,7 @@ export const SucesosTurnosModule: React.FC = () => {
 
           {soloLectura && (
             <div style={{ background: '#E8EEF8', border: '1px solid rgba(0,53,128,.15)', borderRadius: '10px', padding: '10px 14px', marginBottom: '10px', fontSize: '11.5px', color: '#003580' }}>
-              Estás viendo un rol creado por {editandoRol.creadoPorNombre || 'otra persona'}. Solo quien lo creó, o un administrador, puede modificarlo.
+              Estás viendo un rol creado por {editandoRol.creadoPorNombre || 'otra persona'}. <b>Solo quien lo creó puede modificarlo</b>, ni siquiera un administrador o RRHH. Si hay que corregirlo, pídeselo a esa persona.
             </div>
           )}
 
@@ -1232,7 +1248,8 @@ export const SucesosTurnosModule: React.FC = () => {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {roles.map(r => {
-                const mio = puedeTocarRol(r);
+                const mio = puedeEditarRol(r);
+                const puedoBorrar = puedeBorrarRol(r);
                 return (
                   <div key={r.id} style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '9px 11px', background: '#fff' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
@@ -1267,13 +1284,13 @@ export const SucesosTurnosModule: React.FC = () => {
                           <FileSpreadsheet size={14} />
                         </button>
                         <button onClick={() => setEditandoRol({ ...r, asignaciones: { ...r.asignaciones } })}
-                          title={mio ? 'Editar rol' : 'Ver rol (solo quien lo creó o un administrador puede guardarlo)'}
+                          title={mio ? 'Editar rol' : `Ver rol (solo lo puede guardar ${r.creadoPorNombre || 'quien lo creó'})`}
                           style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-navy)', padding: '2px' }}>
                           <Edit2 size={14} />
                         </button>
-                        {mio && (
+                        {puedoBorrar && (
                           <button onClick={() => r.id && window.confirm(`¿Eliminar el rol "${r.nombre}"?`) && deleteRolTurnos(r.id)}
-                            title="Eliminar rol"
+                            title={mio ? 'Eliminar rol' : 'Eliminar rol (no se puede editar el de otra persona, solo retirarlo)'}
                             style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-red)', padding: '2px' }}>
                             <Trash2 size={14} />
                           </button>
