@@ -5,6 +5,7 @@ import { collection, query, where, onSnapshot, getDocs } from 'firebase/firestor
 // desde aquí no se ve, y además esos registros traen foto y firma en base64:
 // leerlos solo para saber quién vino acabaría con la cuota del plan gratuito.
 import { suiteDb as db } from './suite';
+import { obtenerManualesRango, subscribeManualesMes, mesesDelRango } from './asistenciaManualService';
 
 const COLLECTION_NAME = 'asistencia';
 
@@ -40,19 +41,53 @@ export const subscribeAsistenciasRango = (
     where('fecha', '>=', fechaDesde),
     where('fecha', '<=', fechaHasta)
   );
-  return onSnapshot(q, (snap) => {
+
+  /* Dos fuentes, un solo conjunto (SPEC-032): las revisiones de EPP y las
+     asistencias corregidas a mano. Se unen aquí y no en cada pantalla porque
+     las faltas se cuentan en tres lugares distintos; separadas, tarde o
+     temprano uno de los tres se quedaría sin mirar las correcciones y seguiría
+     acusando a quien ya se había dado por presente. */
+  let deEPP = new Set<string>();
+  let corregidas = new Set<string>();
+  const emitir = () => callback(new Set([...deEPP, ...corregidas]));
+
+  const unsubEPP = onSnapshot(q, (snap) => {
     const claves = new Set<string>();
     snap.docs.forEach(d => {
       const a = d.data() as Asistencia;
       if (a.noNomina && a.fecha) claves.add(`${a.noNomina}|${a.fecha}`);
     });
-    callback(claves);
+    deEPP = claves;
+    emitir();
   }, (err) => {
     // Sin esto, un fallo de permisos dejaría el conjunto vacío y la
     // cuadrícula marcaría ausente a toda la planta sin decir por qué.
     console.error('No se pudieron leer las asistencias', err);
-    callback(new Set());
+    deEPP = new Set();
+    emitir();
   });
+
+  // Las correcciones se guardan por mes; un rango abarca uno o dos.
+  const unsubsManual = mesesDelRango(fechaDesde, fechaHasta).map(mes =>
+    subscribeManualesMes(mes, (claves) => {
+      // Cada mes trae lo suyo; se recorta al rango pedido.
+      const soloDelRango = new Set(
+        [...claves].filter(k => {
+          const f = k.split('|')[1] || '';
+          return f >= fechaDesde && f <= fechaHasta;
+        })
+      );
+      // Se conserva lo de los otros meses del rango.
+      const otros = [...corregidas].filter(k => (k.split('|')[1] || '').slice(0, 7) !== mes);
+      corregidas = new Set([...otros, ...soloDelRango]);
+      emitir();
+    })
+  );
+
+  return () => {
+    unsubEPP();
+    unsubsManual.forEach(u => u());
+  };
 };
 
 /**
@@ -80,5 +115,13 @@ export const obtenerAsistenciasRango = async (
     console.error('No se pudieron leer las asistencias para exportar', err);
     throw err;
   }
+
+  // Las corregidas a mano cuentan igual que una revisión de EPP (SPEC-032).
+  // Van fuera del `try` de arriba a propósito: si fallan, el servicio ya tiene
+  // su propio registro del error y se prefiere entregar el conteo de EPP antes
+  // que no entregar nada.
+  const corregidas = await obtenerManualesRango(fechaDesde, fechaHasta);
+  corregidas.forEach(k => claves.add(k));
+
   return claves;
 };

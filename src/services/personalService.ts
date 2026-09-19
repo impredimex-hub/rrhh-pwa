@@ -304,6 +304,25 @@ export const guardarFechasNacimiento = async (
  * ese es el camino de la importación de Excel, y un archivo sin la columna
  * borraría la marca en cada carga.
  */
+/**
+ * Concede o retira el permiso de revertir faltas (SPEC-032).
+ *
+ * Como los demás permisos, vive en el padrón y **no viaja en
+ * `construirDocumento`**: si lo hiciera, una importación de Excel sin esa
+ * columna lo borraría en cada carga (regla R2).
+ */
+export const asignarRevertirFaltas = async (
+  noNomina: string,
+  puede: boolean,
+  autor: string
+) => {
+  await updateDoc(doc(db, COLLECTION_NAME, String(noNomina).trim()), {
+    revertirFaltas: !!puede,
+    actualizadoEn: serverTimestamp(),
+    actualizadoPor: autor
+  });
+};
+
 export const asignarVerGraficas = async (
   noNomina: string,
   puede: boolean,

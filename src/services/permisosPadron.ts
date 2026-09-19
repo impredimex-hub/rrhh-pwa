@@ -24,3 +24,25 @@ export const puedeVerGraficas = (
   // Ante la duda, no: nunca se concede privilegio por omisión.
   return !!yo?.verGraficas;
 };
+
+/**
+ * Quién puede revertir una falta y darla por asistencia (SPEC-032).
+ *
+ * **Rompe a propósito el patrón de los demás permisos: ser ADMIN no basta.**
+ * Se pidió que lo tuviera una sola persona, y si el papel lo concediera,
+ * cualquier administrador podría borrar faltas sin que nadie lo hubiera
+ * decidido.
+ *
+ * Eso no lo vuelve un candado: un ADMIN administra la pantalla de permisos y
+ * podría marcarse a sí mismo (regla R6). Lo que sostiene la regla es que cada
+ * corrección queda firmada con nombre, fecha y motivo.
+ */
+export const puedeRevertirFaltas = (
+  nomina: string | undefined,
+  colaboradores: Colaborador[]
+): boolean => {
+  if (!nomina) return false;
+  const yo = colaboradores.find(c => String(c.noNomina).trim() === String(nomina).trim());
+  // Ante la duda, no: nunca se concede privilegio por omisión.
+  return !!yo?.revertirFaltas;
+};
