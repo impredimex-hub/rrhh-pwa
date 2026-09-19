@@ -156,3 +156,9 @@ th, td {
   align-items: center;
   gap: 4px;
 }
+
+/* Gira el icono del botón Actualizar mientras guarda (SPEC-029). */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
