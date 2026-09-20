@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.22.1
+**Versión objetivo:** 2.23
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1485,12 +1485,12 @@ una lista junto al reporte.
   se cuentan en **tres** lugares: el reporte, el número junto a cada rol y la
   gráfica. Separadas, tarde o temprano uno de los tres se quedaría sin mirar las
   correcciones y seguiría acusando a quien ya se dio por presente.
-- **El motivo es obligatorio.** Un permiso que borra faltas sin dejar razón no
-  se puede auditar.
-- **Se puede deshacer**, y entonces esa persona vuelve a contar como falta.
-- **La lista de revertidas la ve cualquiera** que abra el reporte, tenga o no el
-  permiso. El valor de esta lista es justamente que se vea: una corrección que
-  solo conoce quien la hizo no es distinta de borrar el dato.
+- **El motivo se guarda fijo**, junto con quién corrigió y en qué día. No se
+  muestra en ningún lado desde la 2.23.0, pero se sigue escribiendo: cuesta
+  nada y deja el rastro en la base.
+- **No se puede deshacer, ni hay lista de revertidas.** Se retiraron en la
+  versión 2.23.0 a petición expresa; el razonamiento y sus consecuencias están
+  en la SPEC-034.
 - **No se corrige en bloque.** Van de una en una, con su motivo. Una semana
   entera sin revisiones son muchas pulsaciones, y así debe sentirse: el arreglo
   de fondo es que se hagan las revisiones, no que sea cómodo revertirlas.
@@ -1581,6 +1581,49 @@ unos kilobytes cada una.
 **Cursos** para armar la matriz de pendientes y **Capacitación** para contar
 participantes. Escrita dos veces, una acabaría contando distinto de la otra y
 los dos números nunca cuadrarían. Es la misma razón de la regla R1.
+
+---
+
+# SPEC-034 — La corrección de faltas no se audita ni se deshace
+
+### Qué cambia
+
+Se retiran dos cosas de la SPEC-032: la **lista de faltas revertidas** que
+aparecía bajo el reporte, y el botón de **deshacer**.
+
+El razonamiento de quien lo pidió: como el permiso lo tiene una sola persona, no
+hay a quién auditar.
+
+### Lo que se conserva, y por qué no se puede quitar
+
+**La corrección se sigue guardando.** No es un historial aparte que se pueda
+dejar de escribir: **es el dato que sostiene la reversión**. Si no se guardara,
+la falta reaparecería en cuanto alguien volviera a generar el reporte. Lo que se
+retiró es mostrarla, no almacenarla.
+
+Se siguen escribiendo el motivo, la nómina y el nombre de quien corrigió, y el
+día. Cuesta nada y deja el rastro en la base por si alguna vez hay que revisar
+qué pasó.
+
+### Consecuencias aceptadas
+
+- **Un renglón mal pulsado es definitivo desde la app.** Antes bastaba la equis
+  roja. Ahora hay que entrar a la consola de Firebase, colección
+  `asistenciaManual`, documento del mes `AAAA-MM`, y borrar la clave
+  `nómina_fecha` del mapa `registros`.
+- **No hay forma de saber qué ya se corrigió.** Una persona corregida
+  simplemente deja de salir en el reporte, igual que alguien que nunca faltó.
+  Las dos situaciones se vuelven indistinguibles desde la aplicación.
+- **La trazabilidad deja de ser visible.** La SPEC-032 sostenía este permiso en
+  que cada uso quedara a la vista, porque las reglas de Firestore no distinguen
+  usuarios (regla R6). Con la lista retirada, el rastro sigue existiendo en la
+  base pero solo lo alcanza quien entre a la consola.
+
+### Lo que queda como resguardo
+
+**Una confirmación con el nombre y la fecha a la vista** antes de escribir. Es
+el único freno que queda entre un clic y borrar una falta real, y por eso se
+mantiene aunque el motivo ya no se pregunte.
 
 ---
 

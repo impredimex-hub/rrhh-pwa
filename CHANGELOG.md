@@ -7,6 +7,33 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.23.0] — 2026-09-19
+
+### Quitado
+
+- **La lista de faltas revertidas** que aparecía bajo el reporte (SPEC-034).
+- **El botón de deshacer** una corrección. Para devolver una falta ahora hay que
+  entrar a la consola de Firebase: colección `asistenciaManual`, documento del
+  mes, borrar la clave `nómina_fecha`.
+- Del servicio se retiraron `obtenerManualesDetalle` y `quitarAsistenciaManual`,
+  que ya no usaba nadie.
+
+### Cambiado
+
+- **Ya no se pregunta el motivo**, porque no quedaba dónde leerlo. En su lugar
+  hay una **confirmación con el nombre y la fecha a la vista**: sin deshacer,
+  es el único freno entre un clic y borrar una falta real.
+- El motivo se sigue guardando, fijo, junto con quién corrigió y el día. No se
+  muestra, pero cuesta nada y deja el rastro en la base.
+
+### Notas
+
+La corrección **se sigue almacenando y no puede dejar de hacerlo**: no es un
+historial aparte, es el dato que sostiene la reversión. Si no se guardara, la
+falta reaparecería al regenerar el reporte. Lo que se retiró es mostrarla.
+
+---
+
 ## [2.22.1] — 2026-09-19
 
 ### Agregado
