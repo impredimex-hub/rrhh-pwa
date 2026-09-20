@@ -1,0 +1,125 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Reglas de Firestore — proyecto  rrhh-pwa
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//  ESTE ARCHIVO ES SOLO DEL PROYECTO PROPIO DE RRHH.
+//
+//  El proyecto `impredimex-suite` —que aloja `colaboradores` y `asistencia`—
+//  tiene sus propias reglas y NO se tocan desde aquí: de él dependen las cinco
+//  aplicaciones de la suite, y subir estas reglas a ese proyecto dejaría a EPP,
+//  Mantenimiento, Calidad y Procesos sin acceso al padrón.
+//
+//  Comando para publicarlas, desde el Símbolo del sistema y en la carpeta del
+//  repositorio:
+//
+//      firebase deploy --only firestore:rules --project rrhh-pwa
+//
+//  (el nombre exacto del proyecto es el que aparece en la consola de Firebase;
+//   si no coincide, `firebase projects:list` lo muestra)
+//
+// ───────────────────────────────────────────────────────────────────────────
+//  POR QUÉ NO SE EXIGE SESIÓN
+//
+//  La SPEC-008 describe que cada app abriría una sesión anónima en su propio
+//  proyecto y que las reglas la exigirían. **Eso está marcado como pendiente y
+//  no se ha implementado.** En el código, `src/firebase/config.ts` inicializa
+//  Firestore y nada más: no hay `getAuth` ni inicio de sesión de ningún tipo
+//  contra este proyecto. La sesión de la persona vive en `impredimex-suite`, y
+//  las sesiones de Firebase Auth **no cruzan de un proyecto a otro**.
+//
+//  Consecuencia: en este proyecto `request.auth` es siempre `null`. Una regla
+//  que pidiera `request.auth != null` dejaría la aplicación entera sin datos.
+//
+//  Por eso estas reglas todavía no pueden autenticar. Lo que sí hacen es
+//  **cerrar todo lo que no se usa**: hasta ahora cualquiera podía además crear
+//  colecciones nuevas y usar la base como almacenamiento gratuito, consumiendo
+//  la cuota del plan. Eso se acaba aquí.
+//
+//  El siguiente paso, que sí cierra la puerta, está descrito al final.
+// ───────────────────────────────────────────────────────────────────────────
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Las ocho colecciones que la aplicación usa de verdad. La lista está
+    // tomada del código, una por servicio en `src/services`.
+    //
+    // Si algún día se agrega una colección y se olvida ponerla aquí, la
+    // aplicación fallará con «permiso denegado» en cuanto se use. Es a
+    // propósito: se prefiere un error visible a una puerta abierta.
+
+    match /capacitaciones/{doc} {
+      allow read, write: if true;
+    }
+
+    match /incidencias/{doc} {
+      allow read, write: if true;
+    }
+
+    match /promociones/{doc} {
+      allow read, write: if true;
+    }
+
+    match /sucesos/{doc} {
+      allow read, write: if true;
+    }
+
+    match /rolesTurnos/{doc} {
+      allow read, write: if true;
+    }
+
+    match /vacantes/{doc} {
+      allow read, write: if true;
+    }
+
+    // Quién ya tomó cada curso (SPEC-028). Un documento por curso.
+    match /cursosCompletados/{cursoId} {
+      allow read, write: if true;
+    }
+
+    // Faltas revertidas a mano (SPEC-032). Un documento por mes.
+    match /asistenciaManual/{mes} {
+      allow read, write: if true;
+    }
+
+    // Todo lo demás, cerrado. Esta regla va al final y sin ella cualquiera
+    // podría escribir en colecciones inventadas.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SIGUIENTE PASO — exigir sesión (pendiente, no hacer sin probar)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//  1. En la consola de Firebase del proyecto rrhh-pwa:
+//     Authentication → Sign-in method → habilitar **Anónimo**.
+//
+//  2. En `src/firebase/config.ts`, iniciar sesión anónima al arrancar:
+//
+//         import { getAuth, signInAnonymously } from 'firebase/auth';
+//         export const auth = getAuth(app);
+//         signInAnonymously(auth).catch(e =>
+//           console.error('No se pudo abrir la sesión anónima', e));
+//
+//     El SDK de Firestore espera a que la sesión se resuelva antes de enviar
+//     la primera consulta, siempre que `getAuth` se haya llamado sobre la
+//     misma app. Aun así **hay que probarlo con la app publicada** antes de
+//     tocar las reglas: si algo falla, toda la pestaña se queda sin datos.
+//
+//  3. Solo cuando el paso 2 funcione, cambiar cada `if true` de arriba por:
+//
+//         if request.auth != null;
+//
+//  El orden importa. Publicar las reglas antes que el código deja la
+//  aplicación sin acceso a nada.
+//
+//  Esto cierra la puerta a quien no traiga sesión, pero **no distingue entre
+//  usuarios**: cualquiera que tome el JavaScript publicado puede abrir una
+//  sesión anónima igual que la app. Es la deuda que la regla R6 ya reconoce.
+//  Cerrarla de verdad exige que este proyecto comparta la autenticación de
+//  `impredimex-suite`, que es un trabajo aparte.

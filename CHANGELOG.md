@@ -7,6 +7,39 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.22.1] — 2026-09-19
+
+### Agregado
+
+- **`firestore.rules` del proyecto de RRHH, versionado en el repositorio**
+  (SPEC-008). Hasta ahora las reglas solo existían en la consola de Firebase,
+  sin historial y sin forma de saber qué decían.
+- **`firebase.json` registra las reglas**, para publicarlas con
+  `firebase deploy --only firestore:rules`. La configuración de hosting que ya
+  tenía el archivo no se tocó.
+
+### Cambiado
+
+- **Todo lo que no sea una de las ocho colecciones de la aplicación queda
+  cerrado.** Antes cualquiera podía crear colecciones nuevas en ese proyecto y
+  usar la base como almacenamiento gratuito, gastando la cuota del plan.
+- Quedan explícitamente permitidas `cursosCompletados` (SPEC-028) y
+  `asistenciaManual` (SPEC-032), que eran las dos pendientes.
+
+### Notas
+
+**Estas reglas son solo del proyecto `rrhh-pwa`.** El proyecto
+`impredimex-suite`, que aloja `colaboradores` y `asistencia`, tiene las suyas y
+no se tocan: de él dependen las cinco aplicaciones de la suite.
+
+**Las reglas todavía no exigen sesión, y no pueden.** Se comprobó en el código
+que la app no abre ninguna sesión contra su propio proyecto: la sesión vive en
+la suite y las de Firebase Auth no cruzan entre proyectos. La sesión anónima que
+describe la SPEC-008 nunca se implementó. El camino para cerrarlo queda escrito
+al final de `firestore.rules`, con el orden en que hay que hacerlo.
+
+---
+
 ## [2.22.0] — 2026-09-19
 
 ### Agregado

@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.22
+**Versión objetivo:** 2.22.1
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -405,6 +405,35 @@ Cada app inicia además una sesión anónima en su propio proyecto, y las reglas
 exigen esa sesión junto con App Check. Eso cierra el acceso a extraños pero no
 distingue entre usuarios. Riesgo aceptado a conciencia: la trazabilidad no
 depende de las reglas sino de los datos que la app graba.
+
+### Estado real, comprobado en el código (v2.22.1)
+
+El proyecto propio de RRHH **no abre ninguna sesión**. `src/firebase/config.ts`
+inicializa Firestore y nada más: no hay `getAuth` ni inicio de sesión contra ese
+proyecto. La sesión de la persona vive en `impredimex-suite`, y **las sesiones
+de Firebase Auth no cruzan de un proyecto a otro**.
+
+Por lo tanto, en el proyecto de RRHH `request.auth` es siempre `null`, y una
+regla que exigiera sesión dejaría la aplicación entera sin datos. La sesión
+anónima que describe esta spec nunca se implementó.
+
+Lo que sí se hizo, y está en `firestore.rules` dentro del repositorio:
+
+- **Las ocho colecciones que la app usa quedan abiertas**, porque no hay con qué
+  autenticar todavía.
+- **Todo lo demás queda cerrado.** Antes se podían crear colecciones nuevas y
+  usar la base como almacenamiento gratuito, gastando la cuota del plan.
+- **Las reglas están versionadas.** Antes solo existían en la consola, sin
+  historial y sin forma de saber qué decían.
+
+Falta, en este orden: habilitar el proveedor anónimo en la consola, iniciar
+sesión anónima desde `config.ts`, probarlo publicado, y solo entonces cambiar
+las reglas a `request.auth != null`. Publicar las reglas antes que el código
+deja la aplicación sin acceso a nada.
+
+Aun así eso no distinguiría usuarios: quien tome el JavaScript publicado puede
+abrir una sesión anónima igual que la app. Cerrarlo de verdad exige que este
+proyecto comparta la autenticación de la suite.
 
 ### Reglas de negocio
 - **Hoy no hay ninguna regla que impida escribir el padrón.** La aplicación no
