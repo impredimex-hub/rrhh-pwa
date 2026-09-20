@@ -10,7 +10,7 @@ import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, c
 import { subscribeAsistenciasRango, obtenerAsistenciasRango } from '../services/asistenciaService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { puedeVerGraficas, puedeRevertirFaltas } from '../services/permisosPadron';
-import { marcarAsistenciaManual, quitarAsistenciaManual, obtenerManualesDetalle } from '../services/asistenciaManualService';
+import { marcarAsistenciaManual } from '../services/asistenciaManualService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { hoyISO, partesFecha } from '../utils/fechas';
 import { BarrasVerticales, BarrasHorizontales, COLORES } from './Graficas';
@@ -667,7 +667,6 @@ export const SucesosTurnosModule: React.FC = () => {
     () => puedeRevertirFaltas(sesion?.nomina, colaboradores),
     [sesion, colaboradores]
   );
-  const [repManuales, setRepManuales] = useState<AsistenciaManual[]>([]);
   const [revirtiendo, setRevirtiendo] = useState('');
 
   const puedeReporteTodas = useMemo(() => {
@@ -727,8 +726,6 @@ export const SucesosTurnosModule: React.FC = () => {
 
       filas.sort((x, y) => x['Fecha'].localeCompare(y['Fecha']) || x['Colaborador'].localeCompare(y['Colaborador']));
       setRepFilas(filas);
-      // Las del periodo, para poder mostrarlas y deshacerlas (SPEC-032).
-      setRepManuales(await obtenerManualesDetalle(repDesde, repHasta));
     } catch (err) {
       console.error(err);
       // Sin asistencias, todo turno terminado parecería falta: mejor no
@@ -824,12 +821,13 @@ export const SucesosTurnosModule: React.FC = () => {
     const nom = fila['# Nómina'];
     const fecha = fila['Fecha'];
 
-    const motivo = window.prompt(
-      `Dar por presente a ${fila['Colaborador']} el ${fecha}.\n\n¿Por qué? Queda registrado con tu nombre.`,
-      'No se hizo la revisión de EPP, pero sí asistió'
-    );
-    if (motivo === null) return;                 // canceló
-    if (!motivo.trim()) { alert('Hace falta el motivo.'); return; }
+    // Confirmación con nombre y fecha a la vista. **Es el único resguardo que
+    // queda** (SPEC-034): la corrección ya no se puede deshacer desde la app,
+    // así que un renglón mal pulsado borra una falta real de forma definitiva.
+    if (!window.confirm(
+      `Dar por presente a ${fila['Colaborador']} el ${fecha}.\n\n` +
+      `Esa falta deja de contar y no se puede deshacer desde aquí.`
+    )) return;
 
     setRevirtiendo(`${nom}|${fecha}`);
     try {
@@ -838,34 +836,16 @@ export const SucesosTurnosModule: React.FC = () => {
         fecha,
         nombreCompleto: fila['Colaborador'],
         departamento: fila['Departamento'],
-        motivo: motivo.trim(),
+        // Se guarda aunque ya no se muestre: si algún día hay que auditar,
+        // el dato está en la base y no hubo que recuperarlo de ningún lado.
+        motivo: 'No se hizo la revisión de EPP, pero sí asistió',
         porNomina: sesion?.nomina || '',
         porNombre: sesion?.nombre || ''
       };
       await marcarAsistenciaManual(reg);
       setRepFilas(prev => (prev || []).filter(f => !(f['# Nómina'] === nom && f['Fecha'] === fecha)));
-      setRepManuales(prev => [...prev, reg].sort((a, b) => a.fecha.localeCompare(b.fecha)));
     } catch (err: any) {
       alert('No se pudo guardar la corrección: ' + (err?.message || 'Error desconocido'));
-    } finally {
-      setRevirtiendo('');
-    }
-  };
-
-  /** Deshace una corrección: esa persona vuelve a contar como falta. */
-  const deshacerReversion = async (reg: AsistenciaManual) => {
-    if (!puedeRevertir || revirtiendo) return;
-    if (!window.confirm(`¿Volver a contar como falta a ${reg.nombreCompleto || reg.noNomina} el ${reg.fecha}?`)) return;
-    setRevirtiendo(`${reg.noNomina}|${reg.fecha}`);
-    try {
-      await quitarAsistenciaManual(reg.noNomina, reg.fecha);
-      setRepManuales(prev => prev.filter(x => !(x.noNomina === reg.noNomina && x.fecha === reg.fecha)));
-      // La falta vuelve al reporte solo al regenerarlo: reconstruirla aquí
-      // exigiría repetir toda la lógica de turnos, con el riesgo de que las
-      // dos versiones dejen de coincidir.
-      alert('Listo. Vuelve a generar el reporte para verla de nuevo en la lista.');
-    } catch (err: any) {
-      alert('No se pudo deshacer: ' + (err?.message || 'Error desconocido'));
     } finally {
       setRevirtiendo('');
     }
@@ -874,7 +854,6 @@ export const SucesosTurnosModule: React.FC = () => {
   const abrirReporte = () => {
     setRepDepto(puedeReporteTodas ? '__TODOS__' : (departamentos[0] || ''));
     setRepFilas(null);
-    setRepManuales([]);
     setRepError('');
     setModalReporte(true);
   };
@@ -1543,41 +1522,6 @@ export const SucesosTurnosModule: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Lo corregido a mano en el mismo periodo (SPEC-032). Se
-                      muestra siempre que haya algo, tenga o no permiso quien
-                      mira: el valor de esta lista es que se vea. */}
-                  {repManuales.length > 0 && (
-                    <div style={{ marginTop: '12px', border: '1px solid var(--border-light)', borderRadius: '10px', padding: '9px 11px', background: 'var(--bg-light)' }}>
-                      <div style={{ fontSize: '10.5px', fontWeight: 700, color: 'var(--brand-navy)', marginBottom: '6px' }}>
-                        Faltas revertidas a mano en el periodo ({repManuales.length})
-                      </div>
-                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '8px' }}>
-                        Estas personas no aparecen como falta porque alguien dio fe de que sí asistieron.
-                        No cuentan en el reporte ni en el número de faltas de su rol.
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                        {repManuales.map(m => (
-                          <div key={`${m.noNomina}_${m.fecha}`} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', fontSize: '10px', background: '#fff', border: '1px solid var(--border-light)', borderRadius: '7px', padding: '6px 8px' }}>
-                            <div style={{ lineHeight: 1.45 }}>
-                              <b style={{ color: 'var(--brand-navy)' }}>{m.fecha}</b> · {m.nombreCompleto || m.noNomina} <span style={{ color: 'var(--text-light)' }}>#{m.noNomina}</span>
-                              <div style={{ color: 'var(--text-secondary)' }}>{m.motivo}</div>
-                              <div style={{ color: 'var(--text-light)', fontSize: '9px' }}>por {m.porNombre || m.porNomina}</div>
-                            </div>
-                            {puedeRevertir && (
-                              <button
-                                onClick={() => deshacerReversion(m)}
-                                disabled={revirtiendo === `${m.noNomina}|${m.fecha}`}
-                                title="Volver a contarla como falta"
-                                style={{ border: 'none', background: 'transparent', cursor: revirtiendo ? 'wait' : 'pointer', color: 'var(--brand-red)', padding: '2px 4px', flexShrink: 0 }}
-                              >
-                                <X size={13} />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
