@@ -1,4 +1,4 @@
-import { doc, setDoc, onSnapshot, getDoc, deleteField, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import type { AsistenciaManual } from '../types/rrhh';
 
@@ -62,23 +62,6 @@ export const obtenerManualesRango = async (desde: string, hasta: string): Promis
   return claves;
 };
 
-/** Las correcciones de un rango, completas, para poder mostrarlas y deshacerlas. */
-export const obtenerManualesDetalle = async (desde: string, hasta: string): Promise<AsistenciaManual[]> => {
-  const filas: AsistenciaManual[] = [];
-  for (const mes of mesesDelRango(desde, hasta)) {
-    try {
-      const snap = await getDoc(doc(db, COLLECTION_NAME, mes));
-      const registros = (snap.data()?.registros || {}) as Record<string, AsistenciaManual>;
-      Object.values(registros).forEach(r => {
-        if (r?.noNomina && r?.fecha && r.fecha >= desde && r.fecha <= hasta) filas.push(r);
-      });
-    } catch (err) {
-      console.error(`No se pudieron leer las asistencias corregidas de ${mes}`, err);
-    }
-  }
-  return filas.sort((a, b) => a.fecha.localeCompare(b.fecha) || a.noNomina.localeCompare(b.noNomina));
-};
-
 /** Versión en vivo, para la cuadrícula del rol que está abierto. */
 export const subscribeManualesMes = (
   mes: string,
@@ -101,9 +84,13 @@ export const subscribeManualesMes = (
 /**
  * Da por presente a alguien a quien no le hicieron revisión de EPP.
  *
- * Se guarda el motivo y quién lo hizo, y eso es lo que sostiene la corrección:
- * las reglas de Firestore no distinguen usuarios (regla R6), así que la única
- * defensa real de este permiso es que cada uso quede firmado.
+ * Se guarda el motivo y quién lo hizo. Ya no se muestra en ningún lado
+ * (SPEC-034), pero se sigue escribiendo: cuesta nada y deja el rastro en la
+ * base por si alguna vez hay que revisar qué pasó.
+ *
+ * **No hay función para deshacerla.** Se retiró a petición expresa, junto con
+ * la lista de revertidas. Para devolver una falta hay que borrar la clave
+ * `nómina_fecha` del documento del mes en la consola de Firebase.
  */
 export const marcarAsistenciaManual = async (reg: AsistenciaManual) => {
   const mes = reg.fecha.slice(0, 7);
@@ -112,19 +99,6 @@ export const marcarAsistenciaManual = async (reg: AsistenciaManual) => {
     {
       mes,
       registros: { [claveManual(reg.noNomina, reg.fecha)]: { ...reg, creadoEn: Date.now() } },
-      actualizadoEn: serverTimestamp()
-    },
-    { merge: true }
-  );
-};
-
-/** Deshace una corrección: esa persona vuelve a contar como falta. */
-export const quitarAsistenciaManual = async (noNomina: string, fecha: string) => {
-  const mes = fecha.slice(0, 7);
-  await setDoc(
-    doc(db, COLLECTION_NAME, mes),
-    {
-      registros: { [claveManual(noNomina, fecha)]: deleteField() },
       actualizadoEn: serverTimestamp()
     },
     { merge: true }
