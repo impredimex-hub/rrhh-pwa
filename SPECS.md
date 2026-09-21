@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.23
+**Versión objetivo:** 2.24
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1624,6 +1624,87 @@ qué pasó.
 **Una confirmación con el nombre y la fecha a la vista** antes de escribir. Es
 el único freno que queda entre un clic y borrar una falta real, y por eso se
 mantiene aunque el motivo ya no se pregunte.
+
+---
+
+# SPEC-035 — Encabezado estándar de la suite
+
+### Alcance
+
+El encabezado es el mismo en las cinco aplicaciones. Esta spec lo define para
+RRHH, que va primero; las demás lo copian cambiando una sola línea, el nombre de
+la aplicación.
+
+### Por qué se rehizo
+
+El anterior se centraba con `flex: 1` sobre el espacio que **sobraba** después
+de los botones, no sobre la pantalla. En escritorio casi no se notaba; en un
+iPhone el bloque salía corrido y «Sistema de Gestión de Recursos Humanos» se
+partía en dos renglones contra el círculo de la nómina. Ocupaba 175 px antes del
+primer dato: casi una quinta parte de la pantalla del teléfono.
+
+### Estructura
+
+Una sola fila:
+
+`[ IMPREDIMEX / NOMBRE DE LA APP ] ······ [ nombre y puesto ] [ portal ] [ nómina ]`
+
+- **Alineado a la izquierda, no centrado.** Centrarlo es lo que causaba el
+  descuadre; alineado no hay nada con qué pelear.
+- **El nombre y el puesto solo aparecen desde 760 px de ancho.** En el teléfono
+  no caben sin cortarse: el caso más largo del padrón son 74 caracteres y en un
+  iPhone caben unos 40.
+- **En el teléfono viven en el panel** que abre la nómina, donde tienen el ancho
+  completo y pueden ocupar dos renglones. Ninguno se corta, mida lo que mida.
+- **La barra mide igual para todos.** Con 122 personas de nombres muy distintos,
+  si el nombre viviera en la barra la altura dependería de quién entró. Es lo
+  que se necesita de algo que va a vivir en cinco aplicaciones.
+
+Resultado: **56 px de alto en el teléfono**, contra 175.
+
+### El panel de la nómina
+
+Se abre al tocar el círculo y contiene el nombre, el puesto, la nómina, el papel
+y el estado de conexión, más **Ir al portal** y **Cerrar sesión**.
+
+- **El apagado se mudó aquí**, así la barra se queda con dos botones en vez de
+  tres. Cerrar sesión pasa a ser dos toques, y es algo que se hace una vez al
+  día.
+- Se cierra tocando fuera.
+
+### Reglas de presentación
+
+- **El logotipo va en Jost, peso 600, espaciado `.20em`.** Antes era peso 800
+  sin espaciado: a ese peso las letras se tocan y se lee apretado. El aire es lo
+  que da calma.
+- **El nombre de la aplicación va en mayúsculas finas y grises**, peso 400,
+  espaciado `.26em`. Antes competía con la marca; ahora la acompaña. Y se acortó
+  a «Recursos Humanos»: con la marca encima, lo demás sobraba, y era justo lo
+  que se partía en dos renglones.
+- **Si Jost no carga**, el respaldo del sistema conserva el mismo peso y
+  espaciado: cambia la letra, nunca el acomodo.
+- **El estado de conexión es un punto sobre el círculo de la nómina**, no un
+  renglón propio. Ahorra un renglón entero de alto.
+- **Los botones se ven de 32 px pero responden en 44.** Con guantes, 32 px se
+  falla; es la medida mínima para atinarle.
+- **Botón de portal**, los cuatro cuadros. Antes no había forma de volver a la
+  suite salvo apagar y entrar de nuevo.
+
+### Dónde vive el estilo
+
+En `src/index.css`, como `.hdr-marca`, `.hdr-app`, `.hdr-identidad` y
+`.hdr-boton`, **no dentro del componente**. Las otras cuatro aplicaciones son
+HTML de un solo archivo: copian esas reglas tal cual y quedan iguales sin
+traducir nada.
+
+El corte de 760 px se resuelve con `@media` en el CSS y no midiendo la ventana
+desde JavaScript, para que las apps de HTML plano puedan usar exactamente el
+mismo código.
+
+### Pendiente
+
+Falta aplicarlo a EPP, Mantenimiento, Calidad y Procesos. Y la barra de pestañas
+sigue cortándose en el teléfono; es un problema aparte de éste.
 
 ---
 

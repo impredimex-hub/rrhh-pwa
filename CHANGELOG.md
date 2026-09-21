@@ -7,6 +7,43 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.24.0] — 2026-09-20
+
+### Cambiado
+
+- **Encabezado rehecho, y queda como estándar de la suite** (SPEC-035). Pasa de
+  175 px a 56 px de alto en el teléfono.
+- **Alineado a la izquierda.** El anterior se centraba sobre el espacio que
+  sobraba después de los botones, no sobre la pantalla, y por eso en el iPhone
+  salía corrido y el nombre de la app se partía en dos renglones.
+- **El logotipo va en Jost**, peso 600 con espaciado amplio; el nombre de la
+  app, en mayúsculas finas y grises. Si la fuente no carga, el respaldo del
+  sistema conserva el mismo peso y acomodo.
+- **El estado de conexión es ahora un punto sobre el círculo de la nómina**, en
+  lugar de un renglón propio.
+- **Los botones redondos se ven de 32 px pero responden en 44**, que es la
+  medida mínima para atinarles con guantes.
+
+### Agregado
+
+- **Panel al tocar la nómina**, con el nombre, el puesto, la nómina, el papel y
+  el estado. Ahí el nombre tiene ancho completo y no se corta nunca: el caso más
+  largo del padrón son 74 caracteres y en un iPhone caben unos 40. En pantalla
+  ancha el nombre y el puesto siguen a la vista en la barra.
+- **Botón de portal.** Antes no había forma de volver a la suite salvo apagar y
+  entrar de nuevo.
+- Cerrar sesión se mudó al panel, así la barra se queda con dos botones.
+
+### Notas
+
+El estilo vive en `src/index.css` como clases `.hdr-*`, no dentro del
+componente, y el corte de pantalla ancha se resuelve con `@media`. Las otras
+cuatro apps son HTML de un solo archivo: copian esas reglas tal cual.
+
+Falta aplicarlo a EPP, Mantenimiento, Calidad y Procesos.
+
+---
+
 ## [2.23.0] — 2026-09-19
 
 ### Quitado
