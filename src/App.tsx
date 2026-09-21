@@ -111,16 +111,19 @@ function App() {
 
       {/* Encabezado estándar de la suite (SPEC-035) */}
       <header style={{
-        background: 'rgba(255,255,255,.88)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
+        // Opaco y sin desenfoque: el encabezado no está fijo, así que el
+        // efecto de cristal no tenía nada detrás que desenfocar. Lo único que
+        // hacía era dejar pasar el fondo y, en iOS, lavar el logotipo.
+        background: '#ffffff',
         borderBottom: '0.5px solid rgba(0,32,96,.08)',
         boxShadow: '0 2px 8px rgba(0,32,96,.05)',
         padding: '6px 12px',
         marginBottom: '1rem',
         position: 'relative'
       }}>
-        <div style={{ maxWidth: '1050px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        {/* De borde a borde, sin la columna centrada del contenido: la marca
+            va en la esquina izquierda y los botones en la derecha. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
 
           {/* Marca y aplicación. Alineadas a la izquierda: centrarlas las hacía
               pelear con los botones y en el teléfono quedaban corridas. */}
@@ -136,10 +139,6 @@ function App() {
             </div>
             <div style={{ fontSize: '11.5px', color: 'var(--text-light)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {sesion.puesto || (ETIQUETA_PAPEL[sesion.papel] ?? sesion.papel)}
-              {' · '}
-              <span style={{ color: isOnline ? 'var(--green)' : 'var(--brand-red)', fontWeight: 600 }}>
-                {isOnline ? 'En línea' : 'Sin conexión'}
-              </span>
             </div>
           </div>
 
