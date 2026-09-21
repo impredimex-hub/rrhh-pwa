@@ -7,6 +7,24 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.24.2] — 2026-09-20
+
+### Cambiado
+
+- **El encabezado queda fijo arriba y siempre visible** al desplazarse. Va en
+  la capa 45, por encima de los menús desplegables y por debajo de las
+  ventanas emergentes.
+
+### Corregido
+
+- **El nombre y el puesto no quedaban centrados.** El bloque crecía para llenar
+  el hueco entre la marca y los botones, y el texto se alineaba a la derecha:
+  el nombre, más largo, parecía centrado, y el puesto se cargaba hacia la
+  orilla. Ahora las dos orillas del encabezado miden lo mismo y el nombre y el
+  puesto comparten eje en el centro de la pantalla.
+
+---
+
 ## [2.24.1] — 2026-09-20
 
 ### Corregido

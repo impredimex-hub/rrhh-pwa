@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.24.1
+**Versión objetivo:** 2.24.2
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1690,7 +1690,17 @@ y el estado de conexión, más **Ir al portal** y **Cerrar sesión**.
 - **Botón de portal**, los cuatro cuadros. Antes no había forma de volver a la
   suite salvo apagar y entrar de nuevo.
 
-### Opaco, y de borde a borde
+### Fijo, opaco, y de borde a borde
+
+- **Queda fijo arriba** (`position: sticky`) y siempre visible al desplazarse.
+  Va en la capa 45: por encima de los menús desplegables del contenido (30) y
+  por debajo de todas las ventanas emergentes (50 en adelante), que tienen que
+  poder taparlo.
+- **El nombre y el puesto van centrados de verdad.** Las dos orillas del
+  encabezado —la marca y los botones— crecen igual (`flex: 1 1 0`), así lo de en
+  medio queda centrado en la pantalla. Antes el bloque crecía para llenar el
+  hueco y el texto se alineaba a la derecha: el nombre, más largo, parecía
+  centrado, y el puesto se cargaba hacia la orilla.
 
 - **El encabezado no lleva transparencia ni desenfoque de fondo.** Tenía 12 % de
   transparencia y `backdrop-filter`, pero **no está fijo**: se desplaza con la
