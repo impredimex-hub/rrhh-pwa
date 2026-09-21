@@ -2,6 +2,44 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
+<script>
+/* Arranque sin parpadeo. Las páginas de la suite viven en el mismo dominio y
+   comparten esta nota: si hay sesión abierta, se cubre la pantalla con la
+   marca mientras Firebase la confirma, en lugar de mostrar un instante la
+   pantalla de contraseña. Corre antes de dibujar nada.
+   La nota se escribe al abrir sesión y se borra al cerrarla o si Firebase
+   dice que ya no hay sesión. Si miente, la marca dura un momento y aparece
+   la contraseña, que es lo correcto. */
+(function(){
+  try{
+    if(localStorage.getItem('impredimex:sesion') === '1'){
+      var h = document.documentElement;
+      h.classList.add('con-sesion');
+      // Red de seguridad: si en 8 s no terminó de abrir, se quita la marca y
+      // queda a la vista lo que haya debajo. Nadie se queda sin salida.
+      setTimeout(function(){ h.classList.remove('con-sesion'); }, 8000);
+    }
+  }catch(e){}
+})();
+function arranqueListo(haySesion){
+  try{
+    if(haySesion) localStorage.setItem('impredimex:sesion','1');
+    else localStorage.removeItem('impredimex:sesion');
+  }catch(e){}
+  document.documentElement.classList.remove('con-sesion');
+}
+</script>
+<style>
+/* La marca se dibuja sobre la raíz, así no hace falta tocar el contenido de
+   la página: cubre todo mientras dura la clase y desaparece al quitarla. */
+html.con-sesion::after{
+  content:'IMPREDIMEX'; position:fixed; inset:0; z-index:2147483647;
+  display:flex; align-items:center; justify-content:center; background:#ffffff;
+  font-family:'Jost',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-weight:600; font-size:22px; letter-spacing:.20em; color:#002060;
+}
+</style>
+
     <link rel="icon" type="image/png" href="icon-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#003580" />

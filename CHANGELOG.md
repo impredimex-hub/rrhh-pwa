@@ -7,6 +7,21 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.25.0] — 2026-09-21
+
+### Corregido
+
+- **Al llegar desde el portal ya no se ve la pantalla de contraseña de paso**
+  (SPEC-036). Si hay sesión, aparece la marca IMPREDIMEX mientras la app
+  termina de abrir; si no la hay, la contraseña aparece al instante.
+
+### Cambiado
+
+- La pantalla «Verificando tu sesión…» pasa a ser la misma marca blanca que
+  muestran las demás apps al abrir.
+
+---
+
 ## [2.24.2] — 2026-09-20
 
 ### Cambiado
