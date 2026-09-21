@@ -11,6 +11,14 @@ import { LoginScreen } from './components/LoginScreen';
 import { SesionContext } from './services/SesionContext';
 import { armarSesion, vigilarSesion, salir, ErrorDeAcceso, type Sesion } from './services/suite';
 
+/**
+ * Avisa al arranque de la página si hay sesión (SPEC-036). La función vive en
+ * `index.html` porque tiene que correr antes de que React cargue; aquí solo se
+ * le avisa cuándo quitar la marca y si anotar o borrar la sesión.
+ */
+const avisarArranque = (haySesion: boolean) =>
+  (window as unknown as { arranqueListo?: (s: boolean) => void }).arranqueListo?.(haySesion);
+
 /** El portal de la suite, a donde lleva el botón de los cuatro cuadros. */
 const URL_PORTAL = 'https://impredimex-hub.github.io/';
 
@@ -51,13 +59,17 @@ function App() {
       if (!user) {
         setSesion(null);
         setVerificando(false);
+        avisarArranque(false);
         return;
       }
       try {
         setSesion(await armarSesion(user));
         setAvisoAcceso('');
+        avisarArranque(true);
       } catch (e) {
         // Autenticado pero sin permiso para esta app: se cierra la sesión.
+        // La marca se quita antes, o taparía el aviso con el motivo.
+        avisarArranque(false);
         setSesion(null);
         setAvisoAcceso(e instanceof ErrorDeAcceso ? e.message : 'No se pudo verificar tu acceso.');
         await salir().catch(() => {});
@@ -68,9 +80,11 @@ function App() {
   }, []);
 
   if (verificando) {
+    // La misma marca que pinta el arranque de la página, para que las seis
+    // apps se vean idénticas mientras abren (SPEC-036).
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#E8EEF8', color: '#5A6A80', fontSize: '13px' }}>
-        Verificando tu sesión…
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff' }}>
+        <span className="hdr-marca" style={{ fontSize: '22px' }}>IMPREDIMEX</span>
       </div>
     );
   }
@@ -216,7 +230,7 @@ function App() {
 
               <button
                 type="button"
-                onClick={() => { salir().finally(() => window.location.reload()); }}
+                onClick={() => { avisarArranque(false); salir().finally(() => window.location.reload()); }}
                 style={{ display: 'flex', alignItems: 'center', gap: '9px', minHeight: '44px', width: '100%', background: 'transparent', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: '12.5px', fontWeight: 600, color: 'var(--brand-red-dark)', textAlign: 'left', cursor: 'pointer' }}
               >
                 <Power size={16} /> Cerrar sesión
