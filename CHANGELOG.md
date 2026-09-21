@@ -7,6 +7,32 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.24.1] — 2026-09-20
+
+### Corregido
+
+- **El encabezado se veía lavado en la parte superior**, sobre todo en iPhone.
+  Tenía 12 % de transparencia y desenfoque de fondo, pero no está fijo: se
+  desplaza con la página, así que el efecto de cristal no tenía nada detrás que
+  desenfocar. Solo dejaba pasar el fondo y suavizaba el logotipo. Ahora es
+  blanco opaco.
+
+### Cambiado
+
+- **El encabezado va de borde a borde**, sin la columna centrada de 1050 px que
+  usa el resto de la página. La marca queda en la esquina izquierda y los
+  botones en la derecha, como en EPP.
+- **Se retiró el «En línea» del renglón del puesto.** El punto verde sobre la
+  nómina ya lo dice, y su título lo deletrea.
+
+### Notas
+
+Las pestañas y las tarjetas conservan el mismo efecto de cristal. No se tocaron
+porque ahí sí se ven bien, pero si algún día se notan lavadas, el arreglo es el
+mismo.
+
+---
+
 ## [2.24.0] — 2026-09-20
 
 ### Cambiado

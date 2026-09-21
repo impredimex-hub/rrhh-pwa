@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.24
+**Versión objetivo:** 2.24.1
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1689,6 +1689,19 @@ y el estado de conexión, más **Ir al portal** y **Cerrar sesión**.
   falla; es la medida mínima para atinarle.
 - **Botón de portal**, los cuatro cuadros. Antes no había forma de volver a la
   suite salvo apagar y entrar de nuevo.
+
+### Opaco, y de borde a borde
+
+- **El encabezado no lleva transparencia ni desenfoque de fondo.** Tenía 12 % de
+  transparencia y `backdrop-filter`, pero **no está fijo**: se desplaza con la
+  página, así que no había nada detrás que desenfocar. Lo único que lograba era
+  dejar pasar el fondo y, en iOS, lavar el logotipo.
+- **No usa la columna centrada del contenido.** El resto de la página se acota a
+  1050 px, pero el encabezado va de borde a borde: así la marca queda en la
+  esquina izquierda y los botones en la derecha, en lugar de flotar hacia el
+  centro en pantallas anchas.
+- **El renglón del puesto no repite el estado de conexión.** El punto sobre el
+  círculo de la nómina ya lo dice, y su título lo deletrea.
 
 ### Dónde vive el estilo
 
