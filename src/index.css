@@ -187,3 +187,68 @@ th, td {
 .btn-circular-excel { background: var(--green); }
 .btn-circular-pdf   { background: var(--brand-red); }
 .btn-circular-navy  { background: var(--brand-navy); }
+
+/* ── Encabezado estándar de la suite (SPEC-035) ─────────────────────────────
+   Escrito aquí, y no dentro del componente, porque las otras cuatro apps son
+   HTML de un solo archivo: copian estas reglas tal cual y quedan iguales. */
+
+.hdr-marca {
+  font-family: 'Jost', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 600;
+  color: var(--brand-navy-dark);
+  letter-spacing: .20em;
+  line-height: 1.15;
+  font-size: 17px;
+}
+
+.hdr-app {
+  font-family: 'Jost', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 400;
+  color: var(--text-secondary);
+  letter-spacing: .26em;
+  line-height: 1.3;
+  margin-top: 4px;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+/* Nombre y puesto solo caben en pantalla ancha. En el teléfono viven en el
+   panel que abre la nómina: un nombre largo cortado se lee peor que uno que
+   está a un toque de distancia. */
+.hdr-identidad { display: none; }
+
+@media (min-width: 760px) {
+  .hdr-marca { font-size: 22px; }
+  .hdr-app   { font-size: 10.5px; margin-top: 5px; }
+  .hdr-identidad { display: block; }
+}
+
+/* Botón redondo del encabezado: el círculo se ve de 32 px, pero la zona que
+   responde al dedo mide 44. Con guantes, 32 px se falla. */
+.hdr-boton {
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.hdr-boton > span {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border-mid);
+  color: var(--brand-navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s ease;
+}
+
+.hdr-boton:hover > span { background: var(--brand-navy-light); }

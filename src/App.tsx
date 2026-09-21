@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Award, ClipboardList, GraduationCap, TrendingUp, BookOpen, CalendarClock, WifiOff, Power } from 'lucide-react';
+import { Users, Award, ClipboardList, GraduationCap, TrendingUp, BookOpen, CalendarClock, WifiOff, Power, LayoutGrid } from 'lucide-react';
 import { PersonalModule } from './components/PersonalModule';
 import { AntiguedadVacantesModule } from './components/AntiguedadVacantesModule';
 import { IncidenciasModule } from './components/IncidenciasModule';
@@ -11,6 +11,9 @@ import { LoginScreen } from './components/LoginScreen';
 import { SesionContext } from './services/SesionContext';
 import { armarSesion, vigilarSesion, salir, ErrorDeAcceso, type Sesion } from './services/suite';
 
+/** El portal de la suite, a donde lleva el botón de los cuatro cuadros. */
+const URL_PORTAL = 'https://impredimex-hub.github.io/';
+
 const ETIQUETA_PAPEL: Record<string, string> = {
   ADMIN: 'Administrador',
   CAPTURA: 'Captura',
@@ -20,6 +23,9 @@ const ETIQUETA_PAPEL: Record<string, string> = {
 function App() {
   const [pestanaActiva, setPestanaActiva] = useState<'personal' | 'antiguedad' | 'incidencias' | 'capacitacion' | 'promociones' | 'cursos' | 'sucesos'>('personal');
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+  // Panel de la nómina (SPEC-035): en el teléfono es el único lugar donde el
+  // nombre y el puesto caben completos.
+  const [panelAbierto, setPanelAbierto] = useState(false);
 
   const [sesion, setSesion] = useState<Sesion | null>(null);
   const [verificando, setVerificando] = useState(true);
@@ -103,59 +109,116 @@ function App() {
         </div>
       )}
 
-      {/* IMPREDIMEX Frosted Header */}
+      {/* Encabezado estándar de la suite (SPEC-035) */}
       <header style={{
         background: 'rgba(255,255,255,.88)',
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
         borderBottom: '0.5px solid rgba(0,32,96,.08)',
         boxShadow: '0 2px 8px rgba(0,32,96,.05)',
-        padding: '0.75rem 1.5rem',
-        marginBottom: '1rem'
+        padding: '6px 12px',
+        marginBottom: '1rem',
+        position: 'relative'
       }}>
-        <div style={{ maxWidth: '1050px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ maxWidth: '1050px', margin: '0 auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
 
-          {/* Bloque central: marca, aplicación y quién entró */}
-          <div style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
-            <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--brand-navy-dark)', letterSpacing: '.02em' }}>
-              IMPREDIMEX
-            </div>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--brand-navy)', marginTop: '1px' }}>
-              Sistema de Gestión de Recursos Humanos
-            </div>
-            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--brand-navy-dark)', marginTop: '6px', textTransform: 'uppercase', letterSpacing: '.01em' }}>
+          {/* Marca y aplicación. Alineadas a la izquierda: centrarlas las hacía
+              pelear con los botones y en el teléfono quedaban corridas. */}
+          <div style={{ flexShrink: 0 }}>
+            <div className="hdr-marca">IMPREDIMEX</div>
+            <div className="hdr-app">Recursos Humanos</div>
+          </div>
+
+          {/* Quién entró. Solo en pantalla ancha; en el teléfono va al panel. */}
+          <div className="hdr-identidad" style={{ flexGrow: 1, minWidth: 0, textAlign: 'right' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--brand-navy-dark)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {sesion.nombre}
             </div>
-            {/* Si el padrón no trae puesto se cae al papel, para no dejar el
-                hueco vacío ni desalinear el encabezado. */}
-            <div style={{ fontSize: '12px', color: '#8A9AB0', textTransform: 'uppercase', letterSpacing: '.01em' }}>
+            <div style={{ fontSize: '11.5px', color: 'var(--text-light)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {sesion.puesto || (ETIQUETA_PAPEL[sesion.papel] ?? sesion.papel)}
+              {' · '}
+              <span style={{ color: isOnline ? 'var(--green)' : 'var(--brand-red)', fontWeight: 600 }}>
+                {isOnline ? 'En línea' : 'Sin conexión'}
+              </span>
             </div>
           </div>
 
-          {/* Bloque derecho: nómina, salir y estado de conexión */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div
-                title={`Nómina ${sesion.nomina} · ${ETIQUETA_PAPEL[sesion.papel] ?? sesion.papel}`}
-                style={{ background: 'var(--brand-navy)', color: '#fff', width: '46px', height: '46px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '15px' }}
-              >
-                {sesion.nomina}
-              </div>
-              <button
-                onClick={() => { salir().finally(() => window.location.reload()); }}
-                title="Cerrar sesión"
-                style={{ width: '46px', height: '46px', borderRadius: '50%', background: 'transparent', border: '1px solid rgba(0,32,96,.15)', color: 'var(--brand-navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
-              >
-                <Power size={19} />
-              </button>
-            </div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#8A9AB0' }}>
-              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isOnline ? '#4ADE80' : '#c0392b', display: 'inline-block' }}></span>
-              {isOnline ? 'En línea' : 'Sin conexión'}
-            </div>
+          <div style={{ flexGrow: 1 }}></div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+            <a href={URL_PORTAL} className="hdr-boton" aria-label="Volver al portal" title="Volver al portal">
+              <span><LayoutGrid size={15} /></span>
+            </a>
+
+            <button
+              type="button"
+              onClick={() => setPanelAbierto(v => !v)}
+              aria-label={`Tu sesión: ${sesion.nombre}`}
+              aria-expanded={panelAbierto}
+              style={{ width: '44px', height: '44px', background: 'transparent', border: 'none', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+            >
+              <span style={{ position: 'relative', width: '34px', height: '34px', display: 'block' }}>
+                <span style={{ background: 'var(--brand-navy)', color: '#fff', width: '34px', height: '34px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '11.5px', boxShadow: panelAbierto ? '0 0 0 3px rgba(0,53,128,.18)' : 'none' }}>
+                  {sesion.nomina}
+                </span>
+                {/* El estado de conexión va aquí y no en su propio renglón: ahorra
+                    todo un renglón de alto en el teléfono. */}
+                <span
+                  title={isOnline ? 'En línea' : 'Sin conexión'}
+                  style={{ position: 'absolute', right: '-1px', bottom: '-1px', width: '10px', height: '10px', borderRadius: '50%', background: isOnline ? 'var(--green)' : 'var(--brand-red)', border: '2px solid #fff', display: 'block' }}
+                ></span>
+              </span>
+            </button>
           </div>
         </div>
+
+        {/* Panel de la sesión. Aquí el nombre y el puesto tienen ancho completo
+            y pueden ocupar dos renglones: ninguno se corta, mida lo que mida. */}
+        {panelAbierto && (
+          <>
+            <div
+              onClick={() => setPanelAbierto(false)}
+              style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+            ></div>
+            <div style={{
+              position: 'absolute', right: '12px', top: '100%', marginTop: '4px', zIndex: 41,
+              width: '250px', background: '#fff', borderRadius: '14px',
+              boxShadow: '0 2px 8px rgba(0,32,96,.10), 0 12px 32px rgba(0,32,96,.14)',
+              padding: '14px 15px'
+            }}>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--brand-navy-dark)', lineHeight: 1.35 }}>
+                {sesion.nombre}
+              </div>
+              {sesion.puesto && (
+                <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.4, marginTop: '2px' }}>
+                  {sesion.puesto}
+                </div>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginTop: '8px', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isOnline ? 'var(--green)' : 'var(--brand-red)', display: 'inline-block' }}></span>
+                {isOnline ? 'En línea' : 'Sin conexión'}
+                <span style={{ color: 'var(--border-mid)' }}>|</span>
+                <span>Nómina {sesion.nomina}</span>
+                <span style={{ color: 'var(--border-mid)' }}>|</span>
+                <span>{ETIQUETA_PAPEL[sesion.papel] ?? sesion.papel}</span>
+              </div>
+
+              <div style={{ height: '1px', background: 'var(--border-light)', margin: '12px 0' }}></div>
+
+              <a href={URL_PORTAL} style={{ display: 'flex', alignItems: 'center', gap: '9px', minHeight: '44px', fontSize: '12.5px', fontWeight: 600, color: 'var(--brand-navy)', textDecoration: 'none' }}>
+                <LayoutGrid size={16} /> Ir al portal
+              </a>
+
+              <button
+                type="button"
+                onClick={() => { salir().finally(() => window.location.reload()); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '9px', minHeight: '44px', width: '100%', background: 'transparent', border: 'none', padding: 0, fontFamily: 'inherit', fontSize: '12.5px', fontWeight: 600, color: 'var(--brand-red-dark)', textAlign: 'left', cursor: 'pointer' }}
+              >
+                <Power size={16} /> Cerrar sesión
+              </button>
+            </div>
+          </>
+        )}
       </header>
 
       {/* Main Container */}
