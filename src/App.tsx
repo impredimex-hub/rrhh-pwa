@@ -119,7 +119,12 @@ function App() {
         boxShadow: '0 2px 8px rgba(0,32,96,.05)',
         padding: '6px 12px',
         marginBottom: '1rem',
-        position: 'relative'
+        // Fijo arriba, siempre visible (SPEC-035). Capa 45: por encima de los
+        // menús desplegables del contenido (30) y por debajo de todas las
+        // ventanas emergentes (50 en adelante).
+        position: 'sticky',
+        top: 0,
+        zIndex: 45
       }}>
         {/* De borde a borde, sin la columna centrada del contenido: la marca
             va en la esquina izquierda y los botones en la derecha. */}
@@ -127,13 +132,16 @@ function App() {
 
           {/* Marca y aplicación. Alineadas a la izquierda: centrarlas las hacía
               pelear con los botones y en el teléfono quedaban corridas. */}
-          <div style={{ flexShrink: 0 }}>
+          {/* Las dos orillas crecen igual (flex 1 1 0), así lo de en medio
+              queda centrado en la pantalla y no en el hueco que sobra. */}
+          <div style={{ flex: '1 1 0' }}>
             <div className="hdr-marca">IMPREDIMEX</div>
             <div className="hdr-app">Recursos Humanos</div>
           </div>
 
-          {/* Quién entró. Solo en pantalla ancha; en el teléfono va al panel. */}
-          <div className="hdr-identidad" style={{ flexGrow: 1, minWidth: 0, textAlign: 'right' }}>
+          {/* Quién entró. Solo en pantalla ancha; en el teléfono va al panel.
+              Centrado: nombre y puesto comparten eje, no orilla. */}
+          <div className="hdr-identidad" style={{ flex: '0 1 auto', minWidth: 0, textAlign: 'center' }}>
             <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--brand-navy-dark)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {sesion.nombre}
             </div>
@@ -142,9 +150,7 @@ function App() {
             </div>
           </div>
 
-          <div style={{ flexGrow: 1 }}></div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+          <div style={{ flex: '1 1 0', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '2px' }}>
             <a href={URL_PORTAL} className="hdr-boton" aria-label="Volver al portal" title="Volver al portal">
               <span><LayoutGrid size={15} /></span>
             </a>
