@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { FileSpreadsheet, FileText, ChevronLeft, ChevronRight, SlidersHorizontal, Check, Filter, X, RefreshCw, Undo2 } from 'lucide-react';
-import type { Colaborador, CursoCapacitacion, RegistroCursoCompletado } from '../types/rrhh';
+import type { Colaborador, CursoCapacitacion, RegistroCursoCompletado, ExclusionCurso } from '../types/rrhh';
 import { CALIFICACION_MIN, CALIFICACION_MAX } from '../types/rrhh';
 import { subscribeColaboradores, ordenarPorNomina } from '../services/personalService';
 import { subscribeCursos } from '../services/capacitacionService';
-import { subscribeCompletados, guardarCompletados, guardarCalificacion, quitarCompletado } from '../services/cursoCompletadoService';
+import { subscribeCompletados, guardarCompletados, guardarCalificacion, quitarCompletado, excluirDelCurso, readmitirEnCurso } from '../services/cursoCompletadoService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { hoyISO } from '../utils/fechas';
 import { cursoAplicaA } from '../utils/cursos';
@@ -47,10 +47,16 @@ export const CursosModule: React.FC = () => {
      treinta personas cuesta **una** escritura, no treinta, y quien se
      equivoca de casilla puede desmarcarla sin que haya pasado nada. */
   const [completados, setCompletados] = useState<Record<string, RegistroCursoCompletado>>({});
+  /** A quién no le toca el curso (SPEC-039). Viaja en el mismo documento. */
+  const [excluidos, setExcluidos] = useState<Record<string, ExclusionCurso>>({});
+  const [verExcluidos, setVerExcluidos] = useState(false);
   const [marcados, setMarcados] = useState<Record<string, boolean>>({});
   const [califs, setCalifs] = useState<Record<string, string>>({});
   const [guardandoCursado, setGuardandoCursado] = useState(false);
-  const { puedeCapturar } = usePermisos();
+  const { puedeCapturar, papel } = usePermisos();
+  // Quitar a alguien de un curso lo pueden los administradores de RRHH
+  // (SPEC-039). Capturar no basta: es decidir a quién le toca capacitarse.
+  const puedeExcluir = papel === 'ADMIN';
   const sesion = useSesion();
 
   /** Curso sobre el que se está trabajando. Sin uno elegido no hay qué marcar. */
@@ -118,10 +124,11 @@ export const CursosModule: React.FC = () => {
   // Solo se lee el curso filtrado, y solo mientras está filtrado: un documento
   // de unos 7 KB en lugar de la colección entera.
   useEffect(() => {
-    if (!cursoActivo?.id) { setCompletados({}); setMarcados({}); setCalifs({}); return; }
+    if (!cursoActivo?.id) { setCompletados({}); setExcluidos({}); setMarcados({}); setCalifs({}); return; }
     setMarcados({});
     setCalifs({});
-    const unsub = subscribeCompletados(cursoActivo.id, setCompletados);
+    setVerExcluidos(false);
+    const unsub = subscribeCompletados(cursoActivo.id, (regs, exc) => { setCompletados(regs); setExcluidos(exc); });
     return () => unsub();
   }, [cursoActivo?.id]);
 
@@ -220,8 +227,36 @@ export const CursosModule: React.FC = () => {
    * dar por cursado, así que se muestran todos.
    */
   const pendientes = cursoActivo
-    ? listaFiltrada.filter(c => !completados[c.noNomina])
+    ? listaFiltrada.filter(c => !completados[c.noNomina] && !excluidos[c.noNomina])
     : listaFiltrada;
+
+  /** A quienes se les quitó el curso, para poder verlos y devolverlos. */
+  const listaExcluidos = cursoActivo
+    ? ordenarPorNomina(colaboradores.filter(c => !!excluidos[c.noNomina]))
+    : [];
+
+  const quitarDelCurso = async (colab: Colaborador) => {
+    if (!cursoActivo?.id || !puedeExcluir) return;
+    if (!confirm(`¿Quitar a ${colab.nombreCompleto} de «${cursoActivo.titulo}»?\n\nDeja de contar como pendiente. Lo puedes devolver después.`)) return;
+    try {
+      await excluirDelCurso(cursoActivo.id, colab.noNomina, {
+        fecha: hoyISO(),
+        porNomina: sesion?.nomina || '',
+        porNombre: sesion?.nombre || ''
+      });
+    } catch (err: any) {
+      alert('No se pudo quitar: ' + (err?.message || 'Error desconocido'));
+    }
+  };
+
+  const devolverAlCurso = async (colab: Colaborador) => {
+    if (!cursoActivo?.id || !puedeExcluir) return;
+    try {
+      await readmitirEnCurso(cursoActivo.id, colab.noNomina);
+    } catch (err: any) {
+      alert('No se pudo devolver: ' + (err?.message || 'Error desconocido'));
+    }
+  };
 
   /** Quienes ya cursaron, en el orden del padrón y con sus datos al día. */
   const listaCompletados = cursoActivo
@@ -668,12 +703,15 @@ export const CursosModule: React.FC = () => {
                     <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>Calif.</th>
                   </>
                 )}
+                {/* Quitar del curso: sin encabezado, para que no compita con
+                    las columnas de captura (SPEC-039). */}
+                {cursoActivo && puedeExcluir && <th style={{ width: '28px' }}></th>}
               </tr>
             </thead>
             <tbody>
               {colaboradoresPaginados.length === 0 ? (
                 <tr>
-                  <td colSpan={3 + cursos.length * 2 + (cursoActivo ? 2 : 0)} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
+                  <td colSpan={3 + cursos.length * 2 + (cursoActivo ? 2 : 0) + (cursoActivo && puedeExcluir ? 1 : 0)} style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
                     Sin registros que coincidan con los filtros.
                   </td>
                 </tr>
@@ -771,6 +809,20 @@ export const CursosModule: React.FC = () => {
                         </td>
                       </>
                     )}
+                    {cursoActivo && puedeExcluir && (
+                      <td style={{ padding: '5px 4px', textAlign: 'center' }}>
+                        <button
+                          onClick={() => quitarDelCurso(colab)}
+                          title={`Quitar a ${colab.nombreCompleto} de este curso`}
+                          aria-label="Quitar de este curso"
+                          style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--border-mid)', padding: '2px', display: 'flex', margin: '0 auto' }}
+                          onMouseEnter={e => (e.currentTarget.style.color = 'var(--brand-red)')}
+                          onMouseLeave={e => (e.currentTarget.style.color = 'var(--border-mid)')}
+                        >
+                          <X size={12} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -808,6 +860,49 @@ export const CursosModule: React.FC = () => {
         </>
         )}
       </div>
+
+      {/* Quienes quedaron fuera del curso (SPEC-039). Solo aparece si hay
+          alguno, y plegado: es la excepción, no la lista principal. */}
+      {cursoActivo && listaExcluidos.length > 0 && (
+        <div className="card-industrial" style={{ marginTop: '1rem', padding: '10px 14px' }}>
+          <button
+            onClick={() => setVerExcluidos(v => !v)}
+            style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: '11.5px', fontWeight: 700, color: 'var(--text-secondary)' }}
+          >
+            {listaExcluidos.length} sin asignar a este curso {verExcluidos ? '▴' : '▾'}
+          </button>
+
+          {verExcluidos && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '8px' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-light)', lineHeight: 1.5 }}>
+                No cuentan como pendientes ni en el porcentaje del calendario.
+              </div>
+              {listaExcluidos.map(colab => {
+                const e = excluidos[colab.noNomina];
+                return (
+                  <div key={colab.noNomina} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', fontSize: '10px', background: 'var(--bg-light)', borderRadius: '7px', padding: '6px 8px' }}>
+                    <div style={{ lineHeight: 1.45 }}>
+                      <b style={{ color: 'var(--brand-navy)' }}>{colab.noNomina}</b> · {colab.nombreCompleto}
+                      <div style={{ color: 'var(--text-light)', fontSize: '9px' }}>
+                        {e?.fecha} · lo quitó {e?.porNombre || e?.porNomina}
+                      </div>
+                    </div>
+                    {puedeExcluir && (
+                      <button
+                        onClick={() => devolverAlCurso(colab)}
+                        title="Devolverlo a la lista de pendientes"
+                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-navy)', padding: '2px 4px', flexShrink: 0 }}
+                      >
+                        <Undo2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── SECCIÓN: COMPLETADOS (SPEC-028) ───────────────────────────────
           Quienes ya cursaron el curso filtrado. Salen de la tabla de arriba,

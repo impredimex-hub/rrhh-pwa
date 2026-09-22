@@ -58,7 +58,8 @@ export const CapacitacionModule: React.FC = () => {
      nadie pida el calendario, no se descarga nada. */
   const [calendarioAbierto, setCalendarioAbierto] = useState(false);
   const [mesCalendario, setMesCalendario] = useState(hoyISO().slice(0, 7));
-  const [tomaronPorCurso, setTomaronPorCurso] = useState<Record<string, number>>({});
+  /** Por curso: cuántos lo tomaron y a quiénes no les toca (SPEC-039). */
+  const [avancePorCurso, setAvancePorCurso] = useState<Record<string, { tomaron: number; excluidos: string[] }>>({});
   const [cargandoCalendario, setCargandoCalendario] = useState(false);
 
   const abrirCalendario = async () => {
@@ -66,15 +67,24 @@ export const CapacitacionModule: React.FC = () => {
     setMesCalendario(hoyISO().slice(0, 7));
     setCargandoCalendario(true);
     try {
-      setTomaronPorCurso(await contarCompletadosDeCursos(cursos.map(c => c.id || '').filter(Boolean)));
+      setAvancePorCurso(await contarCompletadosDeCursos(cursos.map(c => c.id || '').filter(Boolean)));
     } finally {
       setCargandoCalendario(false);
     }
   };
 
-  /** Cuántas personas del padrón activo le tocan a un curso. */
-  const participantesDe = (curso: CursoCapacitacion) =>
-    colaboradores.filter(c => c.estatus === 'ACTIVO' && cursoAplicaA(c, curso)).length;
+  /**
+   * Cuántas personas del padrón activo le tocan a un curso.
+   *
+   * Sin descontar a quienes se les quitó el curso, saldrían como participantes
+   * que faltan y hundirían el porcentaje sin remedio (SPEC-039).
+   */
+  const participantesDe = (curso: CursoCapacitacion) => {
+    const fuera = new Set(avancePorCurso[curso.id || '']?.excluidos || []);
+    return colaboradores.filter(
+      c => c.estatus === 'ACTIVO' && cursoAplicaA(c, curso) && !fuera.has(c.noNomina)
+    ).length;
+  };
 
   /**
    * Resumen de un curso: participantes, cuántos lo tomaron, cuántos faltan y
@@ -82,7 +92,7 @@ export const CapacitacionModule: React.FC = () => {
    */
   const resumenDeCurso = (curso: CursoCapacitacion) => {
     const total = participantesDe(curso);
-    const tomaron = tomaronPorCurso[curso.id || ''] || 0;
+    const tomaron = avancePorCurso[curso.id || '']?.tomaron || 0;
     // Nunca más de los que son: si alguien cambió de área después de tomarlo,
     // el conteo guardado podría superar al padrón de hoy.
     const tomaronReal = Math.min(tomaron, total);
