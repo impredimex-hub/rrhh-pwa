@@ -331,7 +331,9 @@ export const CursosModule: React.FC = () => {
         if (columnasVisibles[`fecha_${curso.id}`] !== false) {
           const est = obtenerEstadoCurso(c, curso);
           rowData[`FECHA (${curso.titulo})`] = est 
-            ? `${curso.fechaInicio} | ${curso.horaInicio || '09:00'}-${curso.horaFin || '10:00'} (${calcularDuracion(curso.horaInicio, curso.horaFin)})`
+            // Con varios días se avisa, para que no parezca que el curso es
+            // de una sola fecha (SPEC-038).
+            ? `${curso.fechaInicio} | ${curso.horaInicio || '09:00'}-${curso.horaFin || '10:00'} (${calcularDuracion(curso.horaInicio, curso.horaFin)})${(curso.sesiones?.length || 1) > 1 ? ` +${curso.sesiones!.length - 1} días` : ''}`
             : '-';
         }
       });

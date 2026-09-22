@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2, FileSpreadsheet, FileText, ChevronDown, Check, Eye, CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
-import type { Colaborador, CursoCapacitacion } from '../types/rrhh';
+import type { Colaborador, CursoCapacitacion, SesionCurso } from '../types/rrhh';
 import { subscribeColaboradores } from '../services/personalService';
 import { subscribeCursos, saveCurso, deleteCurso } from '../services/capacitacionService';
 import { usePermisos } from '../services/SesionContext';
@@ -23,12 +23,34 @@ export const CapacitacionModule: React.FC = () => {
   const [form, setForm] = useState<Partial<CursoCapacitacion>>({
     titulo: '',
     instructor: '',
-    fechaInicio: '',
-    fechaFin: '',
-    horaInicio: '09:00',
-    horaFin: '11:00',
     estatus: 'PROGRAMADO'
   });
+
+  /**
+   * Los días del curso (SPEC-038). Un curso puede darse en varias fechas, y no
+   * necesariamente seguidas, así que se capturan uno por uno en vez de un
+   * tramo de inicio a fin.
+   */
+  const SESION_NUEVA: SesionCurso = { fecha: '', horaInicio: '09:00', horaFin: '11:00' };
+  const [sesiones, setSesiones] = useState<SesionCurso[]>([{ ...SESION_NUEVA }]);
+
+  /** Cambia cuántos días dura el curso, conservando lo ya capturado. */
+  const cambiarDias = (cuantos: number) => {
+    const n = Math.max(1, Math.min(20, cuantos || 1));
+    setSesiones(prev => {
+      if (n <= prev.length) return prev.slice(0, n);
+      const extra = Array.from({ length: n - prev.length }, () => ({
+        ...SESION_NUEVA,
+        // Los días siguientes suelen llevar el mismo horario que el primero.
+        horaInicio: prev[0]?.horaInicio || '09:00',
+        horaFin: prev[0]?.horaFin || '11:00'
+      }));
+      return [...prev, ...extra];
+    });
+  };
+
+  const cambiarSesion = (i: number, campo: keyof SesionCurso, valor: string) =>
+    setSesiones(prev => prev.map((s, j) => (j === i ? { ...s, [campo]: valor } : s)));
   const { puedeCapturar } = usePermisos();
 
   /* ── Calendario de cumplimiento (SPEC-033) ─────────────────────────────
@@ -122,7 +144,16 @@ export const CapacitacionModule: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!puedeCapturar) return;
-    if (!form.titulo || !form.fechaInicio || !form.fechaFin) return;
+    if (!form.titulo) return;
+    if (sesiones.some(s => !s.fecha)) { alert('Falta la fecha de alguno de los días.'); return; }
+
+    const fechas = sesiones.map(s => s.fecha);
+    if (new Set(fechas).size !== fechas.length) { alert('Hay dos días con la misma fecha.'); return; }
+
+    // Se ordenan por fecha: se capturan en cualquier orden, pero el primero y
+    // el último día tienen que ser los de verdad.
+    const ordenadas = [...sesiones].sort((a, b) => a.fecha.localeCompare(b.fecha))
+      .map(s => ({ fecha: s.fecha, horaInicio: s.horaInicio || '09:00', horaFin: s.horaFin || '11:00' }));
 
     const cursoData: CursoCapacitacion = {
       ...(cursoEditando ? { id: cursoEditando.id } : {}),
@@ -130,24 +161,20 @@ export const CapacitacionModule: React.FC = () => {
       instructor: form.instructor ? form.instructor.toUpperCase().trim() : 'INTERNO / POR ASIGNAR',
       departamentosObjetivo: deptosSeleccionados.length > 0 ? deptosSeleccionados : ['GENERAL'],
       puestosObjetivo: puestosSeleccionados,
-      fechaInicio: form.fechaInicio,
-      fechaFin: form.fechaFin,
-      horaInicio: form.horaInicio || '09:00',
-      horaFin: form.horaFin || '10:00',
+      sesiones: ordenadas,
+      // Derivados de las sesiones, no capturados: el calendario de cumplimiento
+      // y la matriz de Cursos siguen leyéndolos como siempre (SPEC-038).
+      fechaInicio: ordenadas[0].fecha,
+      fechaFin: ordenadas[ordenadas.length - 1].fecha,
+      horaInicio: ordenadas[0].horaInicio,
+      horaFin: ordenadas[0].horaFin,
       estatus: (form.estatus as any) || 'PROGRAMADO'
     };
 
     saveCurso(cursoData);
 
-    setForm({
-      titulo: '',
-      instructor: '',
-      fechaInicio: '',
-      fechaFin: '',
-      horaInicio: '09:00',
-      horaFin: '11:00',
-      estatus: 'PROGRAMADO'
-    });
+    setForm({ titulo: '', instructor: '', estatus: 'PROGRAMADO' });
+    setSesiones([{ ...SESION_NUEVA }]);
     setDeptosSeleccionados([]);
     setPuestosSeleccionados([]);
     setCursoEditando(null);
@@ -155,15 +182,19 @@ export const CapacitacionModule: React.FC = () => {
 
   const handleEditar = (curso: CursoCapacitacion) => {
     setCursoEditando(curso);
-    setForm({
-      titulo: curso.titulo,
-      instructor: curso.instructor,
-      fechaInicio: curso.fechaInicio,
-      fechaFin: curso.fechaFin,
-      horaInicio: curso.horaInicio || '09:00',
-      horaFin: curso.horaFin || '11:00',
-      estatus: curso.estatus
-    });
+    setForm({ titulo: curso.titulo, instructor: curso.instructor, estatus: curso.estatus });
+    // Un curso anterior a las sesiones se abre como uno o dos días: el de
+    // inicio y el de fin. Si fueran el mismo, basta con uno.
+    setSesiones(
+      curso.sesiones && curso.sesiones.length
+        ? curso.sesiones.map(s => ({ ...s }))
+        : [
+            { fecha: curso.fechaInicio, horaInicio: curso.horaInicio || '09:00', horaFin: curso.horaFin || '11:00' },
+            ...(curso.fechaFin && curso.fechaFin !== curso.fechaInicio
+              ? [{ fecha: curso.fechaFin, horaInicio: curso.horaInicio || '09:00', horaFin: curso.horaFin || '11:00' }]
+              : [])
+          ]
+    );
     setDeptosSeleccionados(curso.departamentosObjetivo || []);
     setPuestosSeleccionados(curso.puestosObjetivo || []);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -171,15 +202,8 @@ export const CapacitacionModule: React.FC = () => {
 
   const handleCancelarEdicion = () => {
     setCursoEditando(null);
-    setForm({
-      titulo: '',
-      instructor: '',
-      fechaInicio: '',
-      fechaFin: '',
-      horaInicio: '09:00',
-      horaFin: '11:00',
-      estatus: 'PROGRAMADO'
-    });
+    setForm({ titulo: '', instructor: '', estatus: 'PROGRAMADO' });
+    setSesiones([{ ...SESION_NUEVA }]);
     setDeptosSeleccionados([]);
     setPuestosSeleccionados([]);
   };
@@ -195,6 +219,8 @@ export const CapacitacionModule: React.FC = () => {
       'INSTRUCTOR / ENTIDAD': c.instructor || '-',
       'DEPARTAMENTOS OBJETIVO': c.departamentosObjetivo?.join(', ') || 'GENERAL',
       'PUESTOS OBJETIVO': c.puestosObjetivo?.length ? c.puestosObjetivo.join(', ') : 'TODOS',
+      'DÍAS': c.sesiones?.length || 1,
+      'FECHAS': c.sesiones?.length ? c.sesiones.map(s => s.fecha).join(' · ') : `${c.fechaInicio} al ${c.fechaFin}`,
       'FECHA INICIO': c.fechaInicio,
       'FECHA FIN': c.fechaFin,
       'HORARIO': `${c.horaInicio || '09:00'} - ${c.horaFin || '10:00'}`,
@@ -363,49 +389,57 @@ export const CapacitacionModule: React.FC = () => {
               </div>
             )}
 
-            {/* Fechas de inicio y fin */}
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>FECHA INICIO *</label>
-                <input
-                  type="date"
-                  required
-                  value={form.fechaInicio}
-                  onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })}
-                />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>FECHA FIN *</label>
-                <input
-                  type="date"
-                  required
-                  value={form.fechaFin}
-                  onChange={(e) => setForm({ ...form, fechaFin: e.target.value })}
-                />
-              </div>
+            {/* Días del curso (SPEC-038). Primero cuántos son, y según eso
+                aparece la fecha y el horario de cada uno. No hay fecha fin:
+                los días pueden ser salteados. */}
+            <div>
+              <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>¿CUÁNTOS DÍAS DURA EL CURSO? *</label>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={sesiones.length}
+                onChange={(e) => cambiarDias(Number(e.target.value))}
+                style={{ maxWidth: '110px' }}
+              />
             </div>
 
-            {/* Horarios de inicio y fin */}
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>HORA INICIO</label>
-                <input
-                  type="text"
-                  placeholder="ej. 09:00"
-                  value={form.horaInicio}
-                  onChange={(e) => setForm({ ...form, horaInicio: e.target.value })}
-                />
+            {sesiones.map((s, i) => (
+              <div key={i} style={{ border: '1px solid var(--border-light)', borderRadius: '10px', padding: '10px 12px', background: 'var(--bg-light)' }}>
+                <div style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)', marginBottom: '6px' }}>
+                  {sesiones.length === 1 ? 'FECHA DEL CURSO' : `DÍA ${i + 1}`}
+                </div>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1 1 140px', minWidth: 0 }}>
+                    <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>FECHA *</label>
+                    <input
+                      type="date"
+                      required
+                      value={s.fecha}
+                      onChange={(e) => cambiarSesion(i, 'fecha', e.target.value)}
+                    />
+                  </div>
+                  <div style={{ flex: '1 1 90px', minWidth: 0 }}>
+                    <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>HORA INICIO</label>
+                    <input
+                      type="text"
+                      placeholder="ej. 09:00"
+                      value={s.horaInicio}
+                      onChange={(e) => cambiarSesion(i, 'horaInicio', e.target.value)}
+                    />
+                  </div>
+                  <div style={{ flex: '1 1 90px', minWidth: 0 }}>
+                    <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>HORA FIN</label>
+                    <input
+                      type="text"
+                      placeholder="ej. 11:30"
+                      value={s.horaFin}
+                      onChange={(e) => cambiarSesion(i, 'horaFin', e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>HORA FIN</label>
-                <input
-                  type="text"
-                  placeholder="ej. 11:30"
-                  value={form.horaFin}
-                  onChange={(e) => setForm({ ...form, horaFin: e.target.value })}
-                />
-              </div>
-            </div>
+            ))}
 
             <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
               <button
@@ -516,10 +550,33 @@ export const CapacitacionModule: React.FC = () => {
                       )}
                     </td>
                     <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>
-                      <div>{curso.fechaInicio} al {curso.fechaFin}</div>
-                      <div style={{ fontSize: '8.5px', color: 'var(--brand-navy)', fontWeight: 'bold', marginTop: '2px' }}>
-                        {curso.horaInicio || '09:00'} - {curso.horaFin || '10:00'}
-                      </div>
+                      {/* Un día por renglón, con su horario (SPEC-038). Los
+                          cursos anteriores no traen sesiones y se siguen
+                          mostrando como el tramo que eran. */}
+                      {curso.sesiones && curso.sesiones.length ? (
+                        <>
+                          {curso.sesiones.length > 1 && (
+                            <div style={{ fontSize: '8.5px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>
+                              {curso.sesiones.length} días
+                            </div>
+                          )}
+                          {curso.sesiones.map((s, i) => (
+                            <div key={i} style={{ whiteSpace: 'nowrap' }}>
+                              {s.fecha}
+                              <span style={{ fontSize: '8.5px', color: 'var(--brand-navy)', fontWeight: 'bold', marginLeft: '5px' }}>
+                                {s.horaInicio} - {s.horaFin}
+                              </span>
+                            </div>
+                          ))}
+                        </>
+                      ) : (
+                        <>
+                          <div>{curso.fechaInicio} al {curso.fechaFin}</div>
+                          <div style={{ fontSize: '8.5px', color: 'var(--brand-navy)', fontWeight: 'bold', marginTop: '2px' }}>
+                            {curso.horaInicio || '09:00'} - {curso.horaFin || '10:00'}
+                          </div>
+                        </>
+                      )}
                     </td>
                     <td style={{ padding: '5px 8px' }}>
                       <select
