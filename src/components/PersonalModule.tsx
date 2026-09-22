@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, Trash2, FileSpreadsheet, FileText, ChevronLeft, ChevronRight, UserMinus, UserCheck, AlertTriangle, Eye, Pencil, X, CalendarDays } from 'lucide-react';
+import { UserPlus, Trash2, FileSpreadsheet, FileText, ChevronLeft, ChevronRight, UserMinus, UserCheck, AlertTriangle, Eye, Pencil, X, CalendarDays, KeyRound } from 'lucide-react';
 import type { Colaborador } from '../types/rrhh';
 import { saveColaboradoresBatch, subscribeColaboradores, deleteColaborador, cambiarEstatus, cambiarNomina, ordenarPorNomina, fecharBaja } from '../services/personalService';
 import { abrirContratoPlanta } from '../services/promocionService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { DEPARTAMENTOS } from '../utils/catalogos';
 import { SelectorPuesto } from './SelectorPuesto';
+import { AccesosSuiteModal } from './AccesosSuiteModal';
 import { diaYMes, hoyISO, partesFecha } from '../utils/fechas';
 import { usePermisos, useSesion } from '../services/SesionContext';
 
@@ -22,6 +23,8 @@ export const PersonalModule: React.FC = () => {
   const elementosPorPagina = 30;
 
   const [porEliminar, setPorEliminar] = useState<Colaborador | null>(null);
+  // Acceso a las apps de la suite (SPEC-037).
+  const [porAccesos, setPorAccesos] = useState<Colaborador | null>(null);
   // Nómina que se está editando. Null significa alta nueva.
   const [editando, setEditando] = useState<string | null>(null);
   const [porRenombrar, setPorRenombrar] = useState<{de:string; a:string} | null>(null);
@@ -440,6 +443,15 @@ export const PersonalModule: React.FC = () => {
                             <CalendarDays size={13} />
                           </button>
                         )}
+                        {/* Acceso y papel en las apps de la suite (SPEC-037).
+                            Antes solo se cambiaba en la consola de Firebase. */}
+                        <button
+                          onClick={() => setPorAccesos(colab)}
+                          style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-navy)', padding: '2px 4px' }}
+                          title="Acceso a las aplicaciones"
+                        >
+                          <KeyRound size={13} />
+                        </button>
                         <button
                           onClick={() => setPorEliminar(colab)}
                           style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-red)', padding: '2px 4px' }}
@@ -567,6 +579,10 @@ export const PersonalModule: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {porAccesos && (
+        <AccesosSuiteModal colab={porAccesos} autor={autor} onCerrar={() => setPorAccesos(null)} />
       )}
 
       {/* Confirmación de borrado definitivo */}
