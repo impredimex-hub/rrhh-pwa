@@ -204,6 +204,20 @@ export interface AsistenciaManual {
  * su nómina; no es un documento propio. La calificación es opcional porque no
  * todos los cursos llevan examen.
  */
+/**
+ * Alguien a quien el curso no le toca (SPEC-039).
+ *
+ * Los cursos se dirigen por departamento y puesto, y a veces el mismo puesto
+ * lo ocupan varias personas de las que no todas van. Vive en el documento del
+ * curso, junto a quién lo tomó.
+ */
+export interface ExclusionCurso {
+  /** `AAAA-MM-DD` en que se le quitó. */
+  fecha: string;
+  porNomina: string;
+  porNombre: string;
+}
+
 export interface RegistroCursoCompletado {
   /** Día en que se marcó como cursado, `AAAA-MM-DD`. */
   fecha: string;
