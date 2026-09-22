@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Award, ClipboardList, GraduationCap, TrendingUp, BookOpen, CalendarClock, WifiOff, Power, LayoutGrid } from 'lucide-react';
+import { WifiOff, Power, LayoutGrid } from 'lucide-react';
 import { PersonalModule } from './components/PersonalModule';
 import { AntiguedadVacantesModule } from './components/AntiguedadVacantesModule';
 import { IncidenciasModule } from './components/IncidenciasModule';
@@ -103,14 +103,14 @@ function App() {
   }
 
   const navItems = [
-    { id: 'personal', label: 'Directorio', icon: Users },
-    { id: 'antiguedad', label: 'Antigüedad y Vacantes', icon: Award },
-    { id: 'incidencias', label: 'Incidencias', icon: ClipboardList },
-    { id: 'capacitacion', label: 'Capacitación', icon: GraduationCap },
+    { id: 'personal', label: 'Directorio' },
+    { id: 'antiguedad', label: 'Antigüedad y Vacantes' },
+    { id: 'incidencias', label: 'Incidencias' },
+    { id: 'capacitacion', label: 'Capacitación' },
     // A la derecha de Capacitación, de donde salió (SPEC-024).
-    { id: 'promociones', label: 'Promociones', icon: TrendingUp },
-    { id: 'cursos', label: 'Cursos', icon: BookOpen },
-    { id: 'sucesos', label: 'Sucesos y Turnos', icon: CalendarClock },
+    { id: 'promociones', label: 'Promociones' },
+    { id: 'cursos', label: 'Cursos' },
+    { id: 'sucesos', label: 'Sucesos y Turnos' },
   ];
 
   return (
@@ -258,7 +258,6 @@ function App() {
           overflowX: 'auto'
         }}>
           {navItems.map((item) => {
-            const Icon = item.icon;
             const activo = pestanaActiva === item.id;
             return (
               <button
@@ -280,11 +279,10 @@ function App() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px',
                   transition: 'all .2s'
                 }}
               >
-                <Icon size={15} /> {item.label}
+                {item.label}
               </button>
             );
           })}
