@@ -7,6 +7,19 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.28.1] — 2026-09-23
+
+### Corregido
+
+- **El calendario de cumplimiento se desacomodaba** cuando un curso tenía
+  título largo: el nombre iba dentro de la casilla del día en una sola línea y
+  estiraba su columna (SPEC-033). Ahora la casilla solo se pinta de azul marino
+  cuando ese día hay curso, con el número del día en blanco; el nombre está en
+  el detalle de abajo y al pasar el cursor encima. Las columnas quedaron con
+  ancho fijo para que no vuelva a ocurrir.
+
+---
+
 ## [2.28.0] — 2026-09-23
 
 ### Agregado

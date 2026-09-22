@@ -1543,6 +1543,21 @@ entrar a Cursos, filtrar por ese curso y contar a mano los pendientes.
 
 ### Reglas de negocio
 
+### En la cuadrícula solo se pinta el día
+
+El nombre del curso estaba dentro de la casilla del día, en una sola línea. Un
+título largo —los de las NOM lo son— estiraba su columna y **desacomodaba toda
+la cuadrícula**: los días dejaban de alinearse con los encabezados.
+
+- **La casilla no lleva texto del curso.** Los días con curso se pintan de azul
+  marino, con el número en blanco; el título aparece al pasar el cursor encima,
+  y el detalle completo está debajo del calendario.
+- **Si hay más de un curso ese día**, la casilla lo dice con «N cursos».
+- **Las columnas son `minmax(0, 1fr)`, no `1fr`.** Con `1fr`, cualquier
+  contenido ancho vuelve a estirar su columna. Así ya no puede pasar, aunque
+  algún día se agregue algo más a la casilla.
+- **El semáforo vive en el detalle de abajo**, no en la cuadrícula.
+
 - **La fecha compromiso es `fechaFin`.** Es la que marca si un curso ya debió
   estar cubierto.
 - **El color solo aparece cuando la fecha ya pasó.** Antes no hay nada que
