@@ -7,6 +7,30 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.28.0] — 2026-09-23
+
+### Agregado
+
+- **Se puede quitar a alguien de un curso** (SPEC-039), para cuando el mismo
+  puesto lo ocupan varias personas y no a todas les toca. Una equis pequeña y
+  gris al final de cada renglón de pendientes, solo para administradores de
+  RRHH.
+- **Se puede deshacer:** bajo la tabla aparece «N sin asignar a este curso»,
+  plegado, con quién los quitó y cuándo.
+
+### Cambiado
+
+- **El calendario de cumplimiento descuenta a los quitados** de los
+  participantes. Si no, hundirían el porcentaje sin que nadie pudiera
+  arreglarlo.
+
+### Notas
+
+Se guardan en el mismo documento del curso donde vive quién lo tomó, así que no
+cuesta ninguna lectura más.
+
+---
+
 ## [2.27.0] — 2026-09-23
 
 ### Cambiado

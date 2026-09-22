@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.27
+**Versión objetivo:** 2.28
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1862,6 +1862,50 @@ bloque se titula «Fecha del curso».
   «+N días», para que no parezca de una sola fecha.
 - En el Excel se agregaron las columnas «DÍAS» y «FECHAS», con todas las fechas
   del curso. Se conservan «FECHA INICIO» y «FECHA FIN».
+
+---
+
+# SPEC-039 — Quitar a alguien de un curso
+
+### Por qué
+
+Los cursos se dirigen por departamento y puesto. A veces el mismo puesto lo
+ocupan varias personas y no a todas les toca el curso, y no había forma de
+decirlo: aparecían como pendientes para siempre y hundían el porcentaje de
+cumplimiento sin remedio.
+
+### Flujo principal
+
+1. Se filtra por un curso en la pestaña de Cursos.
+2. En cada renglón de la tabla de pendientes aparece una **equis pequeña y
+   gris** al final, que se pone roja al pasar encima.
+3. Al pulsarla se pide confirmación con el nombre y el curso.
+4. Esa persona deja de aparecer como pendiente.
+
+### Reglas de negocio
+
+- **Solo los administradores de RRHH.** Tener permiso de captura no basta: no
+  es capturar un dato, es decidir a quién le toca capacitarse. Hoy son Víctor
+  Moreno y Maritza Galván (ver «Asignación de acceso»).
+- **Se puede deshacer.** Bajo la tabla aparece un renglón plegado, «N sin
+  asignar a este curso», con quiénes son, quién los quitó y cuándo, y un botón
+  para devolverlos a pendientes. A diferencia de las faltas revertidas
+  (SPEC-034), aquí sí se conserva: quitar a alguien de un curso obligatorio
+  tiene consecuencias, y debe poder revisarse.
+- **No cuentan en el porcentaje del calendario** (SPEC-033): se descuentan de
+  los participantes. Si no, cada persona quitada bajaría el cumplimiento sin
+  que nadie pudiera arreglarlo.
+- **Quitar no es lo mismo que no haberlo tomado.** Quien ya lo tomó sigue en
+  Completados; quitar solo aplica a pendientes.
+- **El botón no lleva encabezado de columna**, para que no compita con las
+  columnas de captura.
+
+### Cómo se guarda
+
+En el **mismo documento del curso** donde vive quién lo tomó
+(`cursosCompletados/{curso}`), bajo `excluidos`, con la nómina como clave y la
+firma de quién lo hizo. No cuesta ni una lectura más: la pestaña ya traía ese
+documento, y el calendario ya lo leía para contar cuántos lo tomaron.
 
 ---
 
