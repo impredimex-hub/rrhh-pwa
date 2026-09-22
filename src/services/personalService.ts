@@ -311,6 +311,44 @@ export const guardarFechasNacimiento = async (
  * `construirDocumento`**: si lo hiciera, una importación de Excel sin esa
  * columna lo borraría en cada carga (regla R2).
  */
+/**
+ * Asigna el acceso y el papel de una persona en las apps de la suite (SPEC-037).
+ *
+ * `cambios` trae, por app, el papel elegido o `null` para quitarle el acceso.
+ * Las apps que no vienen en `cambios` no se tocan, y **las que no están en el
+ * catálogo se conservan tal cual**: si mañana existe una sexta app que esta
+ * pantalla todavía no conoce, guardar aquí no le borra el acceso a nadie.
+ *
+ * Escribe `apps` completo y solo las claves de `roles` que cambian. Como
+ * `apps` y `roles`, **no viaja en `construirDocumento`** (reglas R2 y R5).
+ */
+export const asignarAccesos = async (
+  noNomina: string,
+  appsActuales: string[] | undefined,
+  cambios: Record<string, string | null>,
+  autor: string
+) => {
+  const apps = new Set(appsActuales || []);
+  const campos: Record<string, unknown> = {};
+  Object.entries(cambios).forEach(([app, papel]) => {
+    if (papel) {
+      apps.add(app);
+      campos[`roles.${app}`] = papel;
+    } else {
+      apps.delete(app);
+      // Sin acceso no tiene sentido guardar un papel: si luego se le devuelve
+      // la app, entra con el que se elija entonces, no con uno viejo olvidado.
+      campos[`roles.${app}`] = deleteField();
+    }
+  });
+  await updateDoc(doc(db, COLLECTION_NAME, String(noNomina).trim()), {
+    ...campos,
+    apps: Array.from(apps).sort(),
+    actualizadoEn: serverTimestamp(),
+    actualizadoPor: autor
+  });
+};
+
 export const asignarRevertirFaltas = async (
   noNomina: string,
   puede: boolean,
