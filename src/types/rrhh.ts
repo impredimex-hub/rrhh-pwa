@@ -144,14 +144,35 @@ export interface Incidencia {
   fechasSuspension?: string[];  // 'YYYY-MM-DD'; longitud == diasSuspension
 }
 
+/** Un día de curso, con su horario (SPEC-038). */
+export interface SesionCurso {
+  /** `AAAA-MM-DD`. */
+  fecha: string;
+  horaInicio: string;
+  horaFin: string;
+}
+
 export interface CursoCapacitacion {
   id?: string;
   titulo: string;
   instructor?: string;
   departamentosObjetivo: string[];
   puestosObjetivo?: string[];
+  /**
+   * Los días del curso, que pueden ser salteados (SPEC-038). Los cursos
+   * anteriores a esta versión no lo traen y siguen valiendo: son un solo
+   * tramo de `fechaInicio` a `fechaFin`.
+   */
+  sesiones?: SesionCurso[];
+  /**
+   * Primer y último día del curso. **Se siguen guardando siempre**, derivados
+   * de las sesiones: el calendario de cumplimiento usa `fechaFin` como fecha
+   * compromiso, y la matriz de Cursos usa `fechaInicio`. Guardarlos evita
+   * tocar todo eso.
+   */
   fechaInicio: string;
   fechaFin: string;
+  /** Horario del primer día, por lo mismo que las fechas. */
   horaInicio?: string;
   horaFin?: string;
   estatus: 'PROGRAMADO' | 'EN_CURSO' | 'FINALIZADO';
