@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc, deleteField, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import type { RegistroCursoCompletado } from '../types/rrhh';
+import type { RegistroCursoCompletado, ExclusionCurso } from '../types/rrhh';
 
 const COLLECTION_NAME = 'cursosCompletados';
 
@@ -21,11 +21,36 @@ const COLLECTION_NAME = 'cursosCompletados';
  */
 export const subscribeCompletados = (
   cursoId: string,
-  callback: (registros: Record<string, RegistroCursoCompletado>) => void
+  callback: (
+    registros: Record<string, RegistroCursoCompletado>,
+    excluidos: Record<string, ExclusionCurso>
+  ) => void
 ) => {
   return onSnapshot(doc(db, COLLECTION_NAME, cursoId), (snap) => {
     const data = snap.data();
-    callback((data?.registros || {}) as Record<string, RegistroCursoCompletado>);
+    // Quién lo tomó y a quién no le toca viajan en el mismo documento
+    // (SPEC-039): no cuesta ni una lectura más.
+    callback(
+      (data?.registros || {}) as Record<string, RegistroCursoCompletado>,
+      (data?.excluidos || {}) as Record<string, ExclusionCurso>
+    );
+  });
+};
+
+/** Quita a alguien de un curso: deja de contar como pendiente (SPEC-039). */
+export const excluirDelCurso = async (cursoId: string, nomina: string, reg: ExclusionCurso) => {
+  await setDoc(
+    doc(db, COLLECTION_NAME, cursoId),
+    { id: cursoId, excluidos: { [nomina]: reg }, actualizadoEn: serverTimestamp() },
+    { merge: true }
+  );
+};
+
+/** Lo devuelve a la lista de pendientes. */
+export const readmitirEnCurso = async (cursoId: string, nomina: string) => {
+  await updateDoc(doc(db, COLLECTION_NAME, cursoId), {
+    [`excluidos.${nomina}`]: deleteField(),
+    actualizadoEn: serverTimestamp()
   });
 };
 
@@ -95,18 +120,24 @@ export const quitarCompletado = async (cursoId: string, nomina: string) => {
  */
 export const contarCompletadosDeCursos = async (
   cursoIds: string[]
-): Promise<Record<string, number>> => {
-  const cuenta: Record<string, number> = {};
+): Promise<Record<string, { tomaron: number; excluidos: string[] }>> => {
+  const cuenta: Record<string, { tomaron: number; excluidos: string[] }> = {};
   for (const id of cursoIds) {
     if (!id) continue;
     try {
       const snap = await getDoc(doc(db, COLLECTION_NAME, id));
-      cuenta[id] = Object.keys(snap.data()?.registros || {}).length;
+      const data = snap.data() || {};
+      // También quiénes están fuera del curso: si no, el calendario los
+      // contaría como participantes que faltan (SPEC-039).
+      cuenta[id] = {
+        tomaron: Object.keys(data.registros || {}).length,
+        excluidos: Object.keys(data.excluidos || {})
+      };
     } catch (err) {
       // Se sigue con los demás: un curso sin número se nota, y detener todo
       // dejaría el calendario en blanco.
       console.error(`No se pudieron leer los completados del curso ${id}`, err);
-      cuenta[id] = 0;
+      cuenta[id] = { tomaron: 0, excluidos: [] };
     }
   }
   return cuenta;
