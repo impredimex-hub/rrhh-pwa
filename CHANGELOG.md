@@ -7,6 +7,27 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.26.0] — 2026-09-22
+
+### Agregado
+
+- **Acceso a las aplicaciones desde el Directorio** (SPEC-037). Un icono de
+  llave en cada persona abre una ventana con las cinco apps de la suite, y en
+  cada una se elige «Sin acceso» o su papel. Antes solo se podía cambiar a mano
+  en la consola de Firebase.
+- Los papeles se eligen de una lista con el valor exacto que espera cada app,
+  incluidas las minúsculas de Mantenimiento.
+- Un papel mal escrito que ya exista se señala para corregirlo.
+
+### Notas
+
+- Las apps que la pantalla no conoce se conservan: guardar no le borra a nadie
+  el acceso a una app futura.
+- Nadie puede quitarse a sí mismo el administrador de RRHH.
+- El cambio se ve al siguiente ingreso de la persona.
+
+---
+
 ## [2.25.0] — 2026-09-21
 
 ### Corregido

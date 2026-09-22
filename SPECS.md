@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.25
+**Versión objetivo:** 2.26
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1765,6 +1765,62 @@ React cargue; `App.tsx` solo le avisa, con `avisarArranque`.
 
 ---
 
+# SPEC-037 — Acceso a las aplicaciones desde el Directorio
+
+### Por qué
+
+Quién entra a cada app, y con qué papel, vive en el padrón de la suite: la
+lista `apps` y el mapa `roles` de cada colaborador. Hasta ahora solo se
+cambiaba **a mano en la consola de Firebase**, documento por documento. Eso
+contradecía la regla R1 y tenía un riesgo concreto: cada app escribe sus papeles
+distinto, y Mantenimiento en minúsculas. Un `ADMIN` en mayúsculas en la clave
+`manto` hacía que esa persona entrara sin que la app reconociera su pantalla.
+
+### Flujo principal
+
+1. En el Directorio, un administrador de RRHH pulsa el icono de llave de una
+   persona.
+2. Se abre una ventana con las cinco apps y, en cada una, un selector: «Sin
+   acceso» o uno de sus papeles.
+3. Las que cambian se marcan como «cambiará». Guardar solo se habilita si hay
+   algún cambio.
+
+### Reglas de negocio
+
+- **El catálogo de apps y papeles vive en un solo lugar**, `utils/accesosSuite`.
+  Los valores se eligen de una lista, así que no hay forma de escribirlos mal.
+- **Tener la app en `apps` es lo que da acceso**; `roles` solo dice con qué papel.
+  Quitar el acceso borra también el papel, para que si se le devuelve la app
+  entre con el que se elija entonces y no con uno viejo olvidado.
+- **Con acceso pero sin papel escrito**, se muestra el que la app aplica por
+  omisión, que es el que la persona tiene de verdad.
+- **Un papel mal escrito se señala, no se disimula.** Cada app lo trata distinto,
+  así que no hay un papel efectivo honesto que mostrar: se pide elegir uno.
+- **Las apps que la pantalla no conoce se conservan.** Guardar aquí no le borra
+  a nadie el acceso a una app futura que el catálogo todavía no incluya.
+- **Solo se escriben `apps`, las claves de `roles` que cambian y la firma** de
+  quién y cuándo. No viajan en `construirDocumento` (reglas R2 y R5).
+- **Nadie puede quitarse a sí mismo el administrador de RRHH:** perdería esta
+  pantalla y no habría forma de deshacerlo sin la consola.
+- **El cambio se aplica al siguiente ingreso.** Quien tenga una app abierta
+  debe cerrar sesión y volver a entrar.
+
+### Quién puede
+
+Los administradores de RRHH: el icono vive en la columna de acciones del
+Directorio, que solo ellos ven. Es un poder de toda la suite —un administrador
+de RRHH puede darse administrador en cualquier app—, igual que lo era tener
+acceso a la consola. Como todos los candados de esta app, es de interfaz
+(regla R6).
+
+### Pendiente de comprobar
+
+Las reglas de Firestore del proyecto de la suite no están en ningún
+repositorio. Si impiden escribir `apps` o `roles` desde las apps, Guardar
+mostrará que Firebase no lo permitió.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |
@@ -1801,5 +1857,6 @@ cuenta es una persona, y los registros de las otras apps graban nómina y nombre
 de quien los hizo. Cuando se contrate, se da de alta como cualquier otra persona
 y se le asigna `ADMIN`.
 
-Estos cambios se hacen documento por documento en la consola de Firebase, sobre
-`colaboradores` del proyecto suite. No requieren tocar código.
+Desde la versión 2.26.0 estos cambios se hacen en el Directorio, con el icono
+de llave de cada persona (SPEC-037). Ya no hace falta entrar a la consola de
+Firebase.
