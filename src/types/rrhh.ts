@@ -56,6 +56,13 @@ export interface Colaborador {
    */
   revertirFaltas?: boolean;
   /**
+   * Aplicaciones de la suite a las que tiene acceso (SPEC-037). Pertenece a la
+   * suite, no a RRHH: no viaja en `construirDocumento` (regla R5).
+   */
+  apps?: string[];
+  /** Papel en cada aplicación, por su identificador: `{ rrhh: 'ADMIN', manto: 'admin' }`. */
+  roles?: Record<string, string>;
+  /**
    * Opcional a propósito: al importar desde Excel se omite para que el
    * documento conserve el estatus que ya tenía y una baja no reviva sola.
    */
