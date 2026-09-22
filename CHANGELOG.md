@@ -7,6 +7,27 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.27.0] — 2026-09-23
+
+### Cambiado
+
+- **Un curso puede darse en varios días, y salteados** (SPEC-038). El
+  formulario pregunta primero cuántos días dura y muestra un bloque por día,
+  con su fecha y su horario. Desapareció la fecha de fin: con días salteados no
+  significa nada.
+- La lista de Capacitación muestra un renglón por día; la matriz de Cursos
+  avisa «+N días»; el Excel lleva las columnas «DÍAS» y «FECHAS».
+
+### Notas
+
+- `fechaInicio`, `fechaFin` y el horario se siguen guardando, derivados del
+  primer y el último día. El calendario de cumplimiento y la matriz de Cursos
+  no cambiaron.
+- Los cursos ya registrados siguen valiendo; al editarlos se abren como uno o
+  dos días, el de inicio y el de fin.
+
+---
+
 ## [2.26.1] — 2026-09-22
 
 ### Cambiado

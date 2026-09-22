@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.26
+**Versión objetivo:** 2.27
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1818,6 +1818,50 @@ acceso a la consola. Como todos los candados de esta app, es de interfaz
 Las reglas de Firestore del proyecto de la suite no están en ningún
 repositorio. Si impiden escribir `apps` o `roles` desde las apps, Guardar
 mostrará que Firebase no lo permitió.
+
+---
+
+# SPEC-038 — Un curso puede darse en varios días salteados
+
+### Por qué
+
+El formulario pedía fecha de inicio y fecha de fin, como si un curso fuera un
+tramo continuo. Muchos se imparten en varias sesiones y en fechas salteadas
+—por ejemplo lunes, jueves y el lunes siguiente—, y eso no se podía capturar.
+
+### Flujo principal
+
+1. Se indica **cuántos días dura el curso**.
+2. Aparece un bloque por día, con su **fecha** y su horario.
+3. Los días se pueden capturar en cualquier orden: se guardan ordenados.
+
+No hay fecha de fin: con días salteados no significa nada. Con un solo día, el
+bloque se titula «Fecha del curso».
+
+### Reglas de negocio
+
+- **Los días se guardan en `sesiones`**, cada uno con su fecha y su horario.
+- **`fechaInicio`, `fechaFin`, `horaInicio` y `horaFin` se siguen guardando**,
+  derivados: el primer día, el último, y el horario del primero. No se capturan.
+  El calendario de cumplimiento usa `fechaFin` como fecha compromiso (SPEC-033)
+  y la matriz de Cursos usa `fechaInicio`; guardarlos evita tocar todo eso.
+- **Los días nuevos heredan el horario del primero**, que es lo habitual, y se
+  pueden cambiar uno por uno.
+- **No se admiten dos días con la misma fecha**, ni días sin fecha.
+- **Entre 1 y 20 días.** Bajar el número recorta los últimos; subirlo conserva
+  lo ya capturado.
+- **Los cursos anteriores siguen valiendo.** No traen `sesiones` y se muestran
+  como el tramo que eran. Al editarlos se abren como uno o dos días —el de
+  inicio y el de fin—, porque lo que hubiera en medio nunca se registró.
+
+### Dónde se ve
+
+- En la lista de Capacitación, un renglón por día con su horario, y el total de
+  días cuando es más de uno.
+- En la matriz de Cursos, la columna de fecha muestra el primer día y avisa
+  «+N días», para que no parezca de una sola fecha.
+- En el Excel se agregaron las columnas «DÍAS» y «FECHAS», con todas las fechas
+  del curso. Se conservan «FECHA INICIO» y «FECHA FIN».
 
 ---
 
