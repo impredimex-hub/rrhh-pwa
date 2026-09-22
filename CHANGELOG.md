@@ -7,6 +7,14 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.26.1] — 2026-09-22
+
+### Cambiado
+
+- **Las pestañas ya no llevan icono**, solo el nombre.
+
+---
+
 ## [2.26.0] — 2026-09-22
 
 ### Agregado
