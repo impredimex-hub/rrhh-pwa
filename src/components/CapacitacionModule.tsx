@@ -662,9 +662,10 @@ export const CapacitacionModule: React.FC = () => {
             </div>
 
             <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '10px' }}>
-              Cada curso se coloca en su <b>fecha compromiso</b>. El color solo aparece cuando esa fecha
-              ya pasó: verde si lo tomó todo el grupo, amarillo si va a la mitad o más, y rojo si va por
-              debajo de la mitad. Los que aún no vencen se muestran en gris.
+              Los días en azul tienen un curso con <b>fecha compromiso</b> ese día; abajo está el detalle
+              de cada uno. Ahí el color solo aparece cuando la fecha ya pasó: verde si lo tomó todo el
+              grupo, amarillo si va a la mitad o más, y rojo si va por debajo de la mitad. Los que aún
+              no vencen se muestran en gris.
             </div>
 
             {/* Navegación del mes */}
@@ -684,7 +685,10 @@ export const CapacitacionModule: React.FC = () => {
             </div>
 
             {/* Cuadrícula del mes */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '3px', marginBottom: '12px' }}>
+            {/* `minmax(0, 1fr)` y no `1fr`: con `1fr` una casilla con contenido
+                ancho estira su columna y desacomoda toda la cuadrícula, que es
+                lo que pasaba con el título del curso dentro del día. */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '3px', marginBottom: '12px' }}>
               {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(d => (
                 <div key={d} style={{ fontSize: '8.5px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', textAlign: 'center', padding: '2px 0' }}>{d}</div>
               ))}
@@ -703,26 +707,33 @@ export const CapacitacionModule: React.FC = () => {
                   const iso = `${mesCalendario}-${String(d).padStart(2, '0')}`;
                   const delDia = cursosDelMes.filter(c => c.fechaFin === iso);
                   const esHoy = iso === hoyISO();
+                  const hayCurso = delDia.length > 0;
                   celdas.push(
-                    <div key={iso} style={{
-                      minHeight: '54px', border: '1px solid ' + (esHoy ? 'var(--brand-navy)' : 'var(--border-light)'),
-                      borderRadius: '6px', padding: '3px', background: '#fff'
-                    }}>
-                      <div style={{ fontSize: '8.5px', fontWeight: esHoy ? 700 : 400, color: esHoy ? 'var(--brand-navy)' : 'var(--text-light)', marginBottom: '2px' }}>{d}</div>
-                      {delDia.map(c => {
-                        const r = resumenDeCurso(c);
-                        const col = COLOR_AVANCE[r.estado];
-                        return (
-                          <div key={c.id} title={`${c.titulo} — ${r.tomaron} de ${r.total}`}
-                            style={{
-                              background: col.fondo, color: col.texto, border: `1px solid ${col.borde}`,
-                              borderRadius: '4px', padding: '1px 3px', fontSize: '7.5px', fontWeight: 700,
-                              marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                            }}>
-                            {c.titulo}
-                          </div>
-                        );
-                      })}
+                    <div
+                      key={iso}
+                      // El nombre del curso se lee abajo, en el detalle del mes.
+                      // Aquí solo se pinta el día, y el título queda al pasar
+                      // el cursor por encima.
+                      title={hayCurso ? delDia.map(c => c.titulo).join(' · ') : undefined}
+                      style={{
+                        minHeight: '44px', minWidth: 0, overflow: 'hidden',
+                        border: '1px solid ' + (esHoy ? 'var(--brand-navy)' : 'var(--border-light)'),
+                        borderRadius: '6px', padding: '4px',
+                        background: hayCurso ? 'var(--brand-navy)' : '#fff'
+                      }}
+                    >
+                      <div style={{
+                        fontSize: '9.5px',
+                        fontWeight: (hayCurso || esHoy) ? 700 : 400,
+                        color: hayCurso ? '#fff' : (esHoy ? 'var(--brand-navy)' : 'var(--text-light)')
+                      }}>
+                        {d}
+                      </div>
+                      {delDia.length > 1 && (
+                        <div style={{ fontSize: '8px', color: '#fff', opacity: .85, marginTop: '2px' }}>
+                          {delDia.length} cursos
+                        </div>
+                      )}
                     </div>
                   );
                 }
