@@ -168,9 +168,10 @@ function App() {
     { id: 'personal', label: 'Directorio' },
     { id: 'antiguedad', label: 'Antigüedad y Vacantes' },
     { id: 'incidencias', label: 'Incidencias' },
-    { id: 'capacitacion', label: 'Capacitación' },
-    // A la derecha de Capacitación, de donde salió (SPEC-024).
+    // Promociones, Capacitación y Cursos en ese orden: Capacitación programa
+    // los cursos y Cursos les da seguimiento, así que van pegadas.
     { id: 'promociones', label: 'Promociones' },
+    { id: 'capacitacion', label: 'Capacitación' },
     { id: 'cursos', label: 'Cursos' },
     { id: 'sucesos', label: 'Sucesos y Turnos' },
   ];
