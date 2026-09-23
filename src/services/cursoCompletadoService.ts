@@ -23,7 +23,8 @@ export const subscribeCompletados = (
   cursoId: string,
   callback: (
     registros: Record<string, RegistroCursoCompletado>,
-    excluidos: Record<string, ExclusionCurso>
+    excluidos: Record<string, ExclusionCurso>,
+    sesionPorNomina: Record<string, number>
   ) => void
 ) => {
   return onSnapshot(doc(db, COLLECTION_NAME, cursoId), (snap) => {
@@ -32,7 +33,8 @@ export const subscribeCompletados = (
     // (SPEC-039): no cuesta ni una lectura más.
     callback(
       (data?.registros || {}) as Record<string, RegistroCursoCompletado>,
-      (data?.excluidos || {}) as Record<string, ExclusionCurso>
+      (data?.excluidos || {}) as Record<string, ExclusionCurso>,
+      (data?.sesionPorNomina || {}) as Record<string, number>
     );
   });
 };
@@ -141,4 +143,22 @@ export const contarCompletadosDeCursos = async (
     }
   }
   return cuenta;
+};
+
+/**
+ * A qué día del curso va una persona (SPEC-041).
+ *
+ * Un curso de varias sesiones se reparte entre la gente: no todos van el mismo
+ * día. Se guarda el número de día, no la fecha, para que mover una sesión en
+ * el calendario no deje a nadie apuntado a un día que ya no existe.
+ *
+ * Vive en el documento del curso, junto a quién lo tomó: no cuesta ninguna
+ * lectura más.
+ */
+export const asignarSesionCurso = async (cursoId: string, nomina: string, indice: number) => {
+  await setDoc(
+    doc(db, COLLECTION_NAME, cursoId),
+    { id: cursoId, sesionPorNomina: { [nomina]: indice }, actualizadoEn: serverTimestamp() },
+    { merge: true }
+  );
 };
