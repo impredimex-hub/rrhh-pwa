@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.29
+**Versión objetivo:** 2.30
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1968,6 +1968,42 @@ No mejora la red. Lo que cambia es que una red mala se vea como lentitud y un
 aviso claro, en lugar de una aplicación rota. Que abra sin depender de la red
 —guardar la aplicación en el teléfono— y que los datos sobrevivan a un corte
 son trabajos aparte.
+
+---
+
+# SPEC-041 — La matriz de cursos no se deforma, y su fecha se puede elegir
+
+### Por qué
+
+Dos problemas en la misma tabla:
+
+1. **Los títulos largos deformaban la tabla.** Los nombres de las NOM ocupan
+   renglones enteros, y el ancho de cada columna lo decidía su contenido más
+   largo: una sola columna se llevaba media pantalla.
+2. **La columna de fecha solo mostraba el primer día.** Con cursos de varios
+   días salteados (SPEC-038), ese dato se leía como si fuera la única fecha.
+
+### Ancho y alto fijos
+
+- **La tabla usa ancho fijo por columna.** Es lo único que impide que el
+  contenido mande: sin eso, cualquier título largo vuelve a estirarla.
+- **Los encabezados ocupan dos renglones exactos**, aunque el título quepa en
+  uno, para que todos midan igual. Lo que no cabe se recorta y el título
+  completo queda al pasar el cursor.
+- **El nombre y el puesto también se recortan a dos renglones**, o con ancho
+  fijo crecerían hacia abajo y las filas quedarían de alturas distintas.
+
+### Elegir el día
+
+- **Con un solo día, no hay nada que elegir** y la columna se ve como siempre.
+- **Con varios, el encabezado trae una lista** con todos los días del curso
+  —«Día 1 · 2026-10-01»— y la columna muestra el que se elija, con su horario.
+- **La celda dice qué día se está viendo** —«día 2 de 4»—, para que nadie
+  confunda la fecha mostrada con la única.
+- **Es por columna, no por persona**: el día elegido aplica a todos los
+  renglones, porque el curso no asigna días por persona.
+- Se elige con una lista desplegable nativa y no con un menú propio: dentro de
+  una tabla que se desplaza de lado, un menú flotante se corta.
 
 ---
 

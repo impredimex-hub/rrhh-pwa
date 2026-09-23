@@ -7,6 +7,24 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.30.0] — 2026-09-24
+
+### Corregido
+
+- **La matriz de cursos se deformaba con títulos largos** (SPEC-041). Ahora las
+  columnas tienen ancho fijo y los encabezados ocupan dos renglones exactos; lo
+  que no cabe se recorta y el título completo queda al pasar el cursor. El
+  nombre y el puesto también se recortan a dos renglones.
+
+### Agregado
+
+- **Se puede elegir qué día del curso muestra la columna de fecha.** Con cursos
+  de varios días salteados, el encabezado trae una lista con todos —«Día 1 ·
+  2026-10-01»— y la celda indica cuál se está viendo, «día 2 de 4». Con un solo
+  día no aparece la lista.
+
+---
+
 ## [2.29.1] — 2026-09-23
 
 ### Cambiado
