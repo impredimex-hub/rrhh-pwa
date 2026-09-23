@@ -9,7 +9,7 @@ import { CursosModule } from './components/CursosModule';
 import { SucesosTurnosModule } from './components/SucesosTurnosModule';
 import { LoginScreen } from './components/LoginScreen';
 import { SesionContext } from './services/SesionContext';
-import { armarSesion, vigilarSesion, salir, ErrorDeAcceso, type Sesion } from './services/suite';
+import { armarSesion, vigilarSesion, salir, ErrorDeAcceso, ErrorDeConexion, type Sesion } from './services/suite';
 
 /**
  * Avisa al arranque de la página si hay sesión (SPEC-036). La función vive en
@@ -52,6 +52,33 @@ function App() {
     };
   }, []);
 
+  /**
+   * Qué impidió abrir (SPEC-040). Mientras sea `null`, todo va bien.
+   *
+   * Existe para que **nunca quede la pantalla en blanco**: si algo se traba,
+   * se dice en qué paso y se ofrece reintentar. Antes, cualquier tropiezo
+   * entre arrancar y dibujar dejaba la pantalla vacía, sin aviso y sin salida.
+   */
+  const [problema, setProblema] = useState<{ paso: string; mensaje: string } | null>(null);
+
+  /**
+   * Si verificar la sesión tarda demasiado, se deja de esperar en silencio.
+   * Doce segundos: más que cualquier arranque normal, menos de lo que alguien
+   * aguanta mirando una pantalla quieta.
+   */
+  useEffect(() => {
+    if (!verificando) return;
+    const t = setTimeout(() => {
+      setVerificando(false);
+      avisarArranque(false);
+      setProblema({
+        paso: 'Conectando con Firebase',
+        mensaje: 'La aplicación no obtuvo respuesta al verificar tu sesión.'
+      });
+    }, 12000);
+    return () => clearTimeout(t);
+  }, [verificando]);
+
   // Vigila la sesión de Firebase. Cubre tanto el inicio de sesión desde la
   // pantalla de acceso como la restauración al recargar la página.
   useEffect(() => {
@@ -65,11 +92,17 @@ function App() {
       try {
         setSesion(await armarSesion(user));
         setAvisoAcceso('');
+        setProblema(null);
         avisarArranque(true);
       } catch (e) {
-        // Autenticado pero sin permiso para esta app: se cierra la sesión.
-        // La marca se quita antes, o taparía el aviso con el motivo.
         avisarArranque(false);
+        if (e instanceof ErrorDeConexion) {
+          // No se pudo preguntar. La sesión se queda abierta: cerrarla por un
+          // tropiezo de red obligaría a escribir la clave de nuevo (SPEC-040).
+          setProblema({ paso: 'Leyendo tu registro de personal', mensaje: e.message });
+          return;
+        }
+        // Autenticado pero sin permiso para esta app: se cierra la sesión.
         setSesion(null);
         setAvisoAcceso(e instanceof ErrorDeAcceso ? e.message : 'No se pudo verificar tu acceso.');
         await salir().catch(() => {});
@@ -78,6 +111,35 @@ function App() {
       }
     });
   }, []);
+
+  if (problema) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', padding: '1.5rem' }}>
+        <div style={{ maxWidth: '340px', textAlign: 'center' }}>
+          <div className="hdr-marca" style={{ fontSize: '22px', marginBottom: '1.4rem' }}>IMPREDIMEX</div>
+          <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--brand-navy-dark)', marginBottom: '.5rem' }}>
+            No se pudo abrir la aplicación
+          </div>
+          <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '1.2rem' }}>
+            {problema.mensaje} Suele ser la conexión: vuelve a intentarlo.
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ width: '100%', minHeight: '46px', borderRadius: '9px', border: 'none', background: 'var(--brand-navy)', color: '#fff', fontWeight: 700, fontSize: '13.5px', fontFamily: 'inherit', cursor: 'pointer' }}
+          >
+            Reintentar
+          </button>
+          {/* El paso exacto, para que una foto de esta pantalla diga dónde
+              falló en lugar de tener que adivinarlo. */}
+          <div style={{ fontSize: '10.5px', color: 'var(--text-light)', marginTop: '1rem', lineHeight: 1.5 }}>
+            Se detuvo en: {problema.paso}
+            <br />
+            {isOnline ? 'El dispositivo reporta conexión.' : 'El dispositivo reporta que no hay conexión.'}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (verificando) {
     // La misma marca que pinta el arranque de la página, para que las seis
