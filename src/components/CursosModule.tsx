@@ -4,7 +4,7 @@ import type { Colaborador, CursoCapacitacion, RegistroCursoCompletado, Exclusion
 import { CALIFICACION_MIN, CALIFICACION_MAX } from '../types/rrhh';
 import { subscribeColaboradores, ordenarPorNomina } from '../services/personalService';
 import { subscribeCursos } from '../services/capacitacionService';
-import { subscribeCompletados, guardarCompletados, guardarCalificacion, quitarCompletado, excluirDelCurso, readmitirEnCurso } from '../services/cursoCompletadoService';
+import { subscribeCompletados, guardarCompletados, guardarCalificacion, quitarCompletado, excluirDelCurso, readmitirEnCurso, asignarSesionCurso } from '../services/cursoCompletadoService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { hoyISO } from '../utils/fechas';
 import { cursoAplicaA } from '../utils/cursos';
@@ -76,13 +76,13 @@ export const CursosModule: React.FC = () => {
   const [verExcluidos, setVerExcluidos] = useState(false);
 
   /**
-   * Qué día del curso muestra su columna de fecha (SPEC-041).
+   * A qué día del curso va cada persona (SPEC-041), por nómina.
    *
-   * Un curso puede darse en varias fechas salteadas (SPEC-038) y la columna
-   * solo enseñaba la primera, que se leía como si fuera la única. Aquí se
-   * elige cuál ver; por omisión, la primera.
+   * Un curso puede darse en varias fechas salteadas (SPEC-038) y la gente se
+   * reparte entre ellas. Viene del documento del curso, así que se conserva.
+   * Quien no tenga día asignado se muestra en el primero.
    */
-  const [sesionVista, setSesionVista] = useState<Record<string, number>>({});
+  const [sesionPorNomina, setSesionPorNomina] = useState<Record<string, number>>({});
   const [marcados, setMarcados] = useState<Record<string, boolean>>({});
   const [califs, setCalifs] = useState<Record<string, string>>({});
   const [guardandoCursado, setGuardandoCursado] = useState(false);
@@ -157,11 +157,13 @@ export const CursosModule: React.FC = () => {
   // Solo se lee el curso filtrado, y solo mientras está filtrado: un documento
   // de unos 7 KB en lugar de la colección entera.
   useEffect(() => {
-    if (!cursoActivo?.id) { setCompletados({}); setExcluidos({}); setMarcados({}); setCalifs({}); return; }
+    if (!cursoActivo?.id) { setCompletados({}); setExcluidos({}); setSesionPorNomina({}); setMarcados({}); setCalifs({}); return; }
     setMarcados({});
     setCalifs({});
     setVerExcluidos(false);
-    const unsub = subscribeCompletados(cursoActivo.id, (regs, exc) => { setCompletados(regs); setExcluidos(exc); });
+    const unsub = subscribeCompletados(cursoActivo.id, (regs, exc, ses) => {
+      setCompletados(regs); setExcluidos(exc); setSesionPorNomina(ses);
+    });
     return () => unsub();
   }, [cursoActivo?.id]);
 
@@ -267,6 +269,15 @@ export const CursosModule: React.FC = () => {
   const listaExcluidos = cursoActivo
     ? ordenarPorNomina(colaboradores.filter(c => !!excluidos[c.noNomina]))
     : [];
+
+  /** Cambia a qué día del curso va una persona (SPEC-041). */
+  const cambiarSesion = async (cursoId: string, nomina: string, indice: number) => {
+    try {
+      await asignarSesionCurso(cursoId, nomina, indice);
+    } catch (err: any) {
+      alert('No se pudo guardar el día: ' + (err?.message || 'Error desconocido'));
+    }
+  };
 
   const quitarDelCurso = async (colab: Colaborador) => {
     if (!cursoActivo?.id || !puedeExcluir) return;
@@ -401,7 +412,14 @@ export const CursosModule: React.FC = () => {
           rowData[`FECHA (${curso.titulo})`] = est 
             // Con varios días se avisa, para que no parezca que el curso es
             // de una sola fecha (SPEC-038).
-            ? `${curso.fechaInicio} | ${curso.horaInicio || '09:00'}-${curso.horaFin || '10:00'} (${calcularDuracion(curso.horaInicio, curso.horaFin)})${(curso.sesiones?.length || 1) > 1 ? ` +${curso.sesiones!.length - 1} días` : ''}`
+            // El día asignado a esta persona, no el primero del curso (SPEC-041).
+            ? (function () {
+                const s = curso.sesiones?.[sesionPorNomina[c.noNomina] ?? 0] || curso.sesiones?.[0];
+                const f = s?.fecha || curso.fechaInicio;
+                const hi = s?.horaInicio || curso.horaInicio || '09:00';
+                const hf = s?.horaFin || curso.horaFin || '10:00';
+                return `${f} | ${hi}-${hf} (${calcularDuracion(hi, hf)})`;
+              })()
             : '-';
         }
       });
@@ -465,7 +483,8 @@ export const CursosModule: React.FC = () => {
           rowArr.push(est || '-');
         }
         if (columnasVisibles[`fecha_${curso.id}`] !== false) {
-          rowArr.push(est ? `${curso.fechaInicio} ${curso.horaInicio || '09:00'}` : '-');
+          const s = curso.sesiones?.[sesionPorNomina[c.noNomina] ?? 0] || curso.sesiones?.[0];
+          rowArr.push(est ? `${s?.fecha || curso.fechaInicio} ${s?.horaInicio || curso.horaInicio || '09:00'}` : '-');
         }
       });
 
@@ -727,20 +746,6 @@ export const CursosModule: React.FC = () => {
                     {columnasVisibles[`fecha_${cur.id}`] !== false && (
                       <th style={{ ...CAB_ESTILO, width: '130px', color: '#5A6A80', background: 'rgba(0,32,96,0.01)' }}>
                         <div style={CAB_DOS_RENGLONES}>Fecha</div>
-                        {/* Con un solo día no hay nada que elegir; con varios,
-                            la lista dice cuáles son y cuál se está viendo. */}
-                        {(cur.sesiones?.length || 0) > 1 && (
-                          <select
-                            value={sesionVista[cur.id || ''] ?? 0}
-                            onChange={e => setSesionVista(prev => ({ ...prev, [cur.id || '']: Number(e.target.value) }))}
-                            title={`Este curso se da en ${cur.sesiones!.length} días`}
-                            style={{ width: '100%', height: '22px', marginTop: '3px', padding: '0 4px', fontSize: '8.5px', fontFamily: 'inherit', fontWeight: 600, color: 'var(--brand-navy)', borderRadius: '5px', border: '1px solid var(--border-mid)', background: '#fff' }}
-                          >
-                            {cur.sesiones!.map((s, i) => (
-                              <option key={i} value={i}>Día {i + 1} · {s.fecha}</option>
-                            ))}
-                          </select>
-                        )}
                       </th>
                     )}
                   </React.Fragment>
@@ -787,9 +792,11 @@ export const CursosModule: React.FC = () => {
 
                     {cursos.map(cur => {
                       const est = obtenerEstadoCurso(colab, cur);
-                      // El día que su columna tenga elegido; sin sesiones, lo
-                      // que guardaba el curso antes de la SPEC-038.
-                      const ses = cur.sesiones?.[sesionVista[cur.id || ''] ?? 0];
+                      // El día asignado a esta persona; sin asignar, el
+                      // primero. Sin sesiones, lo que guardaba el curso antes
+                      // de la SPEC-038.
+                      const iSes = sesionPorNomina[colab.noNomina] ?? 0;
+                      const ses = cur.sesiones?.[iSes] || cur.sesiones?.[0];
                       const fechaCol = ses?.fecha || cur.fechaInicio;
                       const hIni = ses?.horaInicio || cur.horaInicio || '09:00';
                       const hFin = ses?.horaFin || cur.horaFin || '10:00';
@@ -817,15 +824,26 @@ export const CursosModule: React.FC = () => {
                             <td style={{ padding: '5px 8px', fontSize: '8.5px', color: 'var(--text-secondary)' }}>
                               {est ? (
                                 <div>
-                                  <div style={{ fontWeight: 600, color: 'var(--brand-navy-dark)' }}>{fechaCol}</div>
-                                  <div style={{ fontSize: '8px', color: 'var(--text-light)' }}>
+                                  {/* Con varios días, cada quien tiene el suyo:
+                                      la lista lo cambia y se guarda (SPEC-041).
+                                      Quien no puede capturar solo lo ve. */}
+                                  {(cur.sesiones?.length || 0) > 1 && puedeCapturar ? (
+                                    <select
+                                      value={iSes}
+                                      onChange={e => cambiarSesion(cur.id || '', colab.noNomina, Number(e.target.value))}
+                                      title={`Día asignado a ${colab.nombreCompleto}`}
+                                      style={{ width: '100%', height: '22px', padding: '0 4px', fontSize: '8.5px', fontFamily: 'inherit', fontWeight: 600, color: 'var(--brand-navy-dark)', borderRadius: '5px', border: '1px solid var(--border-mid)', background: '#fff' }}
+                                    >
+                                      {cur.sesiones!.map((s, i) => (
+                                        <option key={i} value={i}>Día {i + 1} · {s.fecha}</option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <div style={{ fontWeight: 600, color: 'var(--brand-navy-dark)' }}>{fechaCol}</div>
+                                  )}
+                                  <div style={{ fontSize: '8px', color: 'var(--text-light)', marginTop: '2px' }}>
                                     {hIni} - {hFin} ({duracion})
                                   </div>
-                                  {(cur.sesiones?.length || 0) > 1 && (
-                                    <div style={{ fontSize: '8px', color: 'var(--brand-navy)', fontWeight: 600 }}>
-                                      día {(sesionVista[cur.id || ''] ?? 0) + 1} de {cur.sesiones!.length}
-                                    </div>
-                                  )}
                                 </div>
                               ) : (
                                 <span style={{ color: 'var(--text-light)' }}>-</span>
