@@ -65,6 +65,14 @@ export interface Sesion {
 /** Error de acceso ya traducido a algo que una persona entiende. */
 export class ErrorDeAcceso extends Error {}
 
+/**
+ * No se pudo preguntar (SPEC-040). Es distinto de no tener acceso: aquí la
+ * cuenta puede estar perfecta y lo que falló fue la red. **Nunca debe cerrar
+ * la sesión**, o un bache de dos segundos obligaría a volver a escribir la
+ * clave.
+ */
+export class ErrorDeConexion extends Error {}
+
 export function mensajeDeError(codigo: string): string {
   switch (codigo) {
     case 'auth/invalid-credential':
@@ -103,7 +111,9 @@ export async function armarSesion(user: User): Promise<Sesion> {
   try {
     snap = await getDoc(doc(suiteDb, 'colaboradores', nomina));
   } catch {
-    throw new ErrorDeAcceso('No se pudo leer tu registro de personal. Revisa tu conexión.');
+    // Antes esto era un error de acceso y cerraba la sesión: un tropiezo de
+    // red se veía igual que no tener permiso (SPEC-040).
+    throw new ErrorDeConexion('No se pudo leer tu registro de personal.');
   }
 
   if (!snap.exists()) {
