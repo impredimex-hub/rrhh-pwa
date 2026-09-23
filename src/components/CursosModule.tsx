@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { FileSpreadsheet, FileText, ChevronLeft, ChevronRight, SlidersHorizontal, Check, Filter, X, RefreshCw, Undo2 } from 'lucide-react';
-import type { Colaborador, CursoCapacitacion, RegistroCursoCompletado, ExclusionCurso } from '../types/rrhh';
+import { FileSpreadsheet, FileText, ChevronLeft, ChevronRight, Check, Filter, X, RefreshCw, Undo2 } from 'lucide-react';
+import type { Colaborador, CursoCapacitacion, RegistroCursoCompletado, ExclusionCurso, InclusionCurso } from '../types/rrhh';
 import { CALIFICACION_MIN, CALIFICACION_MAX } from '../types/rrhh';
 import { subscribeColaboradores, ordenarPorNomina } from '../services/personalService';
 import { subscribeCursos } from '../services/capacitacionService';
-import { subscribeCompletados, guardarCompletados, guardarCalificacion, quitarCompletado, excluirDelCurso, readmitirEnCurso, asignarSesionCurso } from '../services/cursoCompletadoService';
+import { subscribeCompletados, guardarCompletados, guardarCalificacion, quitarCompletado, excluirDelCurso, readmitirEnCurso, asignarSesionCurso, agregarAlCurso, quitarAgregado } from '../services/cursoCompletadoService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { hoyISO } from '../utils/fechas';
+import { AutocompletarColaborador } from './AutocompletarColaborador';
 import { cursoAplicaA } from '../utils/cursos';
 import { exportToExcel, exportToPDF, exportToExcelSheets, exportToPDFSections } from '../utils/exportUtils';
 
@@ -75,7 +76,6 @@ export const CursosModule: React.FC = () => {
 
   // Selector de visibilidad de columnas
   const [columnasVisibles, setColumnasVisibles] = useState<Record<string, boolean>>({});
-  const [menuColumnasAbierto, setMenuColumnasAbierto] = useState(false);
 
   /* ── Quién ya cursó (SPEC-028) ──────────────────────────────────────────
      Marcar y guardar son dos momentos distintos: las casillas viven aquí, en
@@ -95,6 +95,9 @@ export const CursosModule: React.FC = () => {
    * Quien no tenga día asignado se muestra en el primero.
    */
   const [sesionPorNomina, setSesionPorNomina] = useState<Record<string, number>>({});
+  /** Agregados a mano al curso, aunque no les toque por área ni puesto (SPEC-042). */
+  const [incluidos, setIncluidos] = useState<Record<string, InclusionCurso>>({});
+  const [porAgregar, setPorAgregar] = useState('');
   const [marcados, setMarcados] = useState<Record<string, boolean>>({});
   const [califs, setCalifs] = useState<Record<string, string>>({});
   const [guardandoCursado, setGuardandoCursado] = useState(false);
@@ -169,28 +172,17 @@ export const CursosModule: React.FC = () => {
   // Solo se lee el curso filtrado, y solo mientras está filtrado: un documento
   // de unos 7 KB en lugar de la colección entera.
   useEffect(() => {
-    if (!cursoActivo?.id) { setCompletados({}); setExcluidos({}); setSesionPorNomina({}); setMarcados({}); setCalifs({}); return; }
+    if (!cursoActivo?.id) { setCompletados({}); setExcluidos({}); setSesionPorNomina({}); setIncluidos({}); setMarcados({}); setCalifs({}); return; }
     setMarcados({});
     setCalifs({});
     setVerExcluidos(false);
-    const unsub = subscribeCompletados(cursoActivo.id, (regs, exc, ses) => {
-      setCompletados(regs); setExcluidos(exc); setSesionPorNomina(ses);
+    const unsub = subscribeCompletados(cursoActivo.id, (regs, exc, ses, inc) => {
+      setCompletados(regs); setExcluidos(exc); setSesionPorNomina(ses); setIncluidos(inc);
     });
     return () => unsub();
   }, [cursoActivo?.id]);
 
-  const departamentosDisponibles = Array.from(
-    new Set(colaboradores.map(c => (c.departamento || '').trim().toUpperCase()).filter(Boolean))
-  ).sort();
 
-  const puestosDisponibles = Array.from(
-    new Set(
-      colaboradores
-        .filter(c => !filtroDepto || (c.departamento || '').trim().toUpperCase() === filtroDepto)
-        .map(c => (c.puesto || '').trim().toUpperCase())
-        .filter(Boolean)
-    )
-  ).sort();
 
   const calcularDuracion = (hInicio?: string, hFin?: string): string => {
     if (!hInicio || !hFin) return '1h';
@@ -226,12 +218,6 @@ export const CursosModule: React.FC = () => {
     return 'Programado';
   };
 
-  const toggleColumna = (key: string) => {
-    setColumnasVisibles(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
 
   // Filtrado compuesto con ordenamiento numérico. Se apoya en `aplicados`, no
   // en lo que se está escribiendo: la tabla solo cambia al pulsar Filtrar.
@@ -249,7 +235,8 @@ export const CursosModule: React.FC = () => {
       if (aplicados.curso) {
         const cursoSeleccionado = cursos.find(cur => cur.id === aplicados.curso);
         if (cursoSeleccionado) {
-          coincideCurso = estaAsignado(c, cursoSeleccionado);
+          // Le toca por área y puesto, o alguien lo agregó a mano (SPEC-042).
+          coincideCurso = estaAsignado(c, cursoSeleccionado) || !!incluidos[c.noNomina];
         }
       }
 
@@ -291,9 +278,50 @@ export const CursosModule: React.FC = () => {
     }
   };
 
+  /**
+   * Agrega a alguien al curso filtrado (SPEC-042).
+   *
+   * Los cursos se dirigen por área y puesto, pero a veces asiste alguien que
+   * no cae en ninguno de los dos. Antes no había forma de incluirlo.
+   */
+  const agregarPersona = async (colab: Colaborador) => {
+    if (!cursoActivo?.id || !puedeCapturar) return;
+    if (excluidos[colab.noNomina]) {
+      // Estaba quitado a mano: agregarlo por otro lado sería contradictorio.
+      alert(`${colab.nombreCompleto} está en «sin asignar a este curso». Devuélvelo desde ahí.`);
+      return;
+    }
+    if (estaAsignado(colab, cursoActivo) || incluidos[colab.noNomina]) {
+      alert(`${colab.nombreCompleto} ya está en este curso.`);
+      return;
+    }
+    try {
+      await agregarAlCurso(cursoActivo.id, colab.noNomina, {
+        fecha: hoyISO(),
+        porNomina: sesion?.nomina || '',
+        porNombre: sesion?.nombre || ''
+      });
+    } catch (err: any) {
+      alert('No se pudo agregar: ' + (err?.message || 'Error desconocido'));
+    }
+  };
+
   const quitarDelCurso = async (colab: Colaborador) => {
     if (!cursoActivo?.id || !puedeExcluir) return;
     if (!confirm(`¿Quitar a ${colab.nombreCompleto} de «${cursoActivo.titulo}»?\n\nDeja de contar como pendiente. Lo puedes devolver después.`)) return;
+
+    // A quien fue agregado a mano se le deshace el alta, en lugar de anotarlo
+    // como excluido: no estaba en el curso de origen, así que marcarlo como
+    // «sin asignar» diría algo que nunca fue cierto (SPEC-042).
+    if (incluidos[colab.noNomina]) {
+      try {
+        await quitarAgregado(cursoActivo.id, colab.noNomina);
+      } catch (err: any) {
+        alert('No se pudo quitar: ' + (err?.message || 'Error desconocido'));
+      }
+      return;
+    }
+
     try {
       await excluirDelCurso(cursoActivo.id, colab.noNomina, {
         fecha: hoyISO(),
@@ -562,39 +590,31 @@ export const CursosModule: React.FC = () => {
               ))}
             </select>
 
-            {/* Filtro Departamento */}
-            <select
-              value={filtroDepto}
-              onChange={(e) => {
-                setFiltroDepto(e.target.value);
-                setFiltroPuesto('');
-              }}
-              style={{ width: '130px', height: '30px', padding: '2px 6px', fontSize: '10px' }}
-            >
-              <option value="">Todos los Deptos</option>
-              {departamentosDisponibles.map(d => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-
-            {/* Filtro Puesto */}
-            <select
-              value={filtroPuesto}
-              onChange={(e) => setFiltroPuesto(e.target.value)}
-              style={{ width: '130px', height: '30px', padding: '2px 6px', fontSize: '10px' }}
-            >
-              <option value="">Todos los Puestos</option>
-              {puestosDisponibles.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-
             {/* Filtro Texto */}
             <input
               type="text" placeholder="Buscar colaborador…"
               value={filtroTexto} onChange={(e) => setFiltroTexto(e.target.value)}
               style={{ width: '120px', height: '30px', padding: '4px 8px', fontSize: '10px' }}
             />
+
+            {/* Agregar a alguien al curso filtrado (SPEC-042). Solo con un
+                curso elegido: sin curso no hay a qué agregarlo. */}
+            {cursoActivo && puedeCapturar && (
+              <div style={{ width: '210px' }}>
+                <AutocompletarColaborador
+                  colaboradores={colaboradores.filter(c => c.estatus === 'ACTIVO')}
+                  valor={porAgregar}
+                  onChange={(nomina) => {
+                    // El campo se vacía al instante: es un botón de agregar,
+                    // no un campo que conserve a quién se eligió.
+                    setPorAgregar('');
+                    const colab = colaboradores.find(c => c.noNomina === nomina);
+                    if (colab) agregarPersona(colab);
+                  }}
+                  placeholder="Agregar colaborador al curso…"
+                />
+              </div>
+            )}
 
             {/* Botón Filtrar: la tabla no aparece hasta pulsarlo */}
             <button
@@ -616,66 +636,6 @@ export const CursosModule: React.FC = () => {
               </button>
             )}
 
-            {/* Selector de Columnas */}
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={() => setMenuColumnasAbierto(!menuColumnasAbierto)}
-                className="btn-industrial-primary"
-                style={{ height: '30px', padding: '4px 8px', fontSize: '10px', width: 'auto' }}
-                title="Configurar columnas visibles"
-              >
-                <SlidersHorizontal size={13} /> Columnas
-              </button>
-
-              {menuColumnasAbierto && (
-                <div style={{ position: 'absolute', right: 0, top: '100%', zIndex: 100, background: '#fff', border: '1px solid var(--border-mid)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-md)', width: '230px', maxHeight: '250px', overflowY: 'auto', padding: '8px', marginTop: '4px' }}>
-                  <div style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)', marginBottom: '6px', borderBottom: '1px solid var(--border-light)', paddingBottom: '4px' }}>
-                    VISIBILIDAD DE COLUMNAS
-                  </div>
-
-                  {[
-                    { key: 'noNomina', label: '# Nómina' },
-                    { key: 'nombre', label: 'Nombre' },
-                    { key: 'puesto', label: 'Puesto' },
-                  ].map(col => (
-                    <div
-                      key={col.key}
-                      onClick={() => toggleColumna(col.key)}
-                      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px', fontSize: '10px', cursor: 'pointer' }}
-                    >
-                      <div style={{ width: '12px', height: '12px', border: '1px solid var(--brand-navy)', borderRadius: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: columnasVisibles[col.key] !== false ? 'var(--brand-navy)' : '#fff' }}>
-                        {columnasVisibles[col.key] !== false && <Check size={9} color="#fff" />}
-                      </div>
-                      {col.label}
-                    </div>
-                  ))}
-
-                  {cursos.map(cur => (
-                    <React.Fragment key={cur.id}>
-                      <div
-                        onClick={() => cur.id && toggleColumna(`curso_${cur.id}`)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px', fontSize: '10px', cursor: 'pointer' }}
-                      >
-                        <div style={{ width: '12px', height: '12px', border: '1px solid var(--brand-navy)', borderRadius: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: columnasVisibles[`curso_${cur.id}`] !== false ? 'var(--brand-navy)' : '#fff' }}>
-                          {columnasVisibles[`curso_${cur.id}`] !== false && <Check size={9} color="#fff" />}
-                        </div>
-                        Curso: {cur.titulo}
-                      </div>
-
-                      <div
-                        onClick={() => cur.id && toggleColumna(`fecha_${cur.id}`)}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 4px 4px 16px', fontSize: '9.5px', color: 'var(--text-secondary)', cursor: 'pointer' }}
-                      >
-                        <div style={{ width: '12px', height: '12px', border: '1px solid var(--border-mid)', borderRadius: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: columnasVisibles[`fecha_${cur.id}`] !== false ? 'var(--brand-navy)' : '#fff' }}>
-                          {columnasVisibles[`fecha_${cur.id}`] !== false && <Check size={9} color="#fff" />}
-                        </div>
-                        Fecha: {cur.titulo}
-                      </div>
-                    </React.Fragment>
-                  ))}
-                </div>
-              )}
-            </div>
 
             {/* Redondos y solo con icono (SPEC-029): con el texto dentro, la
                 fila de filtros se partía en dos renglones. El estilo vive en
