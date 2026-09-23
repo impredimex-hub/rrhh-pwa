@@ -218,6 +218,16 @@ export interface ExclusionCurso {
   porNombre: string;
 }
 
+/**
+ * Alguien agregado a un curso a mano (SPEC-042), aunque no le toque por área
+ * ni por puesto. Vive en el documento del curso, como las exclusiones.
+ */
+export interface InclusionCurso {
+  fecha: string;
+  porNomina: string;
+  porNombre: string;
+}
+
 export interface RegistroCursoCompletado {
   /** Día en que se marcó como cursado, `AAAA-MM-DD`. */
   fecha: string;
