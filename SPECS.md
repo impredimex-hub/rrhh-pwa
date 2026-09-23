@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.28
+**Versión objetivo:** 2.29
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -1921,6 +1921,53 @@ En el **mismo documento del curso** donde vive quién lo tomó
 (`cursosCompletados/{curso}`), bajo `excluidos`, con la nómina como clave y la
 firma de quién lo hizo. No cuesta ni una lectura más: la pestaña ya traía ese
 documento, y el calendario ya lo leía para contar cuántos lo tomaron.
+
+---
+
+# SPEC-040 — Nunca una pantalla en blanco
+
+### Por qué
+
+La app se quedaba en blanco al abrirla con mala red, sin aviso y sin salida, y
+a veces al siguiente intento funcionaba. «Blanco» no era una causa: era lo que
+se veía cuando **cualquier** paso fallaba antes de alcanzar a dibujar algo.
+
+### Los pasos que pueden fallar
+
+1. **Descargar la aplicación.** Si el archivo no llega, nada del código corre.
+2. **Verificar la sesión** con Firebase.
+3. **Leer el registro de personal** en el padrón de la suite.
+
+### Reglas de negocio
+
+- **Ningún paso se espera para siempre.** Verificar la sesión tiene un límite
+  de 12 segundos; descargar la aplicación, otro tanto. Pasado eso se muestra un
+  aviso, no una pantalla quieta.
+- **El aviso dice en qué paso se detuvo** y si el dispositivo reporta conexión.
+  Una foto de esa pantalla basta para saber dónde buscar, en lugar de adivinar.
+- **Siempre hay un botón de Reintentar.**
+- **El respaldo del primer paso vive en `index.html`, no en la aplicación.**
+  Tiene que funcionar justamente cuando la aplicación no funciona. React lo
+  reemplaza al arrancar, así que solo se ve si nunca arrancó.
+- **La marca del arranque se retira al mostrar un aviso**, o lo taparía
+  (SPEC-036).
+
+### Defecto corregido: un tropiezo de red cerraba la sesión
+
+Si fallaba la lectura del registro de personal, se lanzaba un error de acceso y
+la app **cerraba la sesión**. Un bache de dos segundos se veía igual que no
+tener permiso, y obligaba a escribir la clave otra vez.
+
+Ahora son dos errores distintos: `ErrorDeAcceso` —la cuenta no puede entrar,
+y se cierra la sesión— y `ErrorDeConexion` —no se pudo preguntar, la sesión se
+queda abierta y se ofrece reintentar—.
+
+### Lo que esto no arregla
+
+No mejora la red. Lo que cambia es que una red mala se vea como lentitud y un
+aviso claro, en lugar de una aplicación rota. Que abra sin depender de la red
+—guardar la aplicación en el teléfono— y que los datos sobrevivan a un corte
+son trabajos aparte.
 
 ---
 

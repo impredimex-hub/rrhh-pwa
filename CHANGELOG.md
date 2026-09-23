@@ -7,6 +7,31 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.29.0] — 2026-09-23
+
+### Agregado
+
+- **Nunca una pantalla en blanco** (SPEC-040). Si algo se traba al abrir, sale
+  un aviso con el paso exacto donde se detuvo, si el dispositivo reporta
+  conexión, y un botón de Reintentar. Cubre los tres pasos: descargar la
+  aplicación, verificar la sesión y leer el registro de personal.
+- Ningún paso espera para siempre: 12 segundos y se avisa.
+
+### Corregido
+
+- **Un tropiezo de red cerraba la sesión.** Si fallaba la lectura del registro
+  de personal, se trataba como falta de acceso y sacaba a la persona, que tenía
+  que escribir la clave de nuevo. Ahora se distingue no poder preguntar de no
+  tener permiso: lo primero deja la sesión abierta.
+
+### Notas
+
+Esto no mejora la red. Hace que una red mala se vea como lentitud y un aviso
+claro, en vez de una aplicación rota. Que la app abra sin depender de la red y
+que los datos sobrevivan a un corte son los siguientes pasos.
+
+---
+
 ## [2.28.1] — 2026-09-23
 
 ### Corregido

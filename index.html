@@ -56,7 +56,37 @@ html.con-sesion::after{
     <title>IMPREDIMEX — Recursos Humanos</title>
   </head>
   <body style="margin: 0; background-color: #f8fafc;">
-    <div id="root"></div>
+    <div id="root">
+      <!-- Lo que se ve mientras la aplicación carga, y lo que queda si no
+           llega a cargar (SPEC-040). React reemplaza todo esto al arrancar; si
+           nunca arranca —porque el archivo de la aplicación no se descargó—,
+           a los 12 segundos aparece el aviso en lugar de una pantalla en
+           blanco. Va escrito aquí y no en la aplicación a propósito: tiene que
+           funcionar justamente cuando la aplicación no funciona. -->
+      <div id="arranque-base" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#fff;padding:1.5rem;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+        <div style="max-width:340px;text-align:center">
+          <div style="font-family:'Jost',-apple-system,BlinkMacSystemFont,sans-serif;font-weight:600;font-size:22px;letter-spacing:.20em;color:#002060">IMPREDIMEX</div>
+          <div id="arranque-aviso" style="display:none;margin-top:1.4rem">
+            <div style="font-size:15px;font-weight:700;color:#002060;margin-bottom:.5rem">No se pudo abrir la aplicación</div>
+            <div style="font-size:12.5px;color:#5A6A80;line-height:1.6;margin-bottom:1.2rem">
+              No terminó de descargarse. Suele ser la conexión: vuelve a intentarlo.
+            </div>
+            <button onclick="location.reload()" style="width:100%;min-height:46px;border-radius:9px;border:none;background:#003580;color:#fff;font-weight:700;font-size:13.5px;font-family:inherit;cursor:pointer">Reintentar</button>
+            <div style="font-size:10.5px;color:#8A9AB0;margin-top:1rem;line-height:1.5">
+              Se detuvo en: descargando la aplicación
+            </div>
+          </div>
+        </div>
+      </div>
+      <script>
+        setTimeout(function(){
+          var a = document.getElementById('arranque-aviso');
+          if (a) a.style.display = 'block';
+          // Si la marca del arranque sigue encima, se quita: taparía el aviso.
+          document.documentElement.classList.remove('con-sesion');
+        }, 12000);
+      </script>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
