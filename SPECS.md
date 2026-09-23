@@ -1846,7 +1846,7 @@ tramo continuo. Muchos se imparten en varias sesiones y en fechas salteadas
 
 ### Flujo principal
 
-1. Se indica **cuántos días dura el curso**.
+1. Se indica cuántas **sesiones** tiene el curso.
 2. Aparece un bloque por día, con su **fecha** y su horario.
 3. Los días se pueden capturar en cualquier orden: se guardan ordenados.
 

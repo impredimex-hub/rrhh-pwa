@@ -7,6 +7,18 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.29.1] — 2026-09-23
+
+### Cambiado
+
+- **«¿Cuántos días dura el curso?» pasa a «Sesiones del curso»**, y la etiqueta
+  se separó del campo: el asterisco quedaba pegado al recuadro.
+- **Las pestañas quedan en el orden Promociones, Capacitación y Cursos.**
+  Capacitación programa los cursos y Cursos les da seguimiento, así que van
+  juntas.
+
+---
+
 ## [2.29.0] — 2026-09-23
 
 ### Agregado
