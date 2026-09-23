@@ -1993,17 +1993,26 @@ Dos problemas en la misma tabla:
 - **El nombre y el puesto también se recortan a dos renglones**, o con ancho
   fijo crecerían hacia abajo y las filas quedarían de alturas distintas.
 
-### Elegir el día
+### El día de cada persona
 
-- **Con un solo día, no hay nada que elegir** y la columna se ve como siempre.
-- **Con varios, el encabezado trae una lista** con todos los días del curso
-  —«Día 1 · 2026-10-01»— y la columna muestra el que se elija, con su horario.
-- **La celda dice qué día se está viendo** —«día 2 de 4»—, para que nadie
-  confunda la fecha mostrada con la única.
-- **Es por columna, no por persona**: el día elegido aplica a todos los
-  renglones, porque el curso no asigna días por persona.
+Un curso de varias sesiones se reparte entre la gente: no todos van el mismo
+día. Por eso el día **se elige en el renglón de cada participante**, no en el
+encabezado, y **se guarda**.
+
+- **Con un solo día no aparece la lista**: no hay nada que elegir.
+- **Con varios, cada renglón trae la lista** con todos los días —«Día 1 ·
+  2026-10-01»—, y debajo el horario de ese día.
+- **Se guarda el número de día, no la fecha.** Si una sesión se mueve en el
+  calendario, nadie queda apuntado a un día que ya no existe.
+- **Quien no tiene día asignado se muestra en el primero.** No se escribe nada
+  hasta que alguien lo cambia.
+- **Solo lo cambia quien tiene permiso de captura**; los demás ven el día
+  asignado sin poder moverlo.
+- **Las exportaciones llevan el día de cada persona**, no el primero del curso.
 - Se elige con una lista desplegable nativa y no con un menú propio: dentro de
   una tabla que se desplaza de lado, un menú flotante se corta.
+- **Vive en el documento del curso**, junto a quién lo tomó, así que no cuesta
+  ninguna lectura más.
 
 ---
 

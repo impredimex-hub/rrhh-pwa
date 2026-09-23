@@ -18,10 +18,10 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ### Agregado
 
-- **Se puede elegir qué día del curso muestra la columna de fecha.** Con cursos
-  de varios días salteados, el encabezado trae una lista con todos —«Día 1 ·
-  2026-10-01»— y la celda indica cuál se está viendo, «día 2 de 4». Con un solo
-  día no aparece la lista.
+- **Cada participante tiene su día de curso.** Con cursos de varios días
+  salteados, el renglón de cada persona trae una lista con todos —«Día 1 ·
+  2026-10-01»— y lo que se elija se guarda. Quien no tenga día asignado se
+  muestra en el primero, y las exportaciones llevan el día de cada quien.
 
 ---
 
