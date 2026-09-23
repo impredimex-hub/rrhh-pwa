@@ -10,28 +10,40 @@ import { hoyISO } from '../utils/fechas';
 import { cursoAplicaA } from '../utils/cursos';
 import { exportToExcel, exportToPDF, exportToExcelSheets, exportToPDFSections } from '../utils/exportUtils';
 
-/** Encabezado de la matriz: dos renglones fijos y ancho que no crece. */
+/**
+ * Encabezado de la matriz. Centrado en los dos ejes, para que todos queden a
+ * la misma altura: con alineación arriba, los títulos cortos se pegaban al
+ * borde superior y los largos ocupaban dos renglones, y la fila se veía
+ * despareja (SPEC-041).
+ */
 const CAB_ESTILO: React.CSSProperties = {
   padding: '6px 8px', fontSize: '9px', fontWeight: 'bold',
-  color: 'var(--brand-navy)', textTransform: 'uppercase', verticalAlign: 'bottom'
+  color: 'var(--brand-navy)', textTransform: 'uppercase',
+  verticalAlign: 'middle', textAlign: 'center'
 };
 
 /**
- * Dos renglones exactos para el título, aunque ocupe uno solo (SPEC-041).
+ * Dos renglones para el texto de una celda, y lo que sobra no se ve.
  *
- * Los nombres de las NOM son larguísimos y estiraban su columna hasta
- * deformar la tabla. Con alto fijo, todas las columnas miden igual y lo que no
- * cabe se recorta; el título completo queda en el `title` de la celda.
+ * Los nombres de las NOM son larguísimos y estiraban su columna hasta deformar
+ * la tabla. Con alto fijo, todas las columnas miden igual; el texto completo
+ * queda en el `title`.
  */
-/** Lo mismo para las celdas: dos renglones y lo que sobra se recorta. */
 const CELDA_DOS_RENGLONES: React.CSSProperties = {
   display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-  overflow: 'hidden', wordBreak: 'break-word', lineHeight: '11px', maxHeight: '22px'
+  overflow: 'hidden', wordBreak: 'break-word', lineHeight: '11px', maxHeight: '22px',
+  // La app le pone `white-space: nowrap` a toda celda de tabla, y eso se
+  // hereda: sin esto el texto nunca se parte, solo se corta.
+  whiteSpace: 'normal'
 };
 
 const CAB_DOS_RENGLONES: React.CSSProperties = {
-  display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-  overflow: 'hidden', wordBreak: 'break-word', lineHeight: '11px', height: '22px'
+  // Dos renglones de alto y el texto envuelve normal. No se usa recorte con
+  // puntos suspensivos: depende de una propiedad con prefijo que no siempre
+  // se aplica, y entonces el título se quedaba en un solo renglón cortado.
+  // Lo que no cabe simplemente no se ve; completo está en el `title`.
+  whiteSpace: 'normal', overflow: 'hidden', wordBreak: 'break-word',
+  lineHeight: '11px', height: '22px'
 };
 
 export const CursosModule: React.FC = () => {
@@ -732,9 +744,9 @@ export const CursosModule: React.FC = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9.5px', lineHeight: '1.2', tableLayout: 'fixed' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
-                {columnasVisibles.noNomina !== false && <th style={{ ...CAB_ESTILO, width: '72px' }}><div style={CAB_DOS_RENGLONES}># Nómina</div></th>}
-                {columnasVisibles.nombre !== false && <th style={{ ...CAB_ESTILO, width: '180px' }}><div style={CAB_DOS_RENGLONES}>Nombre</div></th>}
-                {columnasVisibles.puesto !== false && <th style={{ ...CAB_ESTILO, width: '150px' }}><div style={CAB_DOS_RENGLONES}>Puesto</div></th>}
+                {columnasVisibles.noNomina !== false && <th style={{ ...CAB_ESTILO, width: '72px' }}># Nómina</th>}
+                {columnasVisibles.nombre !== false && <th style={{ ...CAB_ESTILO, width: '180px' }}>Nombre</th>}
+                {columnasVisibles.puesto !== false && <th style={{ ...CAB_ESTILO, width: '150px' }}>Puesto</th>}
 
                 {cursos.map(cur => (
                   <React.Fragment key={cur.id}>
@@ -745,7 +757,7 @@ export const CursosModule: React.FC = () => {
                     )}
                     {columnasVisibles[`fecha_${cur.id}`] !== false && (
                       <th style={{ ...CAB_ESTILO, width: '130px', color: '#5A6A80', background: 'rgba(0,32,96,0.01)' }}>
-                        <div style={CAB_DOS_RENGLONES}>Fecha</div>
+                        Fecha
                       </th>
                     )}
                   </React.Fragment>
