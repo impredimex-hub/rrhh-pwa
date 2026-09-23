@@ -10,6 +10,30 @@ import { hoyISO } from '../utils/fechas';
 import { cursoAplicaA } from '../utils/cursos';
 import { exportToExcel, exportToPDF, exportToExcelSheets, exportToPDFSections } from '../utils/exportUtils';
 
+/** Encabezado de la matriz: dos renglones fijos y ancho que no crece. */
+const CAB_ESTILO: React.CSSProperties = {
+  padding: '6px 8px', fontSize: '9px', fontWeight: 'bold',
+  color: 'var(--brand-navy)', textTransform: 'uppercase', verticalAlign: 'bottom'
+};
+
+/**
+ * Dos renglones exactos para el título, aunque ocupe uno solo (SPEC-041).
+ *
+ * Los nombres de las NOM son larguísimos y estiraban su columna hasta
+ * deformar la tabla. Con alto fijo, todas las columnas miden igual y lo que no
+ * cabe se recorta; el título completo queda en el `title` de la celda.
+ */
+/** Lo mismo para las celdas: dos renglones y lo que sobra se recorta. */
+const CELDA_DOS_RENGLONES: React.CSSProperties = {
+  display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+  overflow: 'hidden', wordBreak: 'break-word', lineHeight: '11px', maxHeight: '22px'
+};
+
+const CAB_DOS_RENGLONES: React.CSSProperties = {
+  display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+  overflow: 'hidden', wordBreak: 'break-word', lineHeight: '11px', height: '22px'
+};
+
 export const CursosModule: React.FC = () => {
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [cursos, setCursos] = useState<CursoCapacitacion[]>([]);
@@ -50,6 +74,15 @@ export const CursosModule: React.FC = () => {
   /** A quién no le toca el curso (SPEC-039). Viaja en el mismo documento. */
   const [excluidos, setExcluidos] = useState<Record<string, ExclusionCurso>>({});
   const [verExcluidos, setVerExcluidos] = useState(false);
+
+  /**
+   * Qué día del curso muestra su columna de fecha (SPEC-041).
+   *
+   * Un curso puede darse en varias fechas salteadas (SPEC-038) y la columna
+   * solo enseñaba la primera, que se leía como si fuera la única. Aquí se
+   * elige cuál ver; por omisión, la primera.
+   */
+  const [sesionVista, setSesionVista] = useState<Record<string, number>>({});
   const [marcados, setMarcados] = useState<Record<string, boolean>>({});
   const [califs, setCalifs] = useState<Record<string, string>>({});
   const [guardandoCursado, setGuardandoCursado] = useState(false);
@@ -675,23 +708,39 @@ export const CursosModule: React.FC = () => {
         <>
         {/* Tabla */}
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9.5px', lineHeight: '1.2' }}>
+{/* `tableLayout: fixed` impide que un título largo ensanche su columna:
+              sin esto el ancho lo decide el contenido más largo (SPEC-041). */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '9.5px', lineHeight: '1.2', tableLayout: 'fixed' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0' }}>
-                {columnasVisibles.noNomina !== false && <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}># Nómina</th>}
-                {columnasVisibles.nombre !== false && <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Nombre</th>}
-                {columnasVisibles.puesto !== false && <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Puesto</th>}
+                {columnasVisibles.noNomina !== false && <th style={{ ...CAB_ESTILO, width: '72px' }}><div style={CAB_DOS_RENGLONES}># Nómina</div></th>}
+                {columnasVisibles.nombre !== false && <th style={{ ...CAB_ESTILO, width: '180px' }}><div style={CAB_DOS_RENGLONES}>Nombre</div></th>}
+                {columnasVisibles.puesto !== false && <th style={{ ...CAB_ESTILO, width: '150px' }}><div style={CAB_DOS_RENGLONES}>Puesto</div></th>}
 
                 {cursos.map(cur => (
                   <React.Fragment key={cur.id}>
                     {columnasVisibles[`curso_${cur.id}`] !== false && (
-                      <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase', background: 'rgba(0,32,96,0.03)' }}>
-                        {cur.titulo}
+                      <th style={{ ...CAB_ESTILO, width: '190px', background: 'rgba(0,32,96,0.03)' }} title={cur.titulo}>
+                        <div style={CAB_DOS_RENGLONES}>{cur.titulo}</div>
                       </th>
                     )}
                     {columnasVisibles[`fecha_${cur.id}`] !== false && (
-                      <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: '#5A6A80', textTransform: 'uppercase', background: 'rgba(0,32,96,0.01)', whiteSpace: 'nowrap' }}>
-                        Fecha
+                      <th style={{ ...CAB_ESTILO, width: '130px', color: '#5A6A80', background: 'rgba(0,32,96,0.01)' }}>
+                        <div style={CAB_DOS_RENGLONES}>Fecha</div>
+                        {/* Con un solo día no hay nada que elegir; con varios,
+                            la lista dice cuáles son y cuál se está viendo. */}
+                        {(cur.sesiones?.length || 0) > 1 && (
+                          <select
+                            value={sesionVista[cur.id || ''] ?? 0}
+                            onChange={e => setSesionVista(prev => ({ ...prev, [cur.id || '']: Number(e.target.value) }))}
+                            title={`Este curso se da en ${cur.sesiones!.length} días`}
+                            style={{ width: '100%', height: '22px', marginTop: '3px', padding: '0 4px', fontSize: '8.5px', fontFamily: 'inherit', fontWeight: 600, color: 'var(--brand-navy)', borderRadius: '5px', border: '1px solid var(--border-mid)', background: '#fff' }}
+                          >
+                            {cur.sesiones!.map((s, i) => (
+                              <option key={i} value={i}>Día {i + 1} · {s.fecha}</option>
+                            ))}
+                          </select>
+                        )}
                       </th>
                     )}
                   </React.Fragment>
@@ -699,8 +748,8 @@ export const CursosModule: React.FC = () => {
 
                 {cursoActivo && (
                   <>
-                    <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>Cursado</th>
-                    <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase', textAlign: 'center', whiteSpace: 'nowrap' }}>Calif.</th>
+                    <th style={{ ...CAB_ESTILO, width: '66px', textAlign: 'center' }}>Cursado</th>
+                    <th style={{ ...CAB_ESTILO, width: '66px', textAlign: 'center' }}>Calif.</th>
                   </>
                 )}
                 {/* Quitar del curso: sin encabezado, para que no compita con
@@ -724,17 +773,27 @@ export const CursosModule: React.FC = () => {
                     )}
 
                     {columnasVisibles.nombre !== false && (
-                      <td style={{ padding: '5px 8px', fontWeight: 600 }}>{colab.nombreCompleto}</td>
+                      <td style={{ padding: '5px 8px', fontWeight: 600 }} title={colab.nombreCompleto}>
+                        <div style={CELDA_DOS_RENGLONES}>{colab.nombreCompleto}</div>
+                      </td>
                     )}
 
 
                     {columnasVisibles.puesto !== false && (
-                      <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>{colab.puesto || '-'}</td>
+                      <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }} title={colab.puesto || ''}>
+                        <div style={CELDA_DOS_RENGLONES}>{colab.puesto || '-'}</div>
+                      </td>
                     )}
 
                     {cursos.map(cur => {
                       const est = obtenerEstadoCurso(colab, cur);
-                      const duracion = calcularDuracion(cur.horaInicio, cur.horaFin);
+                      // El día que su columna tenga elegido; sin sesiones, lo
+                      // que guardaba el curso antes de la SPEC-038.
+                      const ses = cur.sesiones?.[sesionVista[cur.id || ''] ?? 0];
+                      const fechaCol = ses?.fecha || cur.fechaInicio;
+                      const hIni = ses?.horaInicio || cur.horaInicio || '09:00';
+                      const hFin = ses?.horaFin || cur.horaFin || '10:00';
+                      const duracion = calcularDuracion(hIni, hFin);
 
                       return (
                         <React.Fragment key={cur.id}>
@@ -758,10 +817,15 @@ export const CursosModule: React.FC = () => {
                             <td style={{ padding: '5px 8px', fontSize: '8.5px', color: 'var(--text-secondary)' }}>
                               {est ? (
                                 <div>
-                                  <div style={{ fontWeight: 600, color: 'var(--brand-navy-dark)' }}>{cur.fechaInicio}</div>
+                                  <div style={{ fontWeight: 600, color: 'var(--brand-navy-dark)' }}>{fechaCol}</div>
                                   <div style={{ fontSize: '8px', color: 'var(--text-light)' }}>
-                                    {cur.horaInicio || '09:00'} - {cur.horaFin || '10:00'} ({duracion})
+                                    {hIni} - {hFin} ({duracion})
                                   </div>
+                                  {(cur.sesiones?.length || 0) > 1 && (
+                                    <div style={{ fontSize: '8px', color: 'var(--brand-navy)', fontWeight: 600 }}>
+                                      día {(sesionVista[cur.id || ''] ?? 0) + 1} de {cur.sesiones!.length}
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
                                 <span style={{ color: 'var(--text-light)' }}>-</span>
