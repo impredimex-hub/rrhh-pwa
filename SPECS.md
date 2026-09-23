@@ -1987,9 +1987,16 @@ Dos problemas en la misma tabla:
 
 - **La tabla usa ancho fijo por columna.** Es lo único que impide que el
   contenido mande: sin eso, cualquier título largo vuelve a estirarla.
-- **Los encabezados ocupan dos renglones exactos**, aunque el título quepa en
-  uno, para que todos midan igual. Lo que no cabe se recorta y el título
-  completo queda al pasar el cursor.
+- **El título del curso usa dos renglones** y lo que no cabe no se ve; el
+  título completo queda al pasar el cursor. Los demás encabezados son de una
+  línea: el alto del renglón lo marca el título largo.
+- **Todos los encabezados van centrados**, a lo alto y a lo ancho. Con
+  alineación arriba o abajo, unos quedaban pegados al borde superior y otros al
+  inferior según su largo, y la fila se veía despareja.
+- **Hay que poner `white-space: normal` en el contenedor de adentro.**
+  `index.css` fuerza `white-space: nowrap !important` en toda celda de tabla y
+  eso se hereda: sin corregirlo, el texto nunca se parte en dos renglones, solo
+  se corta.
 - **El nombre y el puesto también se recortan a dos renglones**, o con ancho
   fijo crecerían hacia abajo y las filas quedarían de alturas distintas.
 

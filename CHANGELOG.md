@@ -12,9 +12,10 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 ### Corregido
 
 - **La matriz de cursos se deformaba con títulos largos** (SPEC-041). Ahora las
-  columnas tienen ancho fijo y los encabezados ocupan dos renglones exactos; lo
-  que no cabe se recorta y el título completo queda al pasar el cursor. El
-  nombre y el puesto también se recortan a dos renglones.
+  columnas tienen ancho fijo y el título del curso usa dos renglones; lo que no
+  cabe no se ve y el título completo queda al pasar el cursor. El nombre y el
+  puesto también se limitan a dos renglones, y todos los encabezados van
+  centrados a lo alto y a lo ancho.
 
 ### Agregado
 
