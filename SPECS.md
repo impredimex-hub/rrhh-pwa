@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.30
+**Versión objetivo:** 2.31
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -2020,6 +2020,41 @@ encabezado, y **se guarda**.
   una tabla que se desplaza de lado, un menú flotante se corta.
 - **Vive en el documento del curso**, junto a quién lo tomó, así que no cuesta
   ninguna lectura más.
+
+---
+
+# SPEC-042 — Agregar a alguien a un curso, y barra de filtros más corta
+
+### Barra de filtros
+
+Se retiran **los filtros de departamento y puesto** y **el botón de Columnas**.
+Quedan el curso, la búsqueda por nombre o nómina, y los botones. Con el curso
+elegido, filtrar además por área o puesto era acotar dos veces lo mismo, y las
+columnas siempre son las mismas tres más las del curso.
+
+### Agregar a alguien al curso
+
+Los cursos se dirigen por área y puesto (`cursoAplicaA`), pero a veces asiste
+alguien que no cae en ninguno de los dos. No había forma de incluirlo.
+
+- **Un campo con autocompletado** busca por nombre o nómina y agrega a esa
+  persona al curso filtrado.
+- **Solo aparece con un curso elegido**: sin curso no hay a qué agregar.
+- **Solo busca personal activo.**
+- **Requiere permiso de captura**, como marcar quién ya lo tomó.
+- **El campo se vacía al instante.** Es un botón de agregar, no un campo que
+  conserve a quién se eligió.
+
+### Reglas de negocio
+
+- **A quien ya está en el curso no se le agrega dos veces**, y se dice por qué.
+- **A quien está en «sin asignar» (SPEC-039) no se le agrega por aquí**: sería
+  contradictorio. Se le devuelve desde esa lista.
+- **Quitar a alguien agregado deshace el alta**, no lo anota como excluido: no
+  estaba en el curso de origen, así que marcarlo como «sin asignar» diría algo
+  que nunca fue cierto.
+- **Se guarda en el documento del curso**, bajo `incluidos`, junto a quién lo
+  tomó y a quién se le quitó. Ninguna lectura más.
 
 ---
 

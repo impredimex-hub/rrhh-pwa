@@ -7,6 +7,27 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.31.0] — 2026-09-24
+
+### Agregado
+
+- **Se puede agregar a una persona a un curso** aunque no le toque por área ni
+  por puesto (SPEC-042), con un campo de autocompletado que busca por nombre o
+  nómina. Solo aparece con un curso filtrado y con permiso de captura.
+
+### Quitado
+
+- **Los filtros de departamento y puesto** y **el botón de Columnas** de la
+  pestaña de Cursos. Con un curso elegido, filtrar por área o puesto era
+  acotar dos veces lo mismo.
+
+### Notas
+
+Quitar a alguien que fue agregado a mano deshace el alta, en lugar de anotarlo
+como «sin asignar»: nunca estuvo en el curso de origen.
+
+---
+
 ## [2.30.0] — 2026-09-24
 
 ### Corregido
