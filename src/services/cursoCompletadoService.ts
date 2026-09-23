@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc, updateDoc, deleteField, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/config';
-import type { RegistroCursoCompletado, ExclusionCurso } from '../types/rrhh';
+import type { RegistroCursoCompletado, ExclusionCurso, InclusionCurso } from '../types/rrhh';
 
 const COLLECTION_NAME = 'cursosCompletados';
 
@@ -24,7 +24,8 @@ export const subscribeCompletados = (
   callback: (
     registros: Record<string, RegistroCursoCompletado>,
     excluidos: Record<string, ExclusionCurso>,
-    sesionPorNomina: Record<string, number>
+    sesionPorNomina: Record<string, number>,
+    incluidos: Record<string, InclusionCurso>
   ) => void
 ) => {
   return onSnapshot(doc(db, COLLECTION_NAME, cursoId), (snap) => {
@@ -34,7 +35,8 @@ export const subscribeCompletados = (
     callback(
       (data?.registros || {}) as Record<string, RegistroCursoCompletado>,
       (data?.excluidos || {}) as Record<string, ExclusionCurso>,
-      (data?.sesionPorNomina || {}) as Record<string, number>
+      (data?.sesionPorNomina || {}) as Record<string, number>,
+      (data?.incluidos || {}) as Record<string, InclusionCurso>
     );
   });
 };
@@ -161,4 +163,24 @@ export const asignarSesionCurso = async (cursoId: string, nomina: string, indice
     { id: cursoId, sesionPorNomina: { [nomina]: indice }, actualizadoEn: serverTimestamp() },
     { merge: true }
   );
+};
+
+/**
+ * Agrega a alguien a un curso aunque no le toque por área ni por puesto
+ * (SPEC-042). Es el reverso de `excluirDelCurso`.
+ */
+export const agregarAlCurso = async (cursoId: string, nomina: string, reg: InclusionCurso) => {
+  await setDoc(
+    doc(db, COLLECTION_NAME, cursoId),
+    { id: cursoId, incluidos: { [nomina]: reg }, actualizadoEn: serverTimestamp() },
+    { merge: true }
+  );
+};
+
+/** Lo saca de la lista de agregados a mano. */
+export const quitarAgregado = async (cursoId: string, nomina: string) => {
+  await updateDoc(doc(db, COLLECTION_NAME, cursoId), {
+    [`incluidos.${nomina}`]: deleteField(),
+    actualizadoEn: serverTimestamp()
+  });
 };
