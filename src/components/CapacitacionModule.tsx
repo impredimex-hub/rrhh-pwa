@@ -402,8 +402,8 @@ export const CapacitacionModule: React.FC = () => {
             {/* Días del curso (SPEC-038). Primero cuántos son, y según eso
                 aparece la fecha y el horario de cada uno. No hay fecha fin:
                 los días pueden ser salteados. */}
-            <div>
-              <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>¿CUÁNTOS DÍAS DURA EL CURSO? *</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+              <label style={{ fontSize: '10px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>SESIONES DEL CURSO *</label>
               <input
                 type="number"
                 min={1}
