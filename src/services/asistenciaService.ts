@@ -95,12 +95,30 @@ export const subscribeAsistenciasRango = (
  * corre sobre un rol cualquiera de la lista y no sobre el que está abierto,
  * así que no tiene sus asistencias ya cargadas.
  */
+/* ── Caché de rangos ya leídos (SPEC-044) ─────────────────────────────────
+   Contar las faltas de todos los roles lee las asistencias del tramo que
+   cubren, que son miles de documentos. El efecto que lo pide se volvía a
+   disparar con cada emisión del padrón o de los roles, y cada disparo era otra
+   vez esos miles de lecturas.
+
+   Aquí se recuerda lo leído por rango durante unos minutos. Las asistencias de
+   días pasados no cambian, y las de hoy se refrescan al vencer el plazo. */
+const _cacheRangos = new Map<string, { claves: Set<string>; expira: number }>();
+const VIGENCIA_MS = 3 * 60 * 1000;
+
+/** Se llama cuando alguien corrige una falta a mano: lo leído deja de valer. */
+export const olvidarAsistenciasEnCache = () => _cacheRangos.clear();
+
 export const obtenerAsistenciasRango = async (
   fechaDesde: string,
   fechaHasta: string
 ): Promise<Set<string>> => {
   const claves = new Set<string>();
   if (!fechaDesde || !fechaHasta) return claves;
+
+  const llave = fechaDesde + '|' + fechaHasta;
+  const guardado = _cacheRangos.get(llave);
+  if (guardado && guardado.expira > Date.now()) return new Set(guardado.claves);
   try {
     const snap = await getDocs(query(
       collection(db, COLLECTION_NAME),
@@ -123,5 +141,6 @@ export const obtenerAsistenciasRango = async (
   const corregidas = await obtenerManualesRango(fechaDesde, fechaHasta);
   corregidas.forEach(k => claves.add(k));
 
+  _cacheRangos.set(llave, { claves: new Set(claves), expira: Date.now() + VIGENCIA_MS });
   return claves;
 };

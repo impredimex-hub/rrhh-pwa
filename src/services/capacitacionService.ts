@@ -11,6 +11,22 @@ let _escuchaCursos: (() => void) | null = null;
 let _cursos: CursoCapacitacion[] | null = null;
 const _suscriptores = new Set<(data: CursoCapacitacion[]) => void>();
 
+let _reintentos = 0;
+let _temporizador: ReturnType<typeof setTimeout> | null = null;
+
+/** Vuelve a abrir la escucha: 5 s, 10 s, 20 s… hasta un minuto. */
+function programarReintento() {
+  if (_temporizador) return;
+  const espera = Math.min(5000 * Math.pow(2, _reintentos), 60000);
+  _reintentos++;
+  _temporizador = setTimeout(() => {
+    _temporizador = null;
+    const receptores = Array.from(_suscriptores);
+    _suscriptores.clear();
+    receptores.forEach(cb => { subscribeCursos(cb); });
+  }, espera);
+}
+
 export const subscribeCursos = (callback: (data: CursoCapacitacion[]) => void) => {
   _suscriptores.add(callback);
   if (_cursos) callback(_cursos);
@@ -19,10 +35,21 @@ export const subscribeCursos = (callback: (data: CursoCapacitacion[]) => void) =
     _escuchaCursos = onSnapshot(
       query(collection(db, COLLECTION_NAME), orderBy('fechaInicio', 'asc')),
       (snapshot) => {
+        _reintentos = 0;
         _cursos = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CursoCapacitacion));
         _suscriptores.forEach(cb => cb(_cursos!));
       },
-      (err) => { console.error('No se pudieron leer los cursos:', err); }
+      (err) => {
+        /* Una escucha que falla queda muerta: Firestore no vuelve a mandar
+           nada por ella. Antes se conservaba la referencia como si siguiera
+           viva, así que nadie abría otra y todos se quedaban con lo último
+           leído, sin enterarse. Aquí se suelta y se vuelve a intentar, con
+           esperas cada vez más largas para no insistir contra una red caída. */
+        console.error('No se pudo leer %s:', 'los cursos', err);
+        if (_escuchaCursos) { try { _escuchaCursos(); } catch { /* ya estaba cerrada */ } }
+        _escuchaCursos = null;
+        if (_suscriptores.size > 0) programarReintento();
+      }
     );
   }
 

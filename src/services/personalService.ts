@@ -71,6 +71,22 @@ let _escuchaPadron: (() => void) | null = null;
 let _padron: Colaborador[] | null = null;
 const _suscriptores = new Set<(data: Colaborador[]) => void>();
 
+let _reintentos = 0;
+let _temporizador: ReturnType<typeof setTimeout> | null = null;
+
+/** Vuelve a abrir la escucha: 5 s, 10 s, 20 s… hasta un minuto. */
+function programarReintento() {
+  if (_temporizador) return;
+  const espera = Math.min(5000 * Math.pow(2, _reintentos), 60000);
+  _reintentos++;
+  _temporizador = setTimeout(() => {
+    _temporizador = null;
+    const receptores = Array.from(_suscriptores);
+    _suscriptores.clear();
+    receptores.forEach(cb => { subscribeColaboradores(cb); });
+  }, espera);
+}
+
 export const subscribeColaboradores = (callback: (data: Colaborador[]) => void) => {
   _suscriptores.add(callback);
 
@@ -81,12 +97,20 @@ export const subscribeColaboradores = (callback: (data: Colaborador[]) => void) 
     _escuchaPadron = onSnapshot(
       query(collection(db, COLLECTION_NAME)),
       (snapshot) => {
+        _reintentos = 0;
         _padron = ordenarPorNomina(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Colaborador)));
         _suscriptores.forEach(cb => cb(_padron!));
       },
       (err) => {
-        // Sin esto, un fallo dejaría a todos esperando en silencio.
-        console.error('No se pudo leer el padrón:', err);
+        /* Una escucha que falla queda muerta: Firestore no vuelve a mandar
+           nada por ella. Antes se conservaba la referencia como si siguiera
+           viva, así que nadie abría otra y todos se quedaban con lo último
+           leído, sin enterarse. Aquí se suelta y se vuelve a intentar, con
+           esperas cada vez más largas para no insistir contra una red caída. */
+        console.error('No se pudo leer %s:', 'el padrón', err);
+        if (_escuchaPadron) { try { _escuchaPadron(); } catch { /* ya estaba cerrada */ } }
+        _escuchaPadron = null;
+        if (_suscriptores.size > 0) programarReintento();
       }
     );
   }
