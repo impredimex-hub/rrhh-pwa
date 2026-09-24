@@ -7,6 +7,26 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.32.0] — 2026-09-24
+
+### Corregido
+
+- **Cambiar de pestaña volvía a leer el padrón completo** (SPEC-043). Siete
+  pestañas se suscribían por su cuenta y cada cambio releía los 122
+  documentos: veinte cambios eran 2 440 lecturas de una sola persona. El
+  proyecto de la suite llegó a 52 000 lecturas en un día, contra un límite de
+  50 000. Ahora todas comparten una sola escucha y la lista ya leída se
+  entrega al instante.
+- Lo mismo con los cursos, que Capacitación y Cursos compartían.
+
+### Notas
+
+Al agotarse la cuota, Firestore deja de responder y las tablas salen vacías sin
+error visible. Es la explicación más probable de las fallas intermitentes, y de
+que desaparecieran al día siguiente.
+
+---
+
 ## [2.31.0] — 2026-09-24
 
 ### Agregado

@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.31
+**Versión objetivo:** 2.32
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -2055,6 +2055,49 @@ alguien que no cae en ninguno de los dos. No había forma de incluirlo.
   que nunca fue cierto.
 - **Se guarda en el documento del curso**, bajo `incluidos`, junto a quién lo
   tomó y a quién se le quitó. Ninguna lectura más.
+
+---
+
+# SPEC-043 — El padrón se lee una sola vez por sesión
+
+### Por qué
+
+El proyecto de la suite llegó a **52 000 lecturas en 24 horas**, contra un
+límite gratuito de 50 000 al día. Al agotarse, Firestore deja de responder: las
+tablas salen vacías, las listas no cargan y la app parece rota **sin ningún
+error visible**. Es la explicación más probable de las fallas intermitentes que
+veníamos persiguiendo, y por eso desaparecían al día siguiente: la cuota se
+reinicia a medianoche.
+
+### La causa
+
+- **Siete pestañas se suscriben al padrón**, cada una por su cuenta.
+- **Cambiar de pestaña desmonta un módulo y monta otro**, así que cada cambio
+  abría una suscripción nueva y volvía a leer los 122 documentos.
+- Veinte cambios de pestaña eran **2 440 lecturas de una sola persona**. Con
+  quince personas y varias sesiones al día, cincuenta mil se alcanzan sin
+  esfuerzo.
+
+### La regla
+
+- **Una sola escucha para toda la aplicación.** Quien se suscribe después
+  recibe de inmediato lo último leído, sin tocar la red.
+- **La escucha no se cierra al salir de la pestaña.** Cerrarla obligaría a leer
+  todo otra vez al volver, que es exactamente lo que se quiere evitar. Una
+  escucha abierta solo cobra los documentos que cambian, y muere al recargar la
+  página.
+- **Lo mismo aplica a los cursos**, que Capacitación y Cursos comparten.
+- **Cualquier colección que lean dos pestañas va así.** Suscribirse por módulo
+  parece inocuo y se paga en lecturas cada vez que alguien navega.
+
+Medido con el mecanismo real: veinte cambios de pestaña pasan de 2 562 lecturas
+a 122.
+
+### Lo que esto no resuelve
+
+Sigue habiendo una lectura completa del padrón por cada carga de página, en cada
+app. Guardar los datos en el dispositivo —para que al recargar solo se pidan los
+documentos que cambiaron— es el siguiente paso y está pendiente.
 
 ---
 
