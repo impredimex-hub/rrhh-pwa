@@ -58,12 +58,44 @@ export const ordenarPorNomina = (lista: Colaborador[]): Colaborador[] => {
   });
 };
 
+/* ── El padrón se lee una sola vez por sesión (SPEC-043) ──────────────────
+   Siete pestañas se suscriben al padrón, y al cambiar de pestaña React
+   desmonta una y monta otra. Con una suscripción por módulo, cada cambio de
+   pestaña volvía a leer los 122 documentos: veinte cambios eran 2 440
+   lecturas por persona, y el proyecto de la suite llegó a 52 000 en un día
+   contra un límite de 50 000.
+
+   Ahora todos comparten **una sola escucha**. Quien llega después recibe de
+   inmediato lo último que se leyó, sin tocar la red. */
+let _escuchaPadron: (() => void) | null = null;
+let _padron: Colaborador[] | null = null;
+const _suscriptores = new Set<(data: Colaborador[]) => void>();
+
 export const subscribeColaboradores = (callback: (data: Colaborador[]) => void) => {
-  const q = query(collection(db, COLLECTION_NAME));
-  return onSnapshot(q, (snapshot) => {
-    const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Colaborador));
-    callback(ordenarPorNomina(data));
-  });
+  _suscriptores.add(callback);
+
+  // Lo ya leído, al instante: cambiar de pestaña no cuesta ninguna lectura.
+  if (_padron) callback(_padron);
+
+  if (!_escuchaPadron) {
+    _escuchaPadron = onSnapshot(
+      query(collection(db, COLLECTION_NAME)),
+      (snapshot) => {
+        _padron = ordenarPorNomina(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Colaborador)));
+        _suscriptores.forEach(cb => cb(_padron!));
+      },
+      (err) => {
+        // Sin esto, un fallo dejaría a todos esperando en silencio.
+        console.error('No se pudo leer el padrón:', err);
+      }
+    );
+  }
+
+  /* Al desuscribirse solo se quita este receptor: **la escucha sigue viva**.
+     Cerrarla al salir de la pestaña obligaría a leer todo otra vez al
+     volver, que es justo lo que se quiere evitar. Una escucha abierta solo
+     cobra los documentos que cambian. Muere al recargar la página. */
+  return () => { _suscriptores.delete(callback); };
 };
 
 /**
