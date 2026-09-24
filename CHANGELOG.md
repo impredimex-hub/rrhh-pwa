@@ -7,6 +7,28 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.33.0] — 2026-09-24
+
+### Corregido
+
+- **El conteo de faltas releía miles de asistencias sin razón** (SPEC-044). El
+  efecto dependía de los arreglos de roles y personal, que Firestore vuelve a
+  crear con cada emisión aunque traigan lo mismo. Ahora depende de una huella
+  de contenido, y los rangos ya leídos se recuerdan tres minutos.
+- **Una escucha rechazada se daba por viva** (SPEC-045). Era un defecto
+  introducido al compartir las escuchas: nadie abría otra y todos se quedaban
+  con datos viejos sin aviso. Ahora se suelta y se reintenta sola, con esperas
+  crecientes.
+
+### Notas
+
+La consulta de asistencias sigue siendo cara cuando toca hacerla: lee las de
+toda la planta en el tramo para saber de unas cuantas personas. Si el consumo
+no baja lo suficiente, el paso siguiente es calcular las faltas solo cuando se
+piden.
+
+---
+
 ## [2.32.0] — 2026-09-24
 
 ### Corregido

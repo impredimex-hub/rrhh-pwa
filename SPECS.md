@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.32
+**Versión objetivo:** 2.33
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -2098,6 +2098,62 @@ a 122.
 Sigue habiendo una lectura completa del padrón por cada carga de página, en cada
 app. Guardar los datos en el dispositivo —para que al recargar solo se pidan los
 documentos que cambiaron— es el siguiente paso y está pendiente.
+
+---
+
+# SPEC-044 — El conteo de faltas deja de releer las asistencias
+
+### Por qué
+
+Después de compartir el padrón (SPEC-043), el consumo siguió alto: 2 800
+lecturas en doce minutos. La causa es otra y más cara.
+
+Para poner el número de faltas junto a cada rol, se leen **todas las
+asistencias del tramo que cubren los roles juntos**. Con seis roles repartidos
+en varias semanas, eso son miles de documentos en una sola consulta. Y el
+efecto que la pedía dependía de los arreglos `roles` y `activos`: cada emisión
+de Firestore los vuelve a crear aunque traigan lo mismo, así que la consulta se
+repetía sin que hubiera cambiado nada.
+
+### Las reglas
+
+- **El efecto depende de una huella de contenido, no de los arreglos.** Solo
+  corre cuando cambia algo que de verdad altera el conteo: los roles, sus
+  asignaciones, o el área de alguien.
+- **Los rangos ya leídos se recuerdan tres minutos.** Las asistencias de días
+  pasados no cambian; las de hoy se refrescan al vencer el plazo.
+- **Corregir una falta a mano invalida lo recordado** (SPEC-032), o el conteo
+  seguiría mostrando la falta que se acaba de perdonar.
+
+### Lo que sigue pendiente
+
+La consulta, cuando toca hacerla, sigue siendo cara: lee las asistencias de
+toda la planta en ese tramo para saber de unas cuantas personas. Si con esto no
+baja lo suficiente, el paso siguiente es **calcular las faltas solo cuando se
+piden**, en lugar de al abrir la pestaña.
+
+---
+
+# SPEC-045 — Una escucha que falla se vuelve a abrir
+
+### Por qué
+
+Al compartir las escuchas (SPEC-043) se introdujo un defecto: si Firestore
+rechazaba la escucha, el código **conservaba la referencia como si siguiera
+viva**. Firestore no vuelve a mandar nada por una escucha caída, así que nadie
+abría otra y todos se quedaban con lo último leído, sin enterarse de que ya no
+llegaba nada. Volver a entrar a la pestaña entregaba esos datos viejos sin
+iniciar una escucha nueva.
+
+### Las reglas
+
+- **Una escucha que falla se suelta**, para que la siguiente suscripción abra
+  una nueva.
+- **Se reintenta sola**, sin esperar a que alguien recargue: a los 5 segundos,
+  luego 10, 20, y así hasta un minuto. Insistir cada segundo contra una red
+  caída no arregla nada y gasta.
+- **Al reconectar se reinicia la cuenta**, para que el siguiente corte no
+  arranque con un minuto de espera.
 
 ---
 
