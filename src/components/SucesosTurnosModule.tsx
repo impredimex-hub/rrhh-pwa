@@ -7,7 +7,7 @@ import { ETIQUETA_SUCESO, HORARIO_TURNO, etiquetaTurno } from '../types/rrhh';
 import { subscribeColaboradores, asignarDepartamentosTurnos, asignarReporteFaltasTodas, asignarCapturaPromociones, asignarVerGraficas, asignarRevertirFaltas } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
 import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino } from '../services/turnoService';
-import { subscribeAsistenciasRango, obtenerAsistenciasRango } from '../services/asistenciaService';
+import { subscribeAsistenciasRango, obtenerAsistenciasRango, olvidarAsistenciasEnCache } from '../services/asistenciaService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { puedeVerGraficas, puedeRevertirFaltas } from '../services/permisosPadron';
 import { marcarAsistenciaManual } from '../services/asistenciaManualService';
@@ -599,7 +599,23 @@ export const SucesosTurnosModule: React.FC = () => {
   const [repCargando, setRepCargando] = useState(false);
   const [repError, setRepError] = useState('');
 
-  /** Quien puede pedir el reporte de todas las áreas de una sola vez. */
+  /**
+   * Huella de lo que de verdad cambia el conteo de faltas (SPEC-044).
+   *
+   * El efecto dependía de los arreglos `roles` y `activos`, y cada emisión de
+   * Firestore los vuelve a crear aunque traigan lo mismo. Así el conteo se
+   * rehacía —y con él la consulta de miles de asistencias— sin que hubiera
+   * cambiado nada. Con una huella de texto, solo corre cuando cambia el
+   * contenido.
+   */
+  const huellaFaltas = useMemo(
+    () => JSON.stringify([
+      roles.map(r => [r.id, r.fechaInicio, r.periodo, r.departamento, Object.keys(r.asignaciones || {}).length]),
+      activos.map(c => [c.noNomina, c.departamento])
+    ]),
+    [roles, activos]
+  );
+
   useEffect(() => {
     if (!roles.length || !activos.length) { setFaltasPorRol({}); return; }
 
@@ -651,7 +667,9 @@ export const SucesosTurnosModule: React.FC = () => {
       .finally(() => { if (vigente) setContandoFaltas(false); });
 
     return () => { vigente = false; };
-  }, [roles, activos]);
+    // Intencionalmente por huella y no por los arreglos: ver `huellaFaltas`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [huellaFaltas]);
 
   const verGraficas = useMemo(
     () => puedeVerGraficas(papel, sesion?.nomina, colaboradores),
@@ -843,6 +861,8 @@ export const SucesosTurnosModule: React.FC = () => {
         porNombre: sesion?.nombre || ''
       };
       await marcarAsistenciaManual(reg);
+      // Lo leído ya no refleja la realidad: el conteo de faltas debe rehacerse.
+      olvidarAsistenciasEnCache();
       setRepFilas(prev => (prev || []).filter(f => !(f['# Nómina'] === nom && f['Fecha'] === fecha)));
     } catch (err: any) {
       alert('No se pudo guardar la corrección: ' + (err?.message || 'Error desconocido'));
