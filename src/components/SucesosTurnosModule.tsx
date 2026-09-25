@@ -7,7 +7,7 @@ import { ETIQUETA_SUCESO, HORARIO_TURNO, etiquetaTurno } from '../types/rrhh';
 import { subscribeColaboradores, areasACargoDe, asignarReporteFaltasTodas, asignarCapturaPromociones, asignarVerGraficas, asignarRevertirFaltas } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
 import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino } from '../services/turnoService';
-import { subscribeFaltasRango, obtenerFaltasRango, borrarFaltaReportada, olvidarFaltasEnCache } from '../services/faltasService';
+import { subscribeFaltasRango, obtenerFaltasRango, obtenerFaltasDetalleRango, borrarFaltaReportada, olvidarFaltasEnCache } from '../services/faltasService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { puedeVerGraficas, puedeRevertirFaltas } from '../services/permisosPadron';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
@@ -693,7 +693,8 @@ export const SucesosTurnosModule: React.FC = () => {
     setRepError('');
     setRepFilas(null);
     try {
-      const faltas = await obtenerFaltasRango(repDesde, repHasta);
+      const reportadas = await obtenerFaltasDetalleRango(repDesde, repHasta);
+      const faltas = new Set(reportadas.map(r => `${r.nomina}|${r.fecha}`));
       const ahoraRep = new Date();
       // Dos roles del mismo departamento pueden solaparse en fechas; sin esto
       // la misma falta se contaría dos veces.
@@ -726,13 +727,33 @@ export const SucesosTurnosModule: React.FC = () => {
         }
       }
 
+      /* Faltas reportadas de gente que **no tenía turno asignado** ese día
+         (SPEC-047). Sin esto quedarían guardadas y nadie las vería: pasa
+         cuando el área no lleva rol, o cuando el rol de esos días todavía no
+         se programó. Se marcan para que se note la diferencia, en vez de
+         mezclarlas con las que sí incumplieron un turno. */
+      for (const r of reportadas) {
+        const k = `${r.nomina}|${r.fecha}`;
+        if (vistos.has(k)) continue;
+        if (repDepto !== '__TODOS__' && r.area !== repDepto) continue;
+        vistos.add(k);
+        filas.push({
+          'Fecha': r.fecha,
+          '# Nómina': r.nomina,
+          'Colaborador': r.nombre,
+          'Departamento': r.area,
+          'Turno': r.turno,
+          'Rol': '— sin rol asignado ese día —'
+        });
+      }
+
       filas.sort((x, y) => x['Fecha'].localeCompare(y['Fecha']) || x['Colaborador'].localeCompare(y['Colaborador']));
       setRepFilas(filas);
     } catch (err) {
       console.error(err);
       // Sin asistencias, todo turno terminado parecería falta: mejor no
       // entregar un reporte que acusaría a quien sí vino.
-      setRepError('No se pudieron leer las asistencias. El reporte no se generó para no reportar faltas equivocadas.');
+      setRepError('No se pudieron leer las faltas reportadas. El reporte no se generó.');
     } finally {
       setRepCargando(false);
     }
@@ -755,7 +776,8 @@ export const SucesosTurnosModule: React.FC = () => {
     setGrafError('');
     setGrafFaltas(null);
     try {
-      const faltas = await obtenerFaltasRango(desde, hasta);
+      const reportadas = await obtenerFaltasDetalleRango(desde, hasta);
+      const faltas = new Set(reportadas.map(r => `${r.nomina}|${r.fecha}`));
       const ahora = new Date();
       const vistos = new Set<string>();
       const filas: { fecha: string; depto: string }[] = [];
@@ -778,12 +800,21 @@ export const SucesosTurnosModule: React.FC = () => {
           }
         }
       }
+      /* Las reportadas sin turno asignado ese día también cuentan: la gráfica
+         mide cuántas faltas hubo, no cuántos roles estaban programados
+         (SPEC-047). */
+      for (const r of reportadas) {
+        const k = `${r.nomina}|${r.fecha}`;
+        if (vistos.has(k)) continue;
+        if (!puedeReporteTodas && !departamentos.includes(r.area)) continue;
+        vistos.add(k);
+        filas.push({ fecha: r.fecha, depto: r.area });
+      }
+
       setGrafFaltas(filas);
     } catch (err) {
       console.error(err);
-      // Sin asistencias todo turno terminado parecería falta: no se grafica
-      // nada antes que pintar ausencias de gente que sí vino.
-      setGrafError('No se pudieron leer las asistencias. La gráfica no se generó para no mostrar faltas equivocadas.');
+      setGrafError('No se pudieron leer las faltas reportadas. La gráfica no se generó.');
     } finally {
       setGrafCargando(false);
     }
