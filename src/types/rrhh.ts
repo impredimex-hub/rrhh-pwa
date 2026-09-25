@@ -26,6 +26,18 @@ export interface Colaborador {
    * importación de Excel ni la edición normal del padrón: solo la pantalla de
    * permisos, para que un archivo mal armado no borre permisos en silencio.
    */
+  /**
+   * Áreas que esta persona supervisa (SPEC-046).
+   *
+   * Es una relación distinta de `departamento`: ese dice dónde pertenece, y
+   * este a quiénes tiene a cargo. Los supervisores de impresión pertenecen a
+   * OPERACIONES y tienen a cargo FLEXOGRAFÍA y ROTOGRABADO.
+   *
+   * Manda sobre qué roles de turno puede crear y de quién puede reportar
+   * faltas. Se administra desde el Directorio, nunca desde el código.
+   */
+  areasACargo?: string[];
+  /** @deprecated Antecesor de `areasACargo`. Se lee como respaldo. */
   departamentosTurnos?: string[];
   /**
    * Puede sacar el reporte de faltas de **todas** las áreas de una sola vez
