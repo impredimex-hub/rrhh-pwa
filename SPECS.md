@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.34
+**Versión objetivo:** 2.35
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -2198,6 +2198,70 @@ Lo que hacía falta era otra relación: **quién supervisa a quién**.
 - **Al guardar se escriben los dos campos.** Si alguien abre una versión
   anterior de la app mientras termina el cambio, sigue viendo lo mismo.
 - Cuando todos los documentos tengan el campo nuevo, el viejo se retira.
+
+---
+
+# SPEC-047 — La falta se reporta, ya no se deduce
+
+### Por qué
+
+La falta se deducía cada vez que alguien miraba: se cruzaban los turnos
+asignados contra las revisiones de EPP, y quien no tenía revisión salía como
+ausente. Eso traía tres problemas encadenados.
+
+**Faltas falsas.** Si no se hizo la revisión, la app acusaba a quien sí vino.
+De ahí nació el «Sí vino» (SPEC-032): un mecanismo entero para tapar ese hueco.
+
+**Costo.** Contar las faltas de un mes leía todas las asistencias de la planta
+en ese tramo: cerca de dos mil documentos, y se repetía en cada consulta. El
+proyecto de la suite llegó a 52 000 lecturas en un día, contra un límite de
+50 000.
+
+**Y dependía de una disciplina que no se cumplía**: revisar a ciento veintidós
+personas cada día.
+
+### Cómo funciona ahora
+
+- **La falta se reporta desde EPP**, al abrir la app y antes de revisar
+  (SPEC-047 de EPP). Es un dato escrito, con nombre, área, turno y firma de
+  quién lo reportó.
+- **RRHH la lee de la colección `faltas`**: un documento por día. Un mes son
+  treinta documentos.
+- **RRHH ya no lee la colección de asistencias.** Es de donde salía el consumo.
+
+### El significado de la cuadrícula cambió
+
+Antes la palomita era «hay revisión de EPP» y la cruz «no la hay». Ahora:
+
+- **Cruz: falta reportada.** Se muestra en cuanto se reporta, aunque el turno
+  siga en curso: alguien la afirmó, no es una deducción que pueda equivocarse.
+- **Palomita: el turno terminó y nadie reportó nada.**
+- **Sin marca: el turno no ha terminado**, así que todavía no hay nada que
+  afirmar. Y un descanso nunca se evalúa.
+
+### El «Sí vino» se retira
+
+Ya no hay falta falsa que perdonar. En su lugar, el reporte trae **Borrar
+falta**, para el caso de un reporte equivocado. Es más honesto: se quita el
+renglón en vez de añadir otro que lo contradiga. Lo usa quien tenga el permiso
+de revertir faltas, y sigue pidiendo confirmación con nombre y fecha a la
+vista, porque no se puede deshacer.
+
+### Lo que se acepta a cambio
+
+**La falta depende de que alguien la reporte.** Antes dependía de que alguien
+hiciera la revisión. Se cambia una disciplina por otra, más corta: reportar tres
+nombres contra revisar a ciento veintidós.
+
+Por eso «Terminar» sin nadie en la lista deja constancia de que no hubo faltas:
+sin eso no habría forma de distinguir un día limpio de un día en que nadie
+reportó.
+
+### Lo que queda de lo anterior
+
+La colección `asistencia` sigue existiendo y EPP sigue escribiéndola. Ya no la
+lee nadie para las faltas, así que no cuesta lecturas. Se conserva por si algún
+día sirve para otra cosa.
 
 ---
 

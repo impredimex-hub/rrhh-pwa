@@ -7,6 +7,31 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.35.0] — 2026-09-25
+
+### Cambiado
+
+- **La falta se reporta desde EPP, ya no se deduce** (SPEC-047). RRHH lee la
+  colección `faltas` —un documento por día, treinta para un mes— y **deja de
+  leer las asistencias**, que eran cerca de dos mil documentos por consulta y
+  de donde salía el consumo.
+- **La cuadrícula del rol cambia de significado:** la cruz es una falta
+  reportada y la palomita, que el turno terminó sin que nadie reportara nada.
+  Desaparecen las faltas falsas de los días sin revisión.
+
+### Quitado
+
+- **El «Sí vino».** Ya no hay falta falsa que perdonar. En su lugar, el reporte
+  trae **Borrar falta**, para un reporte equivocado: se quita el renglón en vez
+  de añadir otro que lo contradiga.
+
+### Notas
+
+La colección `asistencia` sigue existiendo y EPP sigue escribiéndola; ya no la
+lee nadie para las faltas.
+
+---
+
 ## [2.34.0] — 2026-09-25
 
 ### Agregado
