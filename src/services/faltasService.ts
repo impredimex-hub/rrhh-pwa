@@ -55,6 +55,50 @@ export const obtenerFaltasRango = async (
   return claves;
 };
 
+/** Una falta reportada, con todo lo que EPP guardó de ella. */
+export interface FaltaReportada {
+  fecha: string;
+  nomina: string;
+  nombre: string;
+  area: string;
+  turno: string;
+  porNombre: string;
+}
+
+/**
+ * Las faltas del rango con su detalle (SPEC-047).
+ *
+ * Hace falta para el reporte: una falta de alguien **sin turno asignado** ese
+ * día no se puede describir a partir del rol, porque no hay rol. Sin su
+ * detalle quedaría guardada y nadie la vería nunca.
+ */
+export const obtenerFaltasDetalleRango = async (
+  fechaDesde: string,
+  fechaHasta: string
+): Promise<FaltaReportada[]> => {
+  if (!fechaDesde || !fechaHasta) return [];
+  const snap = await getDocs(query(
+    collection(db, COLLECTION_NAME),
+    where('fecha', '>=', fechaDesde),
+    where('fecha', '<=', fechaHasta)
+  ));
+  const salida: FaltaReportada[] = [];
+  snap.docs.forEach(d => {
+    const data: any = d.data();
+    Object.entries(data?.reportes || {}).forEach(([nomina, r]: [string, any]) => {
+      salida.push({
+        fecha: data.fecha,
+        nomina,
+        nombre: r?.nombre || '',
+        area: String(r?.area || '').trim().toUpperCase(),
+        turno: r?.turno || '',
+        porNombre: r?.porNombre || ''
+      });
+    });
+  });
+  return salida;
+};
+
 /** En vivo, para la cuadrícula del rol abierto. */
 export const subscribeFaltasRango = (
   fechaDesde: string,
