@@ -4,7 +4,7 @@ import type {
   Colaborador, Suceso, TipoSuceso, RolTurnos, PeriodoRol, ClaveTurno, AsignacionTurno, AsistenciaManual
 } from '../types/rrhh';
 import { ETIQUETA_SUCESO, HORARIO_TURNO, etiquetaTurno } from '../types/rrhh';
-import { subscribeColaboradores, asignarDepartamentosTurnos, asignarReporteFaltasTodas, asignarCapturaPromociones, asignarVerGraficas, asignarRevertirFaltas } from '../services/personalService';
+import { subscribeColaboradores, areasACargoDe, asignarReporteFaltasTodas, asignarCapturaPromociones, asignarVerGraficas, asignarRevertirFaltas } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
 import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino } from '../services/turnoService';
 import { subscribeAsistenciasRango, obtenerAsistenciasRango, olvidarAsistenciasEnCache } from '../services/asistenciaService';
@@ -145,7 +145,7 @@ export const SucesosTurnosModule: React.FC = () => {
     if (esAdmin) return departamentos;
     if (!sesion) return [];
     const yo = colaboradores.find(c => c.noNomina === sesion.nomina);
-    const asignados = (yo?.departamentosTurnos || []).map(d => d.trim().toUpperCase());
+    const asignados = areasACargoDe(yo);
     // Se cruza contra los departamentos que existen hoy: si uno se renombró o
     // se quedó sin personal, no tiene caso ofrecerlo.
     return departamentos.filter(d => asignados.includes(d));
@@ -291,23 +291,6 @@ export const SucesosTurnosModule: React.FC = () => {
   const [buscaPermisos, setBuscaPermisos] = useState('');
   const [guardandoPermiso, setGuardandoPermiso] = useState('');
 
-  const alternarDepartamento = async (c: Colaborador, depto: string) => {
-    if (!esAdmin || guardandoPermiso) return;
-    const actuales = (c.departamentosTurnos || []).map(d => d.trim().toUpperCase());
-    const siguientes = actuales.includes(depto)
-      ? actuales.filter(d => d !== depto)
-      : [...actuales, depto].sort();
-    setGuardandoPermiso(c.noNomina);
-    try {
-      await asignarDepartamentosTurnos(c.noNomina, siguientes, sesion?.nomina || '');
-    } catch (err) {
-      console.error(err);
-      alert('No se pudo guardar el permiso. Revisa tu conexión e inténtalo de nuevo.');
-    } finally {
-      setGuardandoPermiso('');
-    }
-  };
-
   const alternarReporteTodas = async (c: Colaborador) => {
     if (!esAdmin || guardandoPermiso) return;
     setGuardandoPermiso(c.noNomina);
@@ -370,8 +353,8 @@ export const SucesosTurnosModule: React.FC = () => {
           (c.departamento || '').toUpperCase().includes(t))
       : activos;
     return [...base].sort((a, b) => {
-      const na = ((a.departamentosTurnos || []).length || a.reporteFaltasTodas || a.capturaPromociones || a.verGraficas) ? 0 : 1;
-      const nb = ((b.departamentosTurnos || []).length || b.reporteFaltasTodas || b.capturaPromociones || b.verGraficas) ? 0 : 1;
+      const na = (areasACargoDe(a).length || a.reporteFaltasTodas || a.capturaPromociones || a.verGraficas) ? 0 : 1;
+      const nb = (areasACargoDe(b).length || b.reporteFaltasTodas || b.capturaPromociones || b.verGraficas) ? 0 : 1;
       if (na !== nb) return na - nb;
       return (a.nombreCompleto || '').localeCompare(b.nombreCompleto || '');
     });
@@ -920,7 +903,7 @@ export const SucesosTurnosModule: React.FC = () => {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {personasPermisos.map(c => {
-              const suyos = (c.departamentosTurnos || []).map(d => d.trim().toUpperCase());
+              const suyos = areasACargoDe(c);
               const ocupado = guardandoPermiso === c.noNomina;
               return (
                 <div key={c.noNomina} style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '9px 11px', background: (suyos.length || c.reporteFaltasTodas || c.capturaPromociones || c.verGraficas || c.revertirFaltas) ? 'var(--brand-navy-light)' : '#fff', opacity: ocupado ? 0.55 : 1 }}>
@@ -930,27 +913,16 @@ export const SucesosTurnosModule: React.FC = () => {
                   <div style={{ fontSize: '9.5px', color: 'var(--text-light)', marginBottom: '6px' }}>
                     #{c.noNomina} · {c.departamento || 'sin departamento'} · {c.puesto || 'sin puesto'}
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                    {departamentos.map(d => {
-                      const activo = suyos.includes(d);
-                      return (
-                        <button
-                          key={d}
-                          onClick={() => alternarDepartamento(c, d)}
-                          disabled={ocupado}
-                          style={{
-                            fontSize: '9.5px', fontWeight: activo ? 700 : 400,
-                            padding: '3px 9px', borderRadius: '20px',
-                            border: '1px solid ' + (activo ? 'var(--brand-navy)' : 'var(--border-light)'),
-                            background: activo ? 'var(--brand-navy)' : '#fff',
-                            color: activo ? '#fff' : 'var(--text-secondary)',
-                            cursor: ocupado ? 'wait' : 'pointer', fontFamily: 'inherit'
-                          }}
-                        >
-                          {d}
-                        </button>
-                      );
-                    })}
+                  {/* Las áreas a cargo se administran en el Directorio,
+                      junto a los accesos (SPEC-046). Aquí solo se muestran,
+                      para no tener el mismo dato en dos pantallas. */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '9.5px', color: 'var(--text-light)' }}>Áreas a cargo:</span>
+                    {suyos.length === 0
+                      ? <span style={{ fontSize: '9.5px', color: 'var(--text-light)' }}>ninguna</span>
+                      : suyos.map(d => (
+                          <span key={d} style={{ fontSize: '9.5px', fontWeight: 700, padding: '3px 9px', borderRadius: '20px', background: 'var(--brand-navy)', color: '#fff' }}>{d}</span>
+                        ))}
                   </div>
 
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '10px', color: 'var(--text-secondary)', cursor: ocupado ? 'wait' : 'pointer' }}>

@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { KeyRound, AlertTriangle } from 'lucide-react';
+import { KeyRound, AlertTriangle, Users } from 'lucide-react';
 import type { Colaborador } from '../types/rrhh';
 import { APPS_SUITE, leerAcceso } from '../utils/accesosSuite';
-import { asignarAccesos } from '../services/personalService';
+import { asignarAccesos, asignarAreasACargo, areasACargoDe } from '../services/personalService';
 
 /** Valor del selector para «sin acceso». */
 const SIN_ACCESO = '';
@@ -11,6 +11,8 @@ const NO_RECONOCIDO = '__no_reconocido__';
 
 interface Props {
   colab: Colaborador;
+  /** Los departamentos que existen hoy en el padrón. */
+  departamentos: string[];
   /** Nómina de quien está editando: queda en el documento. */
   autor: string;
   onCerrar: () => void;
@@ -23,7 +25,7 @@ interface Props {
  * solo selector: «Sin acceso» o uno de sus papeles, escritos exactamente como
  * la app los espera.
  */
-export const AccesosSuiteModal: React.FC<Props> = ({ colab, autor, onCerrar }) => {
+export const AccesosSuiteModal: React.FC<Props> = ({ colab, departamentos, autor, onCerrar }) => {
   const esUnoMismo = String(colab.noNomina).trim() === String(autor).trim();
 
   /** Lo que tiene hoy, como valor de selector, para saber qué cambió. */
@@ -42,6 +44,35 @@ export const AccesosSuiteModal: React.FC<Props> = ({ colab, autor, onCerrar }) =
 
   const [sel, setSel] = useState<Record<string, string>>(inicial);
   const [guardando, setGuardando] = useState(false);
+
+  /**
+   * Áreas que esta persona supervisa (SPEC-046).
+   *
+   * Es distinto de su departamento: ahí pertenece, y aquí manda. Los
+   * supervisores de impresión pertenecen a OPERACIONES y tienen a cargo
+   * FLEXOGRAFÍA y ROTOGRABADO. Decide qué roles de turno puede crear y de
+   * quién puede reportar faltas.
+   */
+  const [areas, setAreas] = useState<string[]>(() => areasACargoDe(colab));
+  const [guardandoAreas, setGuardandoAreas] = useState(false);
+
+  const alternarArea = async (depto: string) => {
+    if (guardandoAreas) return;
+    const siguientes = areas.includes(depto)
+      ? areas.filter(d => d !== depto)
+      : [...areas, depto].sort();
+    setAreas(siguientes);
+    setGuardandoAreas(true);
+    try {
+      await asignarAreasACargo(colab.noNomina, siguientes, autor);
+    } catch (e: any) {
+      // Se revierte en pantalla: dejarlo marcado haría creer que se guardó.
+      setAreas(areas);
+      setError('No se pudieron guardar las áreas: ' + (e?.message || 'error desconocido'));
+    } finally {
+      setGuardandoAreas(false);
+    }
+  };
   const [error, setError] = useState('');
 
   const cambios = useMemo(() => {
@@ -133,6 +164,43 @@ export const AccesosSuiteModal: React.FC<Props> = ({ colab, autor, onCerrar }) =
               </div>
             );
           })}
+        </div>
+
+        {/* Áreas a cargo. Se guardan al instante, una por una: son un
+            permiso, no parte del formulario de accesos. */}
+        <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', fontWeight: 700, color: 'var(--brand-navy)', marginBottom: '.35rem' }}>
+            <Users size={15} /> Áreas a cargo
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.55, marginBottom: '.6rem' }}>
+            De qué áreas puede crear roles de turno y reportar faltas. Es distinto de su
+            departamento: ahí pertenece, aquí manda.
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+            {departamentos.length === 0 ? (
+              <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>No hay departamentos en el padrón.</span>
+            ) : departamentos.map(d => {
+              const activo = areas.includes(d);
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => alternarArea(d)}
+                  disabled={guardandoAreas || guardando}
+                  style={{
+                    fontSize: '10px', fontWeight: activo ? 700 : 400, padding: '4px 10px',
+                    borderRadius: '20px', fontFamily: 'inherit',
+                    border: '1px solid ' + (activo ? 'var(--brand-navy)' : 'var(--border-mid)'),
+                    background: activo ? 'var(--brand-navy)' : '#fff',
+                    color: activo ? '#fff' : 'var(--text-secondary)',
+                    cursor: guardandoAreas ? 'wait' : 'pointer'
+                  }}
+                >
+                  {d}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.6, background: 'var(--bg-light)', borderRadius: '8px', padding: '10px 12px', marginBottom: '1rem' }}>

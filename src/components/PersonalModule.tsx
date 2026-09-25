@@ -582,7 +582,12 @@ export const PersonalModule: React.FC = () => {
       )}
 
       {porAccesos && (
-        <AccesosSuiteModal colab={porAccesos} autor={autor} onCerrar={() => setPorAccesos(null)} />
+        <AccesosSuiteModal
+          colab={porAccesos}
+          departamentos={Array.from(new Set(colaboradores.map(c => (c.departamento || '').trim().toUpperCase()).filter(Boolean))).sort()}
+          autor={autor}
+          onCerrar={() => setPorAccesos(null)}
+        />
       )}
 
       {/* Confirmación de borrado definitivo */}
