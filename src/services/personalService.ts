@@ -269,17 +269,31 @@ export const deleteColaborador = async (noNomina: string) => {
  * Excel sin la columna lo borraría en cada carga. Aquí se escribe solo cuando
  * alguien lo cambia deliberadamente desde la pantalla de permisos.
  */
-export const asignarDepartamentosTurnos = async (
+export const asignarAreasACargo = async (
   noNomina: string,
-  departamentos: string[],
+  areas: string[],
   autor: string
 ) => {
   await updateDoc(doc(db, COLLECTION_NAME, String(noNomina).trim()), {
-    departamentosTurnos: departamentos,
+    areasACargo: areas,
+    // El campo viejo se deja igual a propósito: si alguien abre una versión
+    // anterior de la app mientras se termina el cambio, sigue viendo lo mismo.
+    departamentosTurnos: areas,
     actualizadoEn: serverTimestamp(),
     actualizadoPor: autor
   });
 };
+
+/**
+ * Las áreas a cargo de una persona, en mayúsculas y sin espacios sobrantes.
+ *
+ * Lee el campo nuevo y cae al viejo mientras queden documentos sin migrar.
+ * Un solo lugar para esa transición: si estuviera repetido en cada pantalla,
+ * alguna se quedaría sin actualizar y esa persona perdería sus áreas sin que
+ * nadie entendiera por qué.
+ */
+export const areasACargoDe = (c?: { areasACargo?: string[]; departamentosTurnos?: string[] } | null): string[] =>
+  ((c?.areasACargo ?? c?.departamentosTurnos) || []).map(d => d.trim().toUpperCase()).filter(Boolean);
 
 /**
  * Marca de «puede ver el reporte de faltas de todas las áreas» (SPEC-015).
