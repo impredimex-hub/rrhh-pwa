@@ -2247,6 +2247,23 @@ renglón en vez de añadir otro que lo contradiga. Lo usa quien tenga el permiso
 de revertir faltas, y sigue pidiendo confirmación con nombre y fecha a la
 vista, porque no se puede deshacer.
 
+### Las faltas sin rol asignado no se esconden
+
+Una falta reportada de alguien que **no tenía turno asignado** ese día no se
+puede describir a partir del rol, porque no hay rol. Pasa cuando el área no
+lleva rol de turnos, o cuando el de esos días todavía no se programó.
+
+- **Aparecen en el reporte**, al final y marcadas como «sin rol asignado ese
+  día», en vez de quedar guardadas sin que nadie las vea.
+- **Cuentan en la gráfica**, que mide cuántas faltas hubo, no cuántos roles
+  estaban programados.
+- **Respetan el filtro por área**, usando el área que EPP guardó con la falta.
+- **Ninguna falta se cuenta dos veces:** quien ya salió por incumplir un turno
+  no vuelve a salir aquí.
+
+Sirven además de aviso: una falta sin rol suele significar que falta programar
+ese rol.
+
 ### Lo que se acepta a cambio
 
 **La falta depende de que alguien la reporte.** Antes dependía de que alguien

@@ -19,6 +19,12 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
   reportada y la palomita, que el turno terminó sin que nadie reportara nada.
   Desaparecen las faltas falsas de los días sin revisión.
 
+### Agregado
+
+- **Las faltas de gente sin rol asignado ese día aparecen en el reporte**,
+  marcadas como tales, y cuentan en la gráfica. Antes habrían quedado
+  guardadas sin que nadie las viera.
+
 ### Quitado
 
 - **El «Sí vino».** Ya no hay falta falsa que perdonar. En su lugar, el reporte
