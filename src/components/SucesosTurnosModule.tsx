@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, FileSpreadsheet, FileText, Edit2, Copy, ClipboardPaste, Eraser, X, ChevronLeft, ShieldCheck, Eye, Check, FileWarning } from 'lucide-react';
 import type {
-  Colaborador, Suceso, TipoSuceso, RolTurnos, PeriodoRol, ClaveTurno, AsignacionTurno, AsistenciaManual
+  Colaborador, Suceso, TipoSuceso, RolTurnos, PeriodoRol, ClaveTurno, AsignacionTurno
 } from '../types/rrhh';
 import { ETIQUETA_SUCESO, HORARIO_TURNO, etiquetaTurno } from '../types/rrhh';
 import { subscribeColaboradores, areasACargoDe, asignarReporteFaltasTodas, asignarCapturaPromociones, asignarVerGraficas, asignarRevertirFaltas } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
 import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino } from '../services/turnoService';
-import { subscribeAsistenciasRango, obtenerAsistenciasRango, olvidarAsistenciasEnCache } from '../services/asistenciaService';
+import { subscribeFaltasRango, obtenerFaltasRango, borrarFaltaReportada, olvidarFaltasEnCache } from '../services/faltasService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { puedeVerGraficas, puedeRevertirFaltas } from '../services/permisosPadron';
-import { marcarAsistenciaManual } from '../services/asistenciaManualService';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { hoyISO, partesFecha } from '../utils/fechas';
 import { BarrasVerticales, BarrasHorizontales, COLORES } from './Graficas';
@@ -389,7 +388,7 @@ export const SucesosTurnosModule: React.FC = () => {
 
   useEffect(() => {
     if (!primerDia || !ultimoDia) { setAsistencias(new Set()); return; }
-    const u = subscribeAsistenciasRango(primerDia, ultimoDia, setAsistencias);
+    const u = subscribeFaltasRango(primerDia, ultimoDia, setAsistencias);
     return () => u();
   }, [primerDia, ultimoDia]);
 
@@ -406,8 +405,10 @@ export const SucesosTurnosModule: React.FC = () => {
    */
   const estadoAsistencia = (noNomina: string, fecha: string, a?: AsignacionTurno) => {
     if (!a) return 'NA' as const;
-    if (asistencias.has(`${noNomina}|${fecha}`)) return 'SI' as const;
-    return turnoYaTermino(fecha, a, ahora) ? ('NO' as const) : ('NA' as const);
+    // Cambió de qué depende (SPEC-047): la cruz es una falta reportada, y la
+    // palomita, que el turno terminó sin que nadie reportara nada.
+    if (asistencias.has(`${noNomina}|${fecha}`)) return 'NO' as const;
+    return turnoYaTermino(fecha, a, ahora) ? ('SI' as const) : ('NA' as const);
   };
 
   const personasDelRol = useMemo(() => {
@@ -543,11 +544,11 @@ export const SucesosTurnosModule: React.FC = () => {
     // La exportación corre sobre un rol de la lista, no sobre el abierto, así
     // que sus asistencias se piden aquí. Si la consulta falla se avisa en vez
     // de exportar un archivo donde todos aparecerían ausentes.
-    let asis: Set<string>;
+    let faltas: Set<string>;
     try {
-      asis = await obtenerAsistenciasRango(ds[0] || '', ds[ds.length - 1] || '');
+      faltas = await obtenerFaltasRango(ds[0] || '', ds[ds.length - 1] || '');
     } catch {
-      alert('No se pudieron leer las asistencias. El archivo no se generó para no reportar faltas equivocadas.');
+      alert('No se pudieron leer las faltas. El archivo no se generó para no reportar asistencias equivocadas.');
       return;
     }
 
@@ -565,8 +566,8 @@ export const SucesosTurnosModule: React.FC = () => {
         // Misma regla que la pantalla: el «Asistió» en cuanto hay revisión, y
         // la falta solo si el turno ya terminó. Un turno en curso sale sin
         // marca, para no reportar como falta una jornada que no ha acabado.
-        if (asis.has(`${p.noNomina}|${f}`)) { fila[f] = `${turno} · Asistió`; return; }
-        fila[f] = turnoYaTermino(f, a) ? `${turno} · No asistió` : turno;
+        if (faltas.has(`${p.noNomina}|${f}`)) { fila[f] = `${turno} · No asistió`; return; }
+        fila[f] = turnoYaTermino(f, a) ? `${turno} · Asistió` : turno;
       });
       return fila;
     }), `IMPREDIMEX_Turnos_${rol.nombre.replace(/[^\w]+/g, '_')}`);
@@ -619,8 +620,8 @@ export const SucesosTurnosModule: React.FC = () => {
 
     let vigente = true;
     setContandoFaltas(true);
-    obtenerAsistenciasRango(desde, hasta)
-      .then(asis => {
+    obtenerFaltasRango(desde, hasta)
+      .then(faltas => {
         if (!vigente) return;
         const ahora = new Date();
         const cuenta: Record<string, number> = {};
@@ -634,7 +635,7 @@ export const SucesosTurnosModule: React.FC = () => {
               // Misma regla que el reporte: hubo turno, el turno ya terminó y
               // no hay revisión de EPP de esa persona ese día.
               if (!a || !turnoYaTermino(f, a, ahora)) return;
-              if (!asis.has(`${per.noNomina}|${f}`)) n++;
+              if (faltas.has(`${per.noNomina}|${f}`)) n++;
             });
           });
           if (r.id) cuenta[r.id] = n;
@@ -692,7 +693,7 @@ export const SucesosTurnosModule: React.FC = () => {
     setRepError('');
     setRepFilas(null);
     try {
-      const asis = await obtenerAsistenciasRango(repDesde, repHasta);
+      const faltas = await obtenerFaltasRango(repDesde, repHasta);
       const ahoraRep = new Date();
       // Dos roles del mismo departamento pueden solaparse en fechas; sin esto
       // la misma falta se contaría dos veces.
@@ -711,7 +712,7 @@ export const SucesosTurnosModule: React.FC = () => {
             if (!a) continue;
             if (!turnoYaTermino(f, a, ahoraRep)) continue;
             const k = `${per.noNomina}|${f}`;
-            if (asis.has(k) || vistos.has(k)) continue;
+            if (!faltas.has(k) || vistos.has(k)) continue;
             vistos.add(k);
             filas.push({
               'Fecha': f,
@@ -754,7 +755,7 @@ export const SucesosTurnosModule: React.FC = () => {
     setGrafError('');
     setGrafFaltas(null);
     try {
-      const asis = await obtenerAsistenciasRango(desde, hasta);
+      const faltas = await obtenerFaltasRango(desde, hasta);
       const ahora = new Date();
       const vistos = new Set<string>();
       const filas: { fecha: string; depto: string }[] = [];
@@ -771,7 +772,7 @@ export const SucesosTurnosModule: React.FC = () => {
             if (!a) continue;
             if (!turnoYaTermino(f, a, ahora)) continue;
             const k = `${per.noNomina}|${f}`;
-            if (asis.has(k) || vistos.has(k)) continue;
+            if (!faltas.has(k) || vistos.has(k)) continue;
             vistos.add(k);
             filas.push({ fecha: f, depto: deptoRol });
           }
@@ -823,32 +824,24 @@ export const SucesosTurnosModule: React.FC = () => {
     const fecha = fila['Fecha'];
 
     // Confirmación con nombre y fecha a la vista. **Es el único resguardo que
-    // queda** (SPEC-034): la corrección ya no se puede deshacer desde la app,
-    // así que un renglón mal pulsado borra una falta real de forma definitiva.
+    // queda** (SPEC-034): borrar no se puede deshacer desde la app, así que un
+    // renglón mal pulsado quita una falta real de forma definitiva.
     if (!window.confirm(
-      `Dar por presente a ${fila['Colaborador']} el ${fecha}.\n\n` +
-      `Esa falta deja de contar y no se puede deshacer desde aquí.`
+      `¿Borrar la falta de ${fila['Colaborador']} del ${fecha}?\n\n` +
+      `Se reportó desde EPP. Al borrarla deja de contar y no se puede deshacer desde aquí.`
     )) return;
 
     setRevirtiendo(`${nom}|${fecha}`);
     try {
-      const reg: AsistenciaManual = {
-        noNomina: nom,
-        fecha,
-        nombreCompleto: fila['Colaborador'],
-        departamento: fila['Departamento'],
-        // Se guarda aunque ya no se muestre: si algún día hay que auditar,
-        // el dato está en la base y no hubo que recuperarlo de ningún lado.
-        motivo: 'No se hizo la revisión de EPP, pero sí asistió',
-        porNomina: sesion?.nomina || '',
-        porNombre: sesion?.nombre || ''
-      };
-      await marcarAsistenciaManual(reg);
-      // Lo leído ya no refleja la realidad: el conteo de faltas debe rehacerse.
-      olvidarAsistenciasEnCache();
+      /* Se borra la falta en lugar de perdonarla (SPEC-047). Antes era una
+         deducción que nunca existió como dato, y había que añadir una
+         asistencia manual que la contradijera. Ahora es un renglón que alguien
+         escribió: corregirlo es quitarlo. */
+      await borrarFaltaReportada(fecha, nom, sesion?.nomina || '');
+      olvidarFaltasEnCache();
       setRepFilas(prev => (prev || []).filter(f => !(f['# Nómina'] === nom && f['Fecha'] === fecha)));
     } catch (err: any) {
-      alert('No se pudo guardar la corrección: ' + (err?.message || 'Error desconocido'));
+      alert('No se pudo borrar la falta: ' + (err?.message || 'Error desconocido'));
     } finally {
       setRevirtiendo('');
     }
@@ -1495,7 +1488,7 @@ export const SucesosTurnosModule: React.FC = () => {
                                   <button
                                     onClick={() => revertirFalta(r)}
                                     disabled={revirtiendo === `${r['# Nómina']}|${r['Fecha']}`}
-                                    title="Sí asistió: no se le hizo revisión de EPP"
+                                    title="Borrar esta falta: se reportó por error"
                                     style={{
                                       border: '1px solid var(--green-dark)', background: 'var(--green-light)',
                                       color: 'var(--green-dark)', borderRadius: '6px', padding: '2px 7px',
@@ -1503,7 +1496,7 @@ export const SucesosTurnosModule: React.FC = () => {
                                       cursor: revirtiendo ? 'wait' : 'pointer', whiteSpace: 'nowrap'
                                     }}
                                   >
-                                    <Check size={10} strokeWidth={3} /> Sí vino
+                                    <Check size={10} strokeWidth={3} /> Borrar falta
                                   </button>
                                 </td>
                               )}
