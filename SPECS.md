@@ -6,7 +6,7 @@ Este documento es la **fuente de verdad** del comportamiento de la aplicación.
 Cualquier cambio futuro debe partir de actualizar primero estas specs y luego
 implementar el código.
 
-**Versión objetivo:** 2.33
+**Versión objetivo:** 2.34
 **Fecha:** 18 de septiembre de 2026
 **Metodología:** Spec-Driven Development (SDD)
 
@@ -2154,6 +2154,50 @@ iniciar una escucha nueva.
   caída no arregla nada y gasta.
 - **Al reconectar se reinicia la cuenta**, para que el siguiente corte no
   arranque con un minuto de espera.
+
+---
+
+# SPEC-046 — Áreas a cargo
+
+### Por qué
+
+Los tres supervisores de impresión **pertenecen a OPERACIONES**, pero la gente
+que supervisan es de FLEXOGRAFÍA y ROTOGRABADO. Todo lo que dependía de su
+departamento —crear roles de turno, y ahora reportar faltas— los dejaba fuera.
+
+La salida fácil era inventar un departamento «Impresión» y mover a la gente.
+Habría sido un error: el departamento dice **dónde pertenece** una persona y
+manda en su nómina, sus cursos, sus indicadores y su histórico. Mover a todos
+para arreglar un permiso habría cambiado todo eso.
+
+Lo que hacía falta era otra relación: **quién supervisa a quién**.
+
+### La regla
+
+- **`areasACargo` es un campo del padrón**, igual que los demás permisos
+  (regla R1): dato, no código, y administrado desde una pantalla.
+- **Es distinto de `departamento`.** Ahí pertenece; aquí manda. Una persona
+  puede tener a cargo áreas que no son la suya, o ninguna.
+- **Manda sobre dos cosas:** qué roles de turno puede crear y de quién puede
+  reportar faltas.
+- **Se administra en el Directorio**, dentro de la ventana de accesos, donde ya
+  están las aplicaciones y los papeles. Un solo lugar por persona para todo lo
+  que puede hacer.
+- **Se guarda al instante**, una área a la vez: es un permiso, no parte de un
+  formulario que se confirma al final. Si falla, se revierte en pantalla: verlo
+  marcado haría creer que se guardó.
+- **El panel del escudo en Sucesos y Turnos ya no las edita**, solo las muestra.
+  El mismo dato en dos pantallas termina en dos versiones distintas.
+
+### Sustituye a `departamentosTurnos`
+
+- **Se lee con un solo ayudante**, `areasACargoDe`, que usa el campo nuevo y cae
+  al viejo mientras queden documentos sin migrar. En un solo lugar: repetido en
+  cada pantalla, alguna se quedaría sin actualizar y esa persona perdería sus
+  áreas sin que nadie entendiera por qué.
+- **Al guardar se escriben los dos campos.** Si alguien abre una versión
+  anterior de la app mientras termina el cambio, sigue viendo lo mismo.
+- Cuando todos los documentos tengan el campo nuevo, el viejo se retira.
 
 ---
 

@@ -7,6 +7,27 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.34.0] — 2026-09-25
+
+### Agregado
+
+- **Áreas a cargo** (SPEC-046): a quiénes supervisa una persona, aparte de su
+  departamento. Resuelve el caso de los supervisores de impresión, que
+  pertenecen a Operaciones y tienen a cargo Flexografía y Rotograbado, sin
+  inventar departamentos ni mover a nadie de área.
+- Se administran **en el Directorio**, dentro de la ventana de accesos, junto a
+  las aplicaciones y los papeles.
+
+### Cambiado
+
+- **Sustituye a «departamentos de turnos».** Se lee el campo nuevo y, mientras
+  queden documentos sin migrar, se cae al viejo: nadie pierde permisos. Al
+  guardar se escriben los dos.
+- El panel del escudo de Sucesos y Turnos **ya no las edita, solo las muestra**:
+  el mismo dato en dos pantallas termina en dos versiones distintas.
+
+---
+
 ## [2.33.0] — 2026-09-24
 
 ### Corregido
