@@ -7,6 +7,34 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.35.1] — 2026-09-27
+
+### Documentado
+
+- **Qué significa `sinFaltas`** (SPEC-056). Un registro de `sinFaltas` dice que
+  *ese supervisor revisó esa área y no reportó a nadie*, no que en el área no
+  faltara nadie. Por eso un mismo día y una misma área pueden tener constancia
+  de «sin faltas» de un supervisor y una falta reportada por otro, sin que
+  ninguno de los dos esté equivocado: comparten área, no gente. Se deja anotado
+  para que no se lea después como un defecto. No cambia el código ni el conteo.
+
+### Corregido
+
+- **El reporte de faltas ya no dice «Sí vino»** (SPEC-055). La columna de la
+  derecha se llama ahora **«Corregir»** y el botón lleva un bote de basura rojo
+  en lugar de la palomita verde. El texto y la confirmación ya decían «Borrar
+  falta» desde la SPEC-047; lo que faltaba era el encabezado y el icono, que
+  seguían describiendo el mecanismo anterior —cuando pulsar ahí significaba
+  perdonar una falta deducida y no borrar una capturada por error.
+- Tres comentarios del código que aún explicaban la lógica deducida. Dos
+  justificaban no mostrar el reporte ante un error de lectura con el argumento
+  contrario al de hoy.
+
+No cambia ningún dato, ninguna lectura ni el permiso `revertirFaltas` que
+gobierna la columna.
+
+---
+
 ## [2.35.0] — 2026-09-25
 
 ### Cambiado

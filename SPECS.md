@@ -2282,6 +2282,92 @@ día sirve para otra cosa.
 
 ---
 
+# SPEC-055 — El botón del reporte deja de decir «Sí vino»
+
+## El resto que quedó a la vista
+
+La SPEC-047 cambió lo que hace ese botón, pero no el texto que lo anuncia. En el
+reporte de faltas la columna seguía diciendo **«Sí vino»** y el botón llevaba una
+palomita verde, mientras el botón mismo ya decía «Borrar falta» y la confirmación
+hablaba de borrar. Tres textos para una sola acción, y dos de ellos describían el
+mecanismo anterior.
+
+No es un detalle cosmético. Con las faltas deducidas, pulsar ahí significaba
+*«esta persona sí vino, perdónale la falta que el sistema le inventó»*. Ahora
+significa *«esta falta se capturó por error, bórrala»*, y no se puede deshacer
+desde la app. Una palomita verde invita a pulsar; un bote de basura rojo, no.
+
+## El cambio
+
+| | Antes | Ahora |
+|---|---|---|
+| Encabezado de la columna | `Sí vino` | `Corregir` |
+| Icono del botón | palomita (`Check`), verde | bote (`Trash2`), rojo |
+| Texto del botón | `Borrar falta` | igual |
+| Confirmación | ya hablaba de borrar | igual |
+
+El permiso que gobierna la columna no cambia: sigue siendo `revertirFaltas`
+(SPEC-032), y la confirmación con nombre y fecha sigue siendo el único resguardo
+antes de escribir.
+
+Se corrigieron además tres comentarios del código que seguían explicando la
+lógica deducida. Dos de ellos justificaban no mostrar el reporte cuando la
+lectura falla con el argumento contrario al de hoy: antes el riesgo era acusar a
+quien sí vino, y ahora es lo opuesto —un reporte vacío se leería como «no hubo
+faltas» cuando lo que pasó fue que no se pudieron leer.
+
+---
+
+# SPEC-056 — Qué significa `sinFaltas`, y por qué puede contradecir a `reportes`
+
+## El caso que lo motivó
+
+El 28 de septiembre de 2026, el documento `faltas/2026-09-28` quedó así:
+
+| Registro | Quién | Hora (UTC) |
+|---|---|---|
+| `sinFaltas.ROTOGRABADO` | Zárate Monroy Samuel (2398) | 13:07:45.964 |
+| `reportes.1919` — falta en ROTOGRABADO | Castruita Cruz Sergio (2308) | 13:08:27.730 |
+
+Leído de corrido, el documento dice a la vez «en Rotograbado no faltó nadie» y
+«en Rotograbado faltó Marcial Hernández», con 41 segundos de diferencia.
+
+**No es un error, y no se corrige.** La decisión se toma de forma explícita para
+que nadie lo lea después como un defecto y lo «arregle».
+
+## La lectura que se adopta
+
+`sinFaltas[area]` significa **«este supervisor hizo su revisión de esa área y no
+reportó a nadie»**. No significa «en esa área no faltó nadie».
+
+Es la lectura que corresponde a lo que de verdad ocurre en planta: dos
+supervisores pueden compartir un área y no compartir gente. Zárate revisó a los
+suyos y estaban completos; Castruita revisó a los suyos y faltaba Marcial. Ambas
+afirmaciones son ciertas al mismo tiempo.
+
+La lectura alternativa —«en esta área no faltó nadie»— obligaría a borrar el
+registro de Zárate en cuanto Castruita reportara, es decir, una escritura más
+por cada falta, para dejar constancia de algo que nadie preguntó.
+
+**Nada de esto afecta al conteo.** El reporte, las cruces del rol, la gráfica y
+la exportación leen `reportes`, nunca `sinFaltas`. La falta de Marcial aparece
+donde tiene que aparecer. `sinFaltas` existe solo como constancia de que la
+revisión se hizo, y sirve para detectar el modo de falla silencioso: un área que
+nunca aparece ahí es un área donde nadie está abriendo la ventana de EPP.
+
+## El hueco que se acepta a sabiendas
+
+Si **dos** supervisores del mismo área reportan «sin faltas» el mismo día, el
+segundo sobrescribe al primero: la clave es el área, no la persona. Se pierde la
+constancia de que el primero también revisó.
+
+Se deja así. Cambiarlo obligaría a anidar por nómina dentro de cada área, y el
+dato que importa —que alguien revisó esa área ese día— se conserva igual. Si
+algún día hiciera falta auditar por persona y no por área, este es el punto a
+tocar.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |
