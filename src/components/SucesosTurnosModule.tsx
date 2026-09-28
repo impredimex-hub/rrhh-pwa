@@ -643,8 +643,9 @@ export const SucesosTurnosModule: React.FC = () => {
         setFaltasPorRol(cuenta);
       })
       .catch(err => {
-        // Sin asistencias, todo turno terminado parecería falta. Se prefiere no
-        // mostrar número antes que acusar a gente que sí vino.
+        // Si no se pudieron leer las faltas reportadas, el contador quedaría en
+        // cero y el rol se vería limpio aunque hubiera faltas. Se prefiere no
+        // mostrar número a mostrar uno falso.
         console.error('No se pudieron contar las faltas de los roles:', err);
         if (vigente) setFaltasPorRol({});
       })
@@ -751,8 +752,8 @@ export const SucesosTurnosModule: React.FC = () => {
       setRepFilas(filas);
     } catch (err) {
       console.error(err);
-      // Sin asistencias, todo turno terminado parecería falta: mejor no
-      // entregar un reporte que acusaría a quien sí vino.
+      // Un reporte vacío se leería como «no hubo faltas», que es lo contrario de
+      // «no se pudieron leer». Mejor no entregar nada y decirlo.
       setRepError('No se pudieron leer las faltas reportadas. El reporte no se generó.');
     } finally {
       setRepCargando(false);
@@ -843,7 +844,7 @@ export const SucesosTurnosModule: React.FC = () => {
   }, [grafFaltas]);
 
   /**
-   * Da por presente a quien no tuvo revisión de EPP pero sí vino.
+   * Borra una falta que se reportó por error desde EPP.
    *
    * La fila se retira de la lista en el momento, sin volver a generar el
    * reporte: rehacerlo son varias lecturas de Firestore por cada corrección, y
@@ -1499,8 +1500,11 @@ export const SucesosTurnosModule: React.FC = () => {
                             {['Fecha', '# Nómina', 'Colaborador', 'Depto.', 'Turno'].map(h => (
                               <th key={h} style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
                             ))}
+                            {/* Ya no dice «Sí vino» (SPEC-055): con las faltas
+                                reportadas desde EPP, lo que hace el botón es
+                                borrar una falta capturada por error. */}
                             {puedeRevertir && (
-                              <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase', whiteSpace: 'nowrap', textAlign: 'center' }}>Sí vino</th>
+                              <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase', whiteSpace: 'nowrap', textAlign: 'center' }}>Corregir</th>
                             )}
                           </tr>
                         </thead>
@@ -1515,19 +1519,24 @@ export const SucesosTurnosModule: React.FC = () => {
                               {puedeRevertir && (
                                 <td style={{ padding: '5px 8px', textAlign: 'center' }}>
                                   {/* Solo aparece para quien tiene el permiso
-                                      (SPEC-032). Pide motivo antes de escribir. */}
+                                      (SPEC-032). Pide confirmación con nombre y
+                                      fecha antes de escribir: borrar no se
+                                      deshace desde la app. */}
                                   <button
                                     onClick={() => revertirFalta(r)}
                                     disabled={revirtiendo === `${r['# Nómina']}|${r['Fecha']}`}
                                     title="Borrar esta falta: se reportó por error"
                                     style={{
-                                      border: '1px solid var(--green-dark)', background: 'var(--green-light)',
-                                      color: 'var(--green-dark)', borderRadius: '6px', padding: '2px 7px',
+                                      border: '1px solid var(--red-err)', background: 'var(--red-light)',
+                                      color: 'var(--red-err)', borderRadius: '6px', padding: '2px 7px',
                                       fontSize: '9.5px', fontWeight: 700, fontFamily: 'inherit',
-                                      cursor: revirtiendo ? 'wait' : 'pointer', whiteSpace: 'nowrap'
+                                      cursor: revirtiendo ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+                                      display: 'inline-flex', alignItems: 'center', gap: '4px'
                                     }}
                                   >
-                                    <Check size={10} strokeWidth={3} /> Borrar falta
+                                    {/* La palomita verde sobraba: decía «vino», y lo
+                                        que ocurre es que la falta se elimina. */}
+                                    <Trash2 size={10} strokeWidth={2.5} /> Borrar falta
                                   </button>
                                 </td>
                               )}
