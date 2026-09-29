@@ -7,6 +7,38 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.36.0] — 2026-09-29
+
+### Agregado
+
+- **Aviso de empalme al programar un curso** (SPEC-057). Antes nada impedía
+  poner dos cursos el mismo día a la misma hora, y el choque se descubría
+  cuando llegaba la gente. Ahora, al registrar:
+  - **Mismo día y el horario se pisa**: no deja registrar. La ventana dice con
+    qué curso choca, en qué fecha y a qué hora, y no ofrece manera de
+    continuar: hay que corregir la fecha o el horario.
+  - **Mismo día pero a otra hora**: advierte, y deja seguir con «Programar de
+    todos modos».
+  - **Días distintos**: graba sin decir nada.
+
+  Se revisan todos los días de ambos cursos, no solo el primero, así que un
+  curso de cuatro días detecta el choque aunque sea en el tercero. Dos cursos
+  seguidos —uno termina a las 11:00 y el otro empieza a las 11:00— **no**
+  cuentan como empalme. Al editar un curso, este se excluye de la comparación
+  para que no choque consigo mismo.
+
+  Nuevo archivo `src/utils/empalmesCursos.ts` con la lógica separada del
+  componente, verificada con 23 casos de la función pura y 4 del formulario
+  montado.
+
+### Pendiente de decidir
+
+- El bloqueo **no distingue departamentos ni instructor**: dos cursos a la
+  misma hora chocan aunque sean para áreas distintas. Si en la práctica sí se
+  dan cursos simultáneos a grupos distintos, la regla se afina (SPEC-057).
+
+---
+
 ## [2.35.1] — 2026-09-27
 
 ### Documentado

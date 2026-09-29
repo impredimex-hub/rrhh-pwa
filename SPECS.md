@@ -2368,6 +2368,81 @@ tocar.
 
 ---
 
+# SPEC-057 — Empalmes al programar un curso
+
+## El problema
+
+Nada impedía programar dos cursos el mismo día a la misma hora. El formulario
+aceptaba cualquier fecha y cualquier horario, y el empalme se descubría cuando
+llegaba la gente. Con cursos de varios días y fechas salteadas (SPEC-038) el
+riesgo creció: ahora un curso ocupa cuatro o cinco días sueltos del calendario,
+y revisarlos a ojo contra los demás no es realista.
+
+## Dos casos, no uno
+
+La diferencia importa, porque tratarlos igual sería tan molesto como no revisar
+nada. Dos cursos el mismo día son normales —uno en la mañana y otro en la
+tarde—. Lo que no puede ser es dos cursos a la misma hora.
+
+| Situación | Qué hace | Por qué |
+|---|---|---|
+| Mismo día, horarios que se pisan | **Impide registrar** | No se pueden dar los dos |
+| Mismo día, horarios que no se tocan | **Advierte y deja continuar** | Es normal, pero conviene saberlo |
+| Días distintos | Graba sin decir nada | No hay nada que avisar |
+
+El diálogo de choque **no tiene botón para continuar**. La única salida es
+corregir la fecha o el horario. El de advertencia sí lo tiene, y dice
+«Programar de todos modos».
+
+## Las reglas exactas
+
+**Los horarios son tramos `[inicio, fin)`.** Un curso que termina a las 11:00 y
+otro que empieza a las 11:00 **no** se empalman: se dan seguidos. Bloquear eso
+sería absurdo, y es el caso más común de dos cursos el mismo día.
+
+Dos tramos se pisan cuando `aInicio < bFin && bInicio < aFin`. Un `<=` en lugar
+de un `<` convertiría cada par de cursos consecutivos en un bloqueo.
+
+**Al editar, el curso se excluye de la comparación.** Sin eso, corregirle el
+instructor a un curso ya guardado lo haría chocar consigo mismo y sería
+imposible guardarlo.
+
+**Se comparan todos los días de ambos cursos, no solo el primero.** Un curso de
+cuatro días puede chocar en el tercero y no en los otros tres.
+
+**Los cursos anteriores a la SPEC-038 se expanden día por día** de `fechaInicio`
+a `fechaFin`, porque no tienen `sesiones` y son un tramo continuo. Se expande
+todo el tramo, no solo los extremos: para buscar empalmes importa cada día
+ocupado. Hay un tope de 60 días como seguro contra una fecha mal capturada —un
+año en vez de un día— que dejaría el ciclo corriendo.
+
+**Una hora que no se entiende se trata como empalme.** Ante la duda, avisa.
+
+## Dónde vive
+
+La lógica está en `src/utils/empalmesCursos.ts`, **fuera del componente**, para
+poder probarla sin montar React. Es la clase de regla donde un signo cambia el
+resultado y nadie lo nota hasta que alguien no puede programar un curso: se
+verificó con 23 casos de la función pura —incluidos los horarios pegados, el
+curso que se edita a sí mismo y el tramo absurdo— y 4 del formulario montado,
+que comprueban que un choque **no graba nada** y que la advertencia solo graba
+al confirmar.
+
+## Lo que esta versión no hace
+
+**No mira departamentos ni instructor.** Dos cursos a la misma hora se bloquean
+aunque sean de áreas distintas y con instructores distintos. Es deliberado por
+ahora —una sala ocupada es una sala ocupada— pero si en la práctica resulta que
+sí se dan cursos simultáneos a grupos distintos, aquí es donde hay que afinar:
+la condición para bloquear pasaría a exigir, además del cruce de horario, que
+compartan departamento objetivo o instructor.
+
+**No revisa contra los cursos concluidos de forma distinta.** Un curso
+`FINALIZADO` con fecha futura seguiría bloqueando. En la práctica no ocurre,
+porque lo finalizado está en el pasado y nadie programa hacia atrás.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |
