@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, FileSpreadsheet, FileText, ChevronDown, Check, Eye, CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Plus, Trash2, Edit2, FileSpreadsheet, FileText, ChevronDown, Check, Eye, CalendarDays, ChevronLeft, ChevronRight, X, AlertTriangle, Ban } from 'lucide-react';
 import type { Colaborador, CursoCapacitacion, SesionCurso } from '../types/rrhh';
 import { subscribeColaboradores } from '../services/personalService';
 import { subscribeCursos, saveCurso, deleteCurso } from '../services/capacitacionService';
 import { usePermisos } from '../services/SesionContext';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 import { cursoAplicaA, avanceDelCurso, COLOR_AVANCE } from '../utils/cursos';
+import { buscarEmpalmes } from '../utils/empalmesCursos';
+import type { ResultadoEmpalmes } from '../utils/empalmesCursos';
 import { contarCompletadosDeCursos } from '../services/cursoCompletadoService';
 import { hoyISO } from '../utils/fechas';
 
@@ -19,6 +21,19 @@ export const CapacitacionModule: React.FC = () => {
   const [menuPuestosAbierto, setMenuPuestosAbierto] = useState(false);
 
   const [cursoEditando, setCursoEditando] = useState<CursoCapacitacion | null>(null);
+
+  /**
+   * El aviso de empalme (SPEC-057).
+   *
+   * `pendiente` guarda el curso listo para grabar cuando solo hubo coincidencia
+   * de día: si la persona decide seguir, se graba eso mismo y no se vuelve a
+   * armar. Cuando hay choque de horario va en `null`, y entonces el diálogo no
+   * ofrece manera de continuar.
+   */
+  const [empalme, setEmpalme] = useState<{
+    resultado: ResultadoEmpalmes;
+    pendiente: CursoCapacitacion | null;
+  } | null>(null);
 
   const [form, setForm] = useState<Partial<CursoCapacitacion>>({
     titulo: '',
@@ -181,6 +196,26 @@ export const CapacitacionModule: React.FC = () => {
       estatus: (form.estatus as any) || 'PROGRAMADO'
     };
 
+    // Empalmes con lo ya programado (SPEC-057). Se revisa **antes** de grabar:
+    // un choque de horario no se guarda y luego se avisa, simplemente no se
+    // guarda. Al editar se excluye el propio curso, o chocaría consigo mismo.
+    const resultado = buscarEmpalmes(ordenadas, cursos, cursoEditando?.id);
+
+    if (resultado.choques.length > 0) {
+      setEmpalme({ resultado, pendiente: null });
+      return;
+    }
+
+    if (resultado.coincidencias.length > 0) {
+      setEmpalme({ resultado, pendiente: cursoData });
+      return;
+    }
+
+    guardarCurso(cursoData);
+  };
+
+  /** Graba y deja el formulario limpio. Lo llaman el submit y el aviso. */
+  const guardarCurso = (cursoData: CursoCapacitacion) => {
     saveCurso(cursoData);
 
     setForm({ titulo: '', instructor: '', estatus: 'PROGRAMADO' });
@@ -188,6 +223,7 @@ export const CapacitacionModule: React.FC = () => {
     setDeptosSeleccionados([]);
     setPuestosSeleccionados([]);
     setCursoEditando(null);
+    setEmpalme(null);
   };
 
   const handleEditar = (curso: CursoCapacitacion) => {
@@ -779,6 +815,93 @@ export const CapacitacionModule: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ── Aviso de empalme (SPEC-057) ─────────────────────────────────────
+          Dos caras del mismo diálogo. Con choque de horario no hay botón para
+          continuar: la única salida es corregir la fecha o el horario. Con
+          coincidencia de día sí, porque dos cursos el mismo día a horas
+          distintas es algo que pasa y no tiene nada de malo. */}
+      {empalme && (() => {
+        const bloquea = empalme.pendiente === null;
+        const filas = bloquea ? empalme.resultado.choques : empalme.resultado.coincidencias;
+        const acento = bloquea ? 'var(--red-err)' : 'var(--orange)';
+        const fondo = bloquea ? 'var(--red-light)' : 'var(--orange-light)';
+
+        return (
+          <div
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,20,60,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', zIndex: 70, overflowY: 'auto' }}
+            onClick={() => setEmpalme(null)}
+          >
+            <div
+              className="card-industrial"
+              style={{ width: '100%', maxWidth: '520px' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                {bloquea ? <Ban size={20} color={acento} /> : <AlertTriangle size={20} color={acento} />}
+                <div className="sec-title" style={{ margin: 0, color: acento }}>
+                  {bloquea ? 'No se puede programar' : 'Ya hay curso ese día'}
+                </div>
+              </div>
+
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.55, marginBottom: '12px' }}>
+                {bloquea ? (
+                  <>
+                    El horario se empalma con {empalme.resultado.choques.length === 1 ? 'un curso' : 'otros cursos'} ya
+                    programado{empalme.resultado.choques.length === 1 ? '' : 's'}. Cambia la fecha o el
+                    horario y vuelve a intentarlo.
+                  </>
+                ) : (
+                  <>
+                    Hay {filas.length === 1 ? 'otro curso' : 'otros cursos'} el mismo día, pero
+                    a una hora distinta, así que no se empalman. Puedes continuar.
+                  </>
+                )}
+              </div>
+
+              <div style={{ border: `1px solid ${acento}`, background: fondo, borderRadius: '10px', padding: '10px', marginBottom: '14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {filas.map((f, i) => (
+                  <div key={i} style={{ fontSize: '11.5px', lineHeight: 1.5 }}>
+                    <div style={{ fontWeight: 700, color: 'var(--brand-navy)' }}>{f.fecha}</div>
+                    <div>
+                      Tu curso: <b>{f.horario}</b>
+                    </div>
+                    <div style={{ color: 'var(--text-secondary)' }}>
+                      Ya programado: <b>{f.titulo}</b>, {f.horarioExistente}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setEmpalme(null)}
+                  style={{
+                    border: '1px solid var(--brand-navy)', background: 'transparent', color: 'var(--brand-navy)',
+                    borderRadius: '8px', padding: '9px 16px', fontSize: '12px', fontWeight: 700,
+                    fontFamily: 'inherit', cursor: 'pointer', minHeight: '38px'
+                  }}
+                >
+                  {bloquea ? 'Entendido' : 'Cancelar'}
+                </button>
+
+                {!bloquea && (
+                  <button
+                    onClick={() => empalme.pendiente && guardarCurso(empalme.pendiente)}
+                    style={{
+                      border: 'none', background: 'var(--brand-navy)', color: '#fff',
+                      borderRadius: '8px', padding: '9px 16px', fontSize: '12px', fontWeight: 700,
+                      fontFamily: 'inherit', cursor: 'pointer', minHeight: '38px'
+                    }}
+                  >
+                    Programar de todos modos
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
