@@ -203,7 +203,17 @@ export const CursosModule: React.FC = () => {
   const estaAsignado = cursoAplicaA;
 
   const obtenerEstadoCurso = (colab: Colaborador, curso: CursoCapacitacion): 'Programado' | 'No asistencia' | null => {
-    if (!estaAsignado(colab, curso)) return null;
+    // A quien lo agregaron a mano también le toca (SPEC-058). Antes solo se
+    // miraba el área y el puesto, así que el agregado salía en la lista pero
+    // con guion en el estado y sin selector de día: visible y a la vez fuera
+    // del curso.
+    //
+    // La comprobación se limita al curso filtrado porque `incluidos` solo se
+    // carga para ese. Preguntarle por otro curso daría una respuesta prestada.
+    const agregadoAMano =
+      !!cursoActivo?.id && curso.id === cursoActivo.id && !!incluidos[colab.noNomina];
+
+    if (!estaAsignado(colab, curso) && !agregadoAMano) return null;
 
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
