@@ -7,6 +7,30 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.36.1] — 2026-09-29
+
+### Corregido
+
+- **El colaborador agregado a mano a un curso quedaba a medias** (SPEC-058). Al
+  agregarlo con el autocomplete, el renglón aparecía pero con `-` en la columna
+  del curso y otro `-` donde va el selector de día: visible en la lista y al
+  mismo tiempo fuera del curso, sin poder asignarle fecha ni marcarlo como
+  cursado.
+
+  La causa: el filtro de la tabla ya contemplaba a los agregados, pero la
+  función que decide qué pintar en cada celda seguía preguntando solo por área
+  y puesto. La SPEC-042 enseñó a la tabla a mostrarlos y se olvidó de tratarlos
+  como participantes.
+
+  La comprobación se limita al curso filtrado, porque los agregados solo se
+  conocen de ese; de otro modo alguien agregado a un curso aparecería como
+  participante de otro.
+
+  Las exportaciones a Excel y PDF usan la misma función y arrastraban el mismo
+  `-`. Quedan corregidas por el mismo cambio.
+
+---
+
 ## [2.36.0] — 2026-09-29
 
 ### Agregado

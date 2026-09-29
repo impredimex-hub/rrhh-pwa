@@ -2443,6 +2443,70 @@ porque lo finalizado está en el pasado y nadie programa hacia atrás.
 
 ---
 
+# SPEC-058 — El agregado a mano sí está en el curso
+
+## El defecto
+
+Agregar a alguien a un curso filtrado (SPEC-042) lo metía en la lista, pero su
+renglón salía a medias: la columna del curso mostraba `-` en vez de
+«Programado», y donde debía ir el selector de día había otro `-`. La persona
+quedaba visible y al mismo tiempo fuera del curso, sin manera de asignarle
+fecha ni de marcarla como cursada.
+
+## Por qué pasaba
+
+Dos lugares decidían lo mismo y solo uno estaba al día.
+
+El filtro de la tabla ya contemplaba a los agregados:
+
+```ts
+coincideCurso = estaAsignado(c, cursoSeleccionado) || !!incluidos[c.noNomina];
+```
+
+Pero `obtenerEstadoCurso`, que es quien decide qué pintar en la celda, seguía
+preguntando solo por área y puesto:
+
+```ts
+if (!estaAsignado(colab, curso)) return null;   // ← el agregado caía aquí
+```
+
+Con `null`, la celda del curso pinta `-` y la de fecha también, porque el
+selector solo se dibuja cuando hay estado. De ahí que el renglón apareciera
+pero vacío: la SPEC-042 enseñó a la tabla a **mostrar** al agregado y se olvidó
+de enseñarle a **tratarlo como participante**.
+
+## El arreglo
+
+`obtenerEstadoCurso` ahora también da por asignado a quien fue agregado a mano:
+
+```ts
+const agregadoAMano =
+  !!cursoActivo?.id && curso.id === cursoActivo.id && !!incluidos[colab.noNomina];
+
+if (!estaAsignado(colab, curso) && !agregadoAMano) return null;
+```
+
+**La comprobación se limita al curso filtrado a propósito.** `incluidos` se
+carga solo para `cursoActivo`, así que preguntarle por cualquier otro curso
+daría una respuesta prestada: alguien agregado al curso A aparecería como
+participante del curso B.
+
+Como las exportaciones a Excel y PDF llaman a la misma función, arrastraban el
+mismo `-`. Quedan corregidas por el mismo cambio.
+
+## Cómo se verificó
+
+Con el módulo montado y dos personas: una a la que le toca por puesto y área, y
+otra —Gerente de Operaciones, de otro departamento— agregada a mano. Se
+comprueba que la agregada muestra «Programado» y su selector de día, y que a
+quien ya le tocaba no le cambió nada.
+
+**La prueba se corrió antes contra el código sin arreglar y falló en los dos
+primeros casos**, que son exactamente los dos síntomas reportados. Una prueba
+que pasa igual con y sin el arreglo no prueba nada.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |
