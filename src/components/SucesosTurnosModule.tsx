@@ -6,7 +6,7 @@ import type {
 import { ETIQUETA_SUCESO, HORARIO_TURNO, etiquetaTurno } from '../types/rrhh';
 import { subscribeColaboradores, areasACargoDe, asignarReporteFaltasTodas, asignarCapturaPromociones, asignarVerGraficas, asignarRevertirFaltas } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
-import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino } from '../services/turnoService';
+import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino, purgarRolesVencidos } from '../services/turnoService';
 import { subscribeFaltasRango, obtenerFaltasRango, obtenerFaltasDetalleRango, borrarFaltaReportada, olvidarFaltasEnCache } from '../services/faltasService';
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { puedeVerGraficas, puedeRevertirFaltas } from '../services/permisosPadron';
@@ -274,6 +274,23 @@ export const SucesosTurnosModule: React.FC = () => {
   /* ══════════════════ ROL DE TURNOS ══════════════════ */
 
   const [editandoRol, setEditandoRol] = useState<RolTurnos | null>(null);
+
+  /**
+   * SPEC-059: los roles cuyo periodo ya pasó se borran para siempre al abrir
+   * la pestaña (y cada vez que cambia la lista). El que está abierto en el
+   * editor se respeta hasta que se cierre, para no quitárselo a quien lo ve.
+   * Las faltas no se pierden: viven aparte, reportadas desde EPP, y el
+   * reporte las sigue mostrando como «sin rol asignado ese día».
+   */
+  const idsRoles = roles.map(r => r.id).join(',');
+  useEffect(() => {
+    if (!roles.length) return;
+    purgarRolesVencidos(roles, editandoRol?.id).then(n => {
+      if (n) console.log(`Roles de turno vencidos borrados: ${n}`);
+    });
+    // Por lista de ids y no por el arreglo, que se recrea en cada emisión.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsRoles, editandoRol?.id]);
   const [guardandoRol, setGuardandoRol] = useState(false);
   const [asistencias, setAsistencias] = useState<Set<string>>(new Set());
   // Sin esto, un rol abierto en pantalla nunca se enteraría de que el turno

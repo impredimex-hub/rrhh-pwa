@@ -107,6 +107,46 @@ export const turnoYaTermino = (
   return ahora.getTime() >= fin.getTime();
 };
 
+/**
+ * ¿Ya pasó por completo el periodo de este rol? (SPEC-059)
+ *
+ * Vence cuando terminó el último día **y** también los turnos de ese día: T3
+ * y N12 acaban a las 06:00 del día siguiente, así que un rol cuyo último día
+ * es el domingo sigue vigente hasta el lunes a esa hora. Un turno LIB sin
+ * horas capturadas no dice cuándo acaba; para no quedarse esperando para
+ * siempre, el rol vence de todos modos dos días después del último.
+ */
+export const rolVencido = (rol: RolTurnos, ahora: Date = new Date()): boolean => {
+  const dias = diasDelPeriodo(rol.fechaInicio, rol.periodo);
+  const ultimo = dias[dias.length - 1];
+  if (!ultimo) return false;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const hoy = iso(ahora);
+  if (hoy <= ultimo) return false;
+
+  const [a, m, d] = ultimo.split('-').map(Number);
+  if (hoy > iso(new Date(a, m - 1, d + 2))) return true;
+
+  return Object.entries(rol.asignaciones || {})
+    .filter(([clave]) => clave.endsWith('|' + ultimo))
+    .every(([, asig]) => turnoYaTermino(ultimo, asig, ahora));
+};
+
+/**
+ * Borra para siempre los roles cuyo periodo ya pasó (SPEC-059). Devuelve
+ * cuántos borró. Un fallo en uno no detiene a los demás.
+ */
+export const purgarRolesVencidos = async (roles: RolTurnos[], excepto?: string): Promise<number> => {
+  const vencidos = roles.filter(r => r.id && r.id !== excepto && rolVencido(r));
+  let n = 0;
+  for (const r of vencidos) {
+    try { await deleteRolTurnos(r.id!); n++; }
+    catch (e) { console.warn('No se pudo borrar el rol vencido ' + r.nombre + ':', e); }
+  }
+  return n;
+};
+
 const aMinutos = (hhmm?: string): number | null => {
   if (!hhmm) return null;
   const [h, mi] = hhmm.split(':').map(Number);

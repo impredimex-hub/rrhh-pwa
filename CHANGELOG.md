@@ -7,6 +7,18 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.37.0] — 2026-10-09
+
+### Cambiado
+
+- **Los roles de turno vencidos se borran solos** (SPEC-059). Al terminar el
+  periodo de un rol —incluidos los turnos nocturnos de su último día— se borra
+  para siempre al abrir Sucesos y Turnos. Las faltas no se pierden: el reporte
+  las sigue mostrando. La cuadrícula del rol sí, así que si hace falta
+  conservarla se exporta antes de que venza.
+
+---
+
 ## [2.36.1] — 2026-09-29
 
 ### Corregido

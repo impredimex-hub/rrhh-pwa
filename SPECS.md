@@ -2507,6 +2507,42 @@ que pasa igual con y sin el arreglo no prueba nada.
 
 ---
 
+# SPEC-059 — Los roles de turno vencidos se borran solos
+
+### Qué cambia
+
+Un rol de turnos se **borra para siempre** en cuanto termina su periodo. La
+lista de Sucesos y Turnos deja de acumular roles que ya no sirven para
+programar a nadie.
+
+### Cuándo vence un rol
+
+Cuando pasó su último día **y** terminaron los turnos de ese día:
+
+- Un rol semanal del 05/10 al 11/10 sigue en la lista todo el 11/10.
+- Si el 11/10 alguien tiene T3 o N12, que acaban a las 06:00 del día
+  siguiente, el rol sigue hasta el 12/10 a esa hora.
+- Un turno LIB sin horas capturadas no dice cuándo acaba; en ese caso el rol
+  vence de todos modos dos días después de su último día.
+- Un rol sin fecha de inicio no se borra.
+
+### Quién lo borra
+
+La propia aplicación, al abrir la pestaña de Sucesos y Turnos y cada vez que
+cambia la lista. No depende del papel de quien la abre: es una limpieza del
+sistema, no una edición (SPEC-031 sigue igual para lo que hace una persona).
+El rol que alguien tenga abierto en el editor se respeta hasta que lo cierre.
+
+### Qué se pierde y qué no
+
+- **No se pierden las faltas.** Viven aparte, reportadas desde EPP
+  (SPEC-047). El reporte de faltas y la gráfica las siguen mostrando; las de un
+  rol ya borrado aparecen con «— sin rol asignado ese día —» y con el turno que
+  registró EPP.
+- **Sí se pierde la cuadrícula del rol**: qué turno tenía cada persona cada
+  día. Si se necesita conservarla, se exporta a Excel o PDF desde la lista
+  **antes de que termine su periodo**.
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |
