@@ -70,6 +70,13 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Ficha de cada rol de turnos, que sobrevive a su borrado (SPEC-060).
+    // Solo departamento, fechas, quién lo subió y cuándo: es lo que necesita
+    // el panel de cumplimiento para saber si un departamento tuvo rol.
+    match /rolesHistorial/{doc} {
+      allow read, write: if true;
+    }
+
     match /vacantes/{doc} {
       allow read, write: if true;
     }

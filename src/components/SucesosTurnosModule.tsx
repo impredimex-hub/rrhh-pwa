@@ -11,6 +11,7 @@ import { subscribeFaltasRango, obtenerFaltasRango, obtenerFaltasDetalleRango, bo
 import { usePermisos, useSesion } from '../services/SesionContext';
 import { puedeVerGraficas, puedeRevertirFaltas } from '../services/permisosPadron';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
+import CumplimientoPanel from './CumplimientoPanel';
 import { hoyISO, partesFecha } from '../utils/fechas';
 import { BarrasVerticales, BarrasHorizontales, COLORES } from './Graficas';
 
@@ -1315,7 +1316,8 @@ export const SucesosTurnosModule: React.FC = () => {
           </form>
         </div>
 
-        {/* ─── Roles de turnos ─── */}
+        {/* ─── Roles de turnos y, abajo, su cumplimiento (SPEC-060) ─── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
         <div className="card-industrial">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '2px solid var(--brand-navy-light)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1422,6 +1424,8 @@ export const SucesosTurnosModule: React.FC = () => {
               })}
             </div>
           )}
+        </div>
+        <CumplimientoPanel colaboradores={colaboradores} roles={roles} esAdmin={esAdmin} miNomina={sesion?.nomina} />
         </div>
       </div>
 

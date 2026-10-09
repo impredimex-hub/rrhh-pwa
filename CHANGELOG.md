@@ -7,6 +7,20 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.38.0] — 2026-10-09
+
+### Agregado
+
+- **Panel de cumplimiento** debajo de Rol de turnos (SPEC-060). Muestra quién
+  no hizo su reporte diario de EPP (lunes a sábado; el sábado hasta las 21:30)
+  y qué departamento no tuvo rol de turnos o lo subió tarde. El administrador
+  ve a todos y exporta a Excel; cada persona con áreas a cargo ve lo suyo.
+- **Ficha de historial de cada rol** (`rolesHistorial`), que sobrevive al
+  borrado automático, y fecha de primera subida (`subidoEn`) en los roles
+  nuevos.
+
+---
+
 ## [2.37.0] — 2026-10-09
 
 ### Cambiado

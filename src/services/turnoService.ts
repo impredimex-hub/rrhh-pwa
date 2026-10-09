@@ -1,4 +1,5 @@
-import { collection, doc, setDoc, deleteDoc, query, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, setDoc, deleteDoc, query, onSnapshot, serverTimestamp, getDocs, where } from 'firebase/firestore';
+import type { RolResumen } from '../utils/cumplimiento';
 import { db } from '../firebase/config';
 import type { RolTurnos, PeriodoRol, AsignacionTurno } from '../types/rrhh';
 import { FIN_TURNO } from '../types/rrhh';
@@ -15,17 +16,86 @@ export const subscribeRolesTurnos = (callback: (data: RolTurnos[]) => void) => {
   });
 };
 
+/**
+ * Ficha de historial de cada rol (SPEC-060).
+ *
+ * Los roles se borran solos al vencer (SPEC-059), y con ellos se perdería si
+ * un departamento tuvo rol y si se subió a tiempo. La ficha guarda solo eso:
+ * departamento, fechas, quién lo subió y cuándo. No guarda la cuadrícula.
+ */
+const HISTORIAL = 'rolesHistorial';
+
+const fichaDe = (rol: RolTurnos, id: string) => {
+  const dias = diasDelPeriodo(rol.fechaInicio, rol.periodo);
+  return {
+    id,
+    nombre: rol.nombre || '',
+    departamento: rol.departamento || '',
+    periodo: rol.periodo,
+    fechaInicio: dias[0] || rol.fechaInicio || '',
+    fechaFin: dias[dias.length - 1] || rol.fechaInicio || '',
+    creadoPorNomina: rol.creadoPorNomina || '',
+    creadoPorNombre: rol.creadoPorNombre || '',
+    actualizadoEn: serverTimestamp()
+  };
+};
+
+/** No debe impedir guardar o borrar un rol: si falla, se avisa en consola y ya. */
+const escribirFicha = async (datos: Record<string, any>, id: string) => {
+  try { await setDoc(doc(db, HISTORIAL, id), datos, { merge: true }); }
+  catch (e) { console.warn('No se pudo escribir la ficha de historial del rol:', e); }
+};
+
 export const saveRolTurnos = async (rol: RolTurnos) => {
+  const nuevo = !rol.id;
   const docRef = rol.id ? doc(db, COLLECTION_NAME, rol.id) : doc(collection(db, COLLECTION_NAME));
   await setDoc(docRef, {
     ...rol,
     id: docRef.id,
-    createdAt: serverTimestamp()
+    createdAt: serverTimestamp(),
+    // `createdAt` se reescribe en cada guardado; `subidoEn` solo al crear, y
+    // es lo que dice si el rol se subió antes de empezar su periodo.
+    ...(nuevo ? { subidoEn: serverTimestamp() } : {})
   }, { merge: true });
+  await escribirFicha({ ...fichaDe(rol, docRef.id), ...(nuevo ? { subidoEn: serverTimestamp() } : {}) }, docRef.id);
 };
 
+/**
+ * Borrado a mano: quien lo borra dice que el rol estaba mal, así que su ficha
+ * se va también. Si se quedara, el historial diría que ese departamento tuvo
+ * rol con un rol que nunca valió.
+ */
 export const deleteRolTurnos = async (id: string) => {
   await deleteDoc(doc(db, COLLECTION_NAME, id));
+  try { await deleteDoc(doc(db, HISTORIAL, id)); }
+  catch (e) { console.warn('No se pudo borrar la ficha de historial del rol:', e); }
+};
+
+/** Milisegundos de un Timestamp de Firestore, o null si no hay dato. */
+const ms = (t: any): number | null =>
+  t && typeof t.toMillis === 'function' ? t.toMillis() : (typeof t === 'number' ? t : null);
+
+/** Resumen de un rol vivo, con la misma forma que una ficha de historial. */
+export const resumenDeRol = (rol: RolTurnos): RolResumen => {
+  const f = fichaDe(rol, rol.id || '');
+  return {
+    id: f.id, nombre: f.nombre, departamento: f.departamento,
+    fechaInicio: f.fechaInicio, fechaFin: f.fechaFin,
+    creadoPorNombre: f.creadoPorNombre, subidoEn: ms((rol as any).subidoEn)
+  };
+};
+
+/** Fichas de historial de roles que terminan en `desde` o después. */
+export const obtenerHistorialRoles = async (desde: string): Promise<RolResumen[]> => {
+  const snap = await getDocs(query(collection(db, HISTORIAL), where('fechaFin', '>=', desde)));
+  return snap.docs.map(d => {
+    const x: any = d.data();
+    return {
+      id: d.id, nombre: x.nombre || '', departamento: x.departamento || '',
+      fechaInicio: x.fechaInicio || '', fechaFin: x.fechaFin || '',
+      creadoPorNombre: x.creadoPorNombre || '', subidoEn: ms(x.subidoEn)
+    };
+  });
 };
 
 /**
@@ -141,7 +211,14 @@ export const purgarRolesVencidos = async (roles: RolTurnos[], excepto?: string):
   const vencidos = roles.filter(r => r.id && r.id !== excepto && rolVencido(r));
   let n = 0;
   for (const r of vencidos) {
-    try { await deleteRolTurnos(r.id!); n++; }
+    try {
+      // Antes de borrarlo se asegura su ficha (los roles anteriores a la
+      // SPEC-060 no la tienen). Se borra solo el rol: la ficha se queda.
+      const sub = (r as any).subidoEn;
+      await escribirFicha({ ...fichaDe(r, r.id!), ...(sub ? { subidoEn: sub } : {}) }, r.id!);
+      await deleteDoc(doc(db, COLLECTION_NAME, r.id!));
+      n++;
+    }
     catch (e) { console.warn('No se pudo borrar el rol vencido ' + r.nombre + ':', e); }
   }
   return n;

@@ -2543,6 +2543,72 @@ El rol que alguien tenga abierto en el editor se respeta hasta que lo cierre.
   día. Si se necesita conservarla, se exporta a Excel o PDF desde la lista
   **antes de que termine su periodo**.
 
+# SPEC-060 — Cumplimiento: quién no hizo su reporte de EPP y qué departamento no tuvo rol
+
+### Qué resuelve
+
+EPP y el rol de turnos son actividades que la gente debe hacer. Aunque la
+aplicación funcione, si no se usa no sirve. Este panel muestra **quién falló,
+qué y qué días**. No hay metas ni porcentajes: solo se observa.
+
+Vive en Sucesos y Turnos, **debajo de Rol de turnos**. El administrador ve a
+todos; cada persona con áreas a cargo ve solo lo suyo. Quien no es
+administrador ni tiene áreas a cargo no ve el panel.
+
+### Reporte diario de EPP
+
+- **Le toca** a cada persona activa con áreas a cargo (Directorio, SPEC-046) y
+  acceso a EPP.
+- **Cuenta como hecho** si ese día reportó una falta o cerró la ventana de
+  faltas sin reportar a nadie (`faltas/<fecha>`: `reportes[].porNomina` o
+  `sinFaltas[área].porNomina`).
+- **Días obligatorios: de lunes a sábado.** El domingo no cuenta.
+- **Un día no se juzga hasta que cierra.** EPP fecha el reporte con el día de
+  turno, de 06:00 a 06:00: entre semana el día cierra a las 06:00 del
+  siguiente. El sábado cierra a las 21:30. Antes de eso, está pendiente, no
+  falló.
+- **Área compartida.** EPP guarda la constancia «sin faltas» por área, no por
+  persona (SPEC-056): si dos supervisores comparten área, el segundo borra la
+  del primero. Por eso, cuando alguien no tiene registro propio pero su área sí
+  se revisó, se muestra en gris como «revisó X» y **no se cuenta como falla**.
+
+### Rol de turnos
+
+- **Departamentos que deben llevar rol:** Calidad, Mantenimiento, Flexografía,
+  Rotograbado, Digital, Acondicionado, Logística y Tintas. Se comparan sin
+  acentos contra los nombres del padrón, con alias («Impresión flexo» →
+  FLEXOGRAFÍA, «Roto» → ROTOGRABADO). Si alguno no existe en el padrón, el
+  panel lo dice. La lista está en `utils/cumplimiento.ts`.
+- **Responsable:** quien tenga el departamento entre sus áreas a cargo.
+- **Falla** si algún día ya iniciado del periodo no lo cubre ningún rol, o si
+  un rol se subió después de las 00:00 del día en que empieza. Los días futuros
+  sin rol aparecen como «por programar», no como falla.
+
+### Historial de roles
+
+Los roles se borran al vencer (SPEC-059). Para no perder si un departamento
+tuvo rol y si lo subió a tiempo, cada rol deja una **ficha** en
+`rolesHistorial/<id>`: departamento, fechas, quién lo subió y `subidoEn`. No
+guarda la cuadrícula.
+
+- La ficha se escribe al guardar el rol y se asegura antes de su borrado
+  automático. Un fallo al escribirla no impide guardar el rol.
+- **Borrar un rol a mano borra también su ficha**: quien lo borra dice que
+  estaba mal, y el historial no debe contarlo como rol válido.
+- `subidoEn` solo se pone al crear el rol. **Los roles anteriores a esta versión
+  no lo tienen**, así que de ellos no se puede saber si se subieron a tiempo, y
+  el panel no los juzga.
+- La colección necesita su permiso en las reglas del proyecto (`firestore.rules`).
+  Mientras no esté publicado, el panel funciona solo con los roles vivos.
+
+### Costo
+
+Un periodo de una semana lee unos seis documentos de `faltas` y las fichas de
+los roles que terminan en ese periodo o después. Se recalcula al abrir la
+pestaña, al cambiar las fechas o con el botón de actualizar.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |

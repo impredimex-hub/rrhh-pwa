@@ -2,6 +2,7 @@ import {
   collection, doc, onSnapshot, query, where, getDocs, updateDoc, deleteField, serverTimestamp
 } from 'firebase/firestore';
 import { suiteDb as db } from './suite';
+import type { ControlDelDia } from '../utils/cumplimiento';
 
 const COLLECTION_NAME = 'faltas';
 
@@ -97,6 +98,42 @@ export const obtenerFaltasDetalleRango = async (
     });
   });
   return salida;
+};
+
+/**
+ * Quién hizo el reporte diario de EPP cada día del rango (SPEC-060).
+ *
+ * Un reporte cuenta si la persona reportó al menos una falta (`reportes`, con
+ * su `porNomina`) o cerró la ventana sin reportar a nadie (`sinFaltas`, por
+ * área, con su `porNomina`). Son los mismos documentos que lee el reporte de
+ * faltas: un mes son unos treinta.
+ */
+export const obtenerControlesEPP = async (
+  fechaDesde: string,
+  fechaHasta: string
+): Promise<Record<string, ControlDelDia>> => {
+  const out: Record<string, ControlDelDia> = {};
+  if (!fechaDesde || !fechaHasta) return out;
+  const snap = await getDocs(query(
+    collection(db, COLLECTION_NAME),
+    where('fecha', '>=', fechaDesde),
+    where('fecha', '<=', fechaHasta)
+  ));
+  snap.docs.forEach(d => {
+    const data: any = d.data();
+    if (!data?.fecha) return;
+    const c: ControlDelDia = { porNomina: {}, sinFaltasPorArea: {} };
+    Object.values(data.reportes || {}).forEach((r: any) => {
+      if (r?.porNomina) c.porNomina[String(r.porNomina)] = r.porNombre || '';
+    });
+    Object.entries(data.sinFaltas || {}).forEach(([area, r]: [string, any]) => {
+      if (!r?.porNomina) return;
+      c.porNomina[String(r.porNomina)] = r.porNombre || '';
+      c.sinFaltasPorArea[area.trim().toUpperCase()] = { nomina: String(r.porNomina), nombre: r.porNombre || '' };
+    });
+    out[data.fecha] = c;
+  });
+  return out;
 };
 
 /** En vivo, para la cuadrícula del rol abierto. */

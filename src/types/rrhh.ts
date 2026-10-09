@@ -352,6 +352,8 @@ export interface RolTurnos {
   /** Quién lo creó: solo esa persona o un ADMIN pueden editarlo o borrarlo. */
   creadoPorNomina: string;
   creadoPorNombre: string;
+  /** Cuándo se subió por primera vez (SPEC-060). Los roles anteriores no lo tienen. */
+  subidoEn?: unknown;
 }
 
 /* ───────────────── Promociones internas (v2.9) ───────────────── */
