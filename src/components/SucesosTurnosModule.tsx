@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, FileSpreadsheet, FileText, Edit2, Copy, ClipboardPaste, Eraser, X, ChevronLeft, ShieldCheck, Eye, Check, FileWarning } from 'lucide-react';
+import { Plus, Trash2, FileSpreadsheet, FileText, Edit2, Copy, ClipboardPaste, Eraser, X, ChevronLeft, Eye, Check, FileWarning } from 'lucide-react';
 import type {
   Colaborador, Suceso, TipoSuceso, RolTurnos, PeriodoRol, ClaveTurno, AsignacionTurno
 } from '../types/rrhh';
 import { ETIQUETA_SUCESO, HORARIO_TURNO, etiquetaTurno } from '../types/rrhh';
-import { subscribeColaboradores, areasACargoDe, asignarReporteFaltasTodas, asignarCapturaPromociones, asignarVerGraficas, asignarRevertirFaltas } from '../services/personalService';
+import { subscribeColaboradores, areasACargoDe } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
 import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino, purgarRolesVencidos } from '../services/turnoService';
 import { subscribeFaltasRango, obtenerFaltasRango, obtenerFaltasDetalleRango, borrarFaltaReportada, olvidarFaltasEnCache } from '../services/faltasService';
@@ -303,79 +303,8 @@ export const SucesosTurnosModule: React.FC = () => {
   }, []);
   const [portapapeles, setPortapapeles] = useState<AsignacionTurno | null>(null);
 
-  /* ── Panel de permisos (solo ADMIN) ── */
-  const [panelPermisos, setPanelPermisos] = useState(false);
-  const [buscaPermisos, setBuscaPermisos] = useState('');
-  const [guardandoPermiso, setGuardandoPermiso] = useState('');
-
-  const alternarReporteTodas = async (c: Colaborador) => {
-    if (!esAdmin || guardandoPermiso) return;
-    setGuardandoPermiso(c.noNomina);
-    try {
-      await asignarReporteFaltasTodas(c.noNomina, !c.reporteFaltasTodas, sesion?.nomina || '');
-    } catch (err) {
-      console.error(err);
-      alert('No se pudo guardar el permiso. Revisa tu conexión e inténtalo de nuevo.');
-    } finally {
-      setGuardandoPermiso('');
-    }
-  };
-
-  const alternarCapturaPromociones = async (c: Colaborador) => {
-    if (!esAdmin || guardandoPermiso) return;
-    setGuardandoPermiso(c.noNomina);
-    try {
-      await asignarCapturaPromociones(c.noNomina, !c.capturaPromociones, sesion?.nomina || '');
-    } catch (err) {
-      console.error(err);
-      alert('No se pudo guardar el permiso. Revisa tu conexión e inténtalo de nuevo.');
-    } finally {
-      setGuardandoPermiso('');
-    }
-  };
-
-  const alternarVerGraficas = async (c: Colaborador) => {
-    if (!esAdmin || guardandoPermiso) return;
-    setGuardandoPermiso(c.noNomina);
-    try {
-      await asignarVerGraficas(c.noNomina, !c.verGraficas, sesion?.nomina || '');
-    } catch (err) {
-      console.error(err);
-      alert('No se pudo guardar el permiso. Revisa tu conexión e inténtalo de nuevo.');
-    } finally {
-      setGuardandoPermiso('');
-    }
-  };
-
-  const alternarRevertirFaltas = async (c: Colaborador) => {
-    if (!esAdmin || guardandoPermiso) return;
-    setGuardandoPermiso(c.noNomina);
-    try {
-      await asignarRevertirFaltas(c.noNomina, !c.revertirFaltas, sesion?.nomina || '');
-    } catch (err) {
-      console.error(err);
-      alert('No se pudo guardar el permiso. Revisa tu conexión e inténtalo de nuevo.');
-    } finally {
-      setGuardandoPermiso('');
-    }
-  };
-
-  /** Quien ya tiene algún permiso, primero; luego el resto. */
-  const personasPermisos = useMemo(() => {
-    const t = buscaPermisos.trim().toUpperCase();
-    const base = t
-      ? activos.filter(c =>
-          (c.nombreCompleto || '').toUpperCase().includes(t) ||
-          (c.noNomina || '').includes(t) ||
-          (c.departamento || '').toUpperCase().includes(t))
-      : activos;
-    return [...base].sort((a, b) => {
-      const na = (areasACargoDe(a).length || a.reporteFaltasTodas || a.capturaPromociones || a.verGraficas) ? 0 : 1;
-      const nb = (areasACargoDe(b).length || b.reporteFaltasTodas || b.capturaPromociones || b.verGraficas) ? 0 : 1;
-      if (na !== nb) return na - nb;
-      return (a.nombreCompleto || '').localeCompare(b.nombreCompleto || '');
-    });
-  }, [activos, buscaPermisos]);
+  /* Los permisos especiales y las áreas a cargo se administran en el
+     Directorio, en la ventana de la llave (SPEC-061). Aquí ya no hay panel. */
 
   const nuevoRol = (): RolTurnos => {
     const departamento = misDepartamentos[0] || '';
@@ -908,123 +837,6 @@ export const SucesosTurnosModule: React.FC = () => {
 
   /* ══════════════════ VISTA: permisos de programación ══════════════════ */
 
-  if (panelPermisos && esAdmin) {
-    return (
-      <div className="card-industrial">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.5rem' }}>
-          <button
-            onClick={() => { setPanelPermisos(false); setBuscaPermisos(''); }}
-            style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-navy)', display: 'flex', alignItems: 'center', padding: 0 }}
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <div className="sec-title" style={{ margin: 0 }}>Quién puede programar turnos</div>
-        </div>
-
-        <p style={{ fontSize: '11.5px', color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.45 }}>
-          Marca los departamentos que cada persona puede programar. Quien no tenga
-          ninguno marcado solo consulta. Tú, como administrador, puedes programar
-          todos sin necesidad de aparecer aquí. Las casillas de abajo son
-          aparte y no conceden permiso para programar nada: una da acceso al
-          reporte de faltas de todas las áreas, otra permite capturar y
-          calificar promociones internas, otra ver las gráficas. La última,
-          revertir una falta, <b>es la única que ni siquiera un administrador
-          tiene por su papel</b>: se necesita la marca. Cada marca se guarda al
-          instante.
-        </p>
-
-        <input
-          type="text" placeholder="Buscar por nombre, nómina o departamento…"
-          value={buscaPermisos} onChange={e => setBuscaPermisos(e.target.value)}
-          style={{ width: '100%', boxSizing: 'border-box', marginBottom: '10px' }}
-        />
-
-        {departamentos.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '1.5rem 0', color: 'var(--text-secondary)', fontSize: '12px' }}>
-            No hay departamentos en el padrón todavía.
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {personasPermisos.map(c => {
-              const suyos = areasACargoDe(c);
-              const ocupado = guardandoPermiso === c.noNomina;
-              return (
-                <div key={c.noNomina} style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-md)', padding: '9px 11px', background: (suyos.length || c.reporteFaltasTodas || c.capturaPromociones || c.verGraficas || c.revertirFaltas) ? 'var(--brand-navy-light)' : '#fff', opacity: ocupado ? 0.55 : 1 }}>
-                  <div style={{ fontWeight: 700, fontSize: '11.5px', color: 'var(--brand-navy-dark)' }}>
-                    {c.nombreCompleto}
-                  </div>
-                  <div style={{ fontSize: '9.5px', color: 'var(--text-light)', marginBottom: '6px' }}>
-                    #{c.noNomina} · {c.departamento || 'sin departamento'} · {c.puesto || 'sin puesto'}
-                  </div>
-                  {/* Las áreas a cargo se administran en el Directorio,
-                      junto a los accesos (SPEC-046). Aquí solo se muestran,
-                      para no tener el mismo dato en dos pantallas. */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}>
-                    <span style={{ fontSize: '9.5px', color: 'var(--text-light)' }}>Áreas a cargo:</span>
-                    {suyos.length === 0
-                      ? <span style={{ fontSize: '9.5px', color: 'var(--text-light)' }}>ninguna</span>
-                      : suyos.map(d => (
-                          <span key={d} style={{ fontSize: '9.5px', fontWeight: 700, padding: '3px 9px', borderRadius: '20px', background: 'var(--brand-navy)', color: '#fff' }}>{d}</span>
-                        ))}
-                  </div>
-
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: '10px', color: 'var(--text-secondary)', cursor: ocupado ? 'wait' : 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={!!c.reporteFaltasTodas}
-                      disabled={ocupado}
-                      onChange={() => alternarReporteTodas(c)}
-                      style={{ width: '14px', height: '14px', accentColor: 'var(--brand-navy)', cursor: ocupado ? 'wait' : 'pointer' }}
-                    />
-                    Puede ver el reporte de faltas de todas las áreas
-                  </label>
-
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', fontSize: '10px', color: 'var(--text-secondary)', cursor: ocupado ? 'wait' : 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={!!c.capturaPromociones}
-                      disabled={ocupado}
-                      onChange={() => alternarCapturaPromociones(c)}
-                      style={{ width: '14px', height: '14px', accentColor: 'var(--brand-navy)', cursor: ocupado ? 'wait' : 'pointer' }}
-                    />
-                    Puede capturar promociones internas
-                  </label>
-
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', fontSize: '10px', color: 'var(--text-secondary)', cursor: ocupado ? 'wait' : 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={!!c.verGraficas}
-                      disabled={ocupado}
-                      onChange={() => alternarVerGraficas(c)}
-                      style={{ width: '14px', height: '14px', accentColor: 'var(--brand-navy)', cursor: ocupado ? 'wait' : 'pointer' }}
-                    />
-                    Puede ver las gráficas
-                  </label>
-
-                  {/* Este permiso no lo concede el papel de administrador
-                      (SPEC-032): solo se tiene si está marcado aquí. */}
-                  <label style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed var(--border-mid)', fontSize: '10px', color: 'var(--text-secondary)', cursor: ocupado ? 'wait' : 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={!!c.revertirFaltas}
-                      disabled={ocupado}
-                      onChange={() => alternarRevertirFaltas(c)}
-                      style={{ width: '14px', height: '14px', accentColor: 'var(--brand-red)', cursor: ocupado ? 'wait' : 'pointer', marginTop: '1px', flexShrink: 0 }}
-                    />
-                    <span>
-                      <b style={{ color: 'var(--brand-red)' }}>Puede revertir una falta</b> y darla por asistencia
-                      cuando no se hizo la revisión de EPP. Cada corrección queda firmada con su nombre y su motivo.
-                    </span>
-                  </label>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   /* ══════════════════ VISTA: editor de rol ══════════════════ */
 
   if (editandoRol) {
@@ -1325,16 +1137,6 @@ export const SucesosTurnosModule: React.FC = () => {
               <div className="sec-title" style={{ margin: 0 }}>Rol de Turnos ({roles.length})</div>
             </div>
             <div style={{ display: 'flex', gap: '6px' }}>
-              {esAdmin && (
-                <button
-                  onClick={() => setPanelPermisos(true)}
-                  title="Quién puede programar turnos"
-                  aria-label="Quién puede programar turnos"
-                  style={BOTON_REDONDO}
-                >
-                  <ShieldCheck size={16} />
-                </button>
-              )}
               {puedeCrearRol && (
                 <button
                   onClick={() => setEditandoRol(nuevoRol())}

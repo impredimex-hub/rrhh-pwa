@@ -2609,6 +2609,34 @@ pestaña, al cambiar las fechas o con el botón de actualizar.
 
 ---
 
+# SPEC-061 — Todo lo de una persona se administra en la llave del Directorio
+
+### Qué cambia
+
+La pantalla «Quién puede programar turnos» (el escudo en Sucesos y Turnos) se
+retira. Desde la SPEC-046 las áreas a cargo ya se asignaban en el Directorio y
+ahí solo se mostraban; lo único que quedaba en esa pantalla eran cuatro
+permisos especiales, y su nombre ya no describía lo que hacía.
+
+Los cuatro pasan a la ventana **Acceso a las aplicaciones** (icono de llave en
+el Directorio), en la sección **Permisos especiales en Recursos Humanos**:
+
+- Ver el reporte de faltas de todas las áreas (SPEC-015)
+- Capturar promociones internas (SPEC-016)
+- Ver las gráficas
+- Borrar una falta reportada por error (SPEC-032 / SPEC-047). Sigue sin
+  concederlo el papel de administrador: solo la marca.
+
+### Reglas de negocio
+
+- **Quién los asigna no cambia:** la llave, igual que el escudo, solo la ve un
+  ADMIN de RRHH.
+- **Cada permiso y cada área se guardan al marcarlos**, con «✓ Guardado» como
+  confirmación. El botón **Guardar accesos** es solo para el acceso y papel en
+  cada app; sin cambios de ese tipo, la ventana se cierra con **Listo**.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |

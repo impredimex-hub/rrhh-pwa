@@ -7,6 +7,22 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.39.0] — 2026-10-13
+
+### Cambiado
+
+- **Los permisos especiales se administran en la llave del Directorio**
+  (SPEC-061): reporte de faltas de todas las áreas, captura de promociones,
+  gráficas y borrar faltas. Se guardan al marcarlos, como las áreas a cargo.
+
+### Retirado
+
+- La pantalla «Quién puede programar turnos» (escudo en Sucesos y Turnos). Las
+  áreas a cargo ya se asignaban en el Directorio y sus cuatro permisos se
+  movieron ahí.
+
+---
+
 ## [2.38.1] — 2026-10-13
 
 ### Corregido

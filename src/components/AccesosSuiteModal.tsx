@@ -1,8 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { KeyRound, AlertTriangle, Users } from 'lucide-react';
+import { KeyRound, AlertTriangle, Users, ShieldCheck } from 'lucide-react';
 import type { Colaborador } from '../types/rrhh';
 import { APPS_SUITE, leerAcceso } from '../utils/accesosSuite';
-import { asignarAccesos, asignarAreasACargo, areasACargoDe } from '../services/personalService';
+import {
+  asignarAccesos, asignarAreasACargo, areasACargoDe,
+  asignarReporteFaltasTodas, asignarCapturaPromociones, asignarVerGraficas, asignarRevertirFaltas
+} from '../services/personalService';
 
 /** Valor del selector para «sin acceso». */
 const SIN_ACCESO = '';
@@ -79,6 +82,43 @@ export const AccesosSuiteModal: React.FC<Props> = ({ colab, departamentos, autor
     }
   };
   const [error, setError] = useState('');
+
+  /**
+   * Permisos especiales de RRHH (antes en «Quién puede programar turnos»).
+   * Igual que las áreas, se guardan al marcarlos. Se llevan en estado local
+   * porque `colab` es la foto del momento en que se abrió la ventana.
+   */
+  type Especial = 'reporteFaltasTodas' | 'capturaPromociones' | 'verGraficas' | 'revertirFaltas';
+  const [especiales, setEspeciales] = useState<Record<Especial, boolean>>(() => ({
+    reporteFaltasTodas: !!colab.reporteFaltasTodas,
+    capturaPromociones: !!colab.capturaPromociones,
+    verGraficas: !!colab.verGraficas,
+    revertirFaltas: !!colab.revertirFaltas
+  }));
+  const [guardandoEspecial, setGuardandoEspecial] = useState(false);
+  const [especialGuardado, setEspecialGuardado] = useState(false);
+  const GUARDAR_ESPECIAL: Record<Especial, (n: string, v: boolean, a: string) => Promise<void>> = {
+    reporteFaltasTodas: asignarReporteFaltasTodas,
+    capturaPromociones: asignarCapturaPromociones,
+    verGraficas: asignarVerGraficas,
+    revertirFaltas: asignarRevertirFaltas
+  };
+  const alternarEspecial = async (k: Especial) => {
+    if (guardandoEspecial) return;
+    const valor = !especiales[k];
+    setEspeciales(e => ({ ...e, [k]: valor }));
+    setGuardandoEspecial(true);
+    try {
+      await GUARDAR_ESPECIAL[k](colab.noNomina, valor, autor);
+      setEspecialGuardado(true);
+      setTimeout(() => setEspecialGuardado(false), 2500);
+    } catch (e: any) {
+      setEspeciales(x => ({ ...x, [k]: !valor }));
+      setError('No se pudo guardar el permiso: ' + (e?.message || 'error desconocido'));
+    } finally {
+      setGuardandoEspecial(false);
+    }
+  };
 
   const cambios = useMemo(() => {
     const c: Record<string, string | null> = {};
@@ -211,6 +251,43 @@ export const AccesosSuiteModal: React.FC<Props> = ({ colab, departamentos, autor
           </div>
         </div>
 
+        {/* Permisos especiales de RRHH. Vivían en Sucesos y Turnos, en la
+            pantalla «Quién puede programar turnos»; se movieron aquí para que
+            todo lo de una persona se administre en un solo lugar. */}
+        <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', fontWeight: 700, color: 'var(--brand-navy)', marginBottom: '.35rem' }}>
+            <ShieldCheck size={15} /> Permisos especiales en Recursos Humanos
+            <span style={{ marginLeft: 'auto', fontSize: '10.5px', fontWeight: 600, color: guardandoEspecial ? 'var(--text-light)' : 'var(--green-dark)' }}>
+              {guardandoEspecial ? 'Guardando…' : especialGuardado ? '✓ Guardado' : ''}
+            </span>
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.55, marginBottom: '.5rem' }}>
+            Aparte del papel en RRHH. <b>Cada permiso se guarda al marcarlo.</b>
+          </div>
+          {([
+            ['reporteFaltasTodas', 'Puede ver el reporte de faltas de todas las áreas'],
+            ['capturaPromociones', 'Puede capturar promociones internas'],
+            ['verGraficas', 'Puede ver las gráficas']
+          ] as [Especial, string][]).map(([k, texto]) => (
+            <label key={k} style={{ display: 'flex', alignItems: 'center', gap: '7px', marginTop: '5px', fontSize: '11.5px', color: 'var(--text-secondary)', cursor: guardandoEspecial ? 'wait' : 'pointer' }}>
+              <input type="checkbox" checked={especiales[k]} disabled={guardandoEspecial || guardando}
+                onChange={() => alternarEspecial(k)}
+                style={{ width: '15px', height: '15px', accentColor: 'var(--brand-navy)' }} />
+              {texto}
+            </label>
+          ))}
+          {/* No lo concede el papel de administrador (SPEC-032): solo la marca. */}
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', marginTop: '8px', paddingTop: '8px', borderTop: '1px dashed var(--border-mid)', fontSize: '11.5px', color: 'var(--text-secondary)', cursor: guardandoEspecial ? 'wait' : 'pointer' }}>
+            <input type="checkbox" checked={especiales.revertirFaltas} disabled={guardandoEspecial || guardando}
+              onChange={() => alternarEspecial('revertirFaltas')}
+              style={{ width: '15px', height: '15px', accentColor: 'var(--brand-red)', marginTop: '1px', flexShrink: 0 }} />
+            <span>
+              <b style={{ color: 'var(--brand-red)' }}>Puede borrar una falta</b> reportada por error. Ni un administrador lo
+              tiene por su papel: solo con esta marca. Cada corrección queda firmada.
+            </span>
+          </label>
+        </div>
+
         <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: 1.6, background: 'var(--bg-light)', borderRadius: '8px', padding: '10px 12px', marginBottom: '1rem' }}>
           El cambio se aplica la próxima vez que la persona entre. Si ya tiene una app abierta, debe cerrar
           sesión y volver a entrar para ver su nuevo papel.
@@ -237,7 +314,7 @@ export const AccesosSuiteModal: React.FC<Props> = ({ colab, departamentos, autor
               </button>
             </>
           ) : (
-            <button onClick={onCerrar} disabled={guardandoAreas}
+            <button onClick={onCerrar} disabled={guardandoAreas || guardandoEspecial}
               style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: 'var(--brand-navy)', color: '#fff', fontWeight: 700, fontSize: '13px', fontFamily: 'inherit', cursor: guardandoAreas ? 'wait' : 'pointer' }}>
               Listo
             </button>
