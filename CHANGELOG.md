@@ -7,6 +7,19 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.38.1] — 2026-10-13
+
+### Corregido
+
+- **El botón Guardar de Acceso a las aplicaciones parecía no funcionar** al
+  cambiar solo las áreas a cargo. Las áreas se guardan al marcarlas, y el botón
+  solo se activaba con cambios de acceso a las apps, así que quedaba apagado.
+  Ahora, sin cambios de acceso, el único botón es **Listo**; con cambios,
+  **Guardar accesos** y **Descartar accesos**. Junto a «Áreas a cargo» aparece
+  «✓ Guardado» tras cada cambio.
+
+---
+
 ## [2.38.0] — 2026-10-09
 
 ### Agregado

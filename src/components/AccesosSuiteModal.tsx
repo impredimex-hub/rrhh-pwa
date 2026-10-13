@@ -55,6 +55,9 @@ export const AccesosSuiteModal: React.FC<Props> = ({ colab, departamentos, autor
    */
   const [areas, setAreas] = useState<string[]>(() => areasACargoDe(colab));
   const [guardandoAreas, setGuardandoAreas] = useState(false);
+  // Se muestra «Guardado» un momento tras cada cambio de área, porque se
+  // guardan al marcarlas y sin aviso parecía que esperaban al botón.
+  const [areasGuardadas, setAreasGuardadas] = useState(false);
 
   const alternarArea = async (depto: string) => {
     if (guardandoAreas) return;
@@ -65,6 +68,8 @@ export const AccesosSuiteModal: React.FC<Props> = ({ colab, departamentos, autor
     setGuardandoAreas(true);
     try {
       await asignarAreasACargo(colab.noNomina, siguientes, autor);
+      setAreasGuardadas(true);
+      setTimeout(() => setAreasGuardadas(false), 2500);
     } catch (e: any) {
       // Se revierte en pantalla: dejarlo marcado haría creer que se guardó.
       setAreas(areas);
@@ -171,10 +176,13 @@ export const AccesosSuiteModal: React.FC<Props> = ({ colab, departamentos, autor
         <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1rem', marginBottom: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', fontWeight: 700, color: 'var(--brand-navy)', marginBottom: '.35rem' }}>
             <Users size={15} /> Áreas a cargo
+            <span style={{ marginLeft: 'auto', fontSize: '10.5px', fontWeight: 600, color: guardandoAreas ? 'var(--text-light)' : 'var(--green-dark)' }}>
+              {guardandoAreas ? 'Guardando…' : areasGuardadas ? '✓ Guardado' : ''}
+            </span>
           </div>
           <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.55, marginBottom: '.6rem' }}>
             De qué áreas puede crear roles de turno y reportar faltas. Es distinto de su
-            departamento: ahí pertenece, aquí manda.
+            departamento: ahí pertenece, aquí manda. <b>Cada área se guarda al marcarla.</b>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
             {departamentos.length === 0 ? (
@@ -212,15 +220,28 @@ export const AccesosSuiteModal: React.FC<Props> = ({ colab, departamentos, autor
           <div style={{ fontSize: '12px', color: 'var(--brand-red)', lineHeight: 1.5, marginBottom: '.8rem' }}>{error}</div>
         )}
 
+        {/* Sin cambios de acceso pendientes solo hay «Listo»: las áreas ya se
+            guardaron al marcarlas, y un «Guardar» apagado hacía creer que no
+            se había guardado nada (y «Cancelar» que se podía deshacer). */}
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={onCerrar} disabled={guardando}
-            style={{ flex: 1, padding: '11px', borderRadius: '9px', border: '1px solid var(--brand-navy)', background: '#fff', color: 'var(--brand-navy)', fontWeight: 600, fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}>
-            Cancelar
-          </button>
-          <button onClick={guardar} disabled={!hayCambios || guardando}
-            style={{ flex: 1.4, padding: '11px', borderRadius: '9px', border: 'none', background: 'var(--brand-navy)', color: '#fff', fontWeight: 700, fontSize: '13px', fontFamily: 'inherit', cursor: hayCambios ? 'pointer' : 'not-allowed', opacity: hayCambios ? 1 : .45 }}>
-            {guardando ? 'Guardando…' : 'Guardar'}
-          </button>
+          {hayCambios ? (
+            <>
+              <button onClick={onCerrar} disabled={guardando}
+                title="Descarta los cambios de acceso a las apps. Las áreas a cargo ya quedaron guardadas."
+                style={{ flex: 1, padding: '11px', borderRadius: '9px', border: '1px solid var(--brand-navy)', background: '#fff', color: 'var(--brand-navy)', fontWeight: 600, fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}>
+                Descartar accesos
+              </button>
+              <button onClick={guardar} disabled={guardando}
+                style={{ flex: 1.4, padding: '11px', borderRadius: '9px', border: 'none', background: 'var(--brand-navy)', color: '#fff', fontWeight: 700, fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer' }}>
+                {guardando ? 'Guardando…' : 'Guardar accesos'}
+              </button>
+            </>
+          ) : (
+            <button onClick={onCerrar} disabled={guardandoAreas}
+              style={{ flex: 1, padding: '11px', borderRadius: '9px', border: 'none', background: 'var(--brand-navy)', color: '#fff', fontWeight: 700, fontSize: '13px', fontFamily: 'inherit', cursor: guardandoAreas ? 'wait' : 'pointer' }}>
+              Listo
+            </button>
+          )}
         </div>
       </div>
     </div>
