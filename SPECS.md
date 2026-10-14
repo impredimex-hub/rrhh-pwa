@@ -2700,6 +2700,40 @@ Se copian, se pegan en la fila y se borran igual que un turno.
 
 ---
 
+# SPEC-064 — El rol de Mantenimiento llega desde su propia app
+
+### Qué resuelve
+
+Mantenimiento capturaba su rol dos veces: en su app, que lo usa para saber qué
+técnicos están en turno, y aquí. Ahora lo captura solo en su app y llega aquí
+solo (SPEC-063 de Mantenimiento).
+
+### Cómo llega
+
+- El servicio `mantoapp-push` escribe en `rolesTurnos/manto_<id>` y en
+  `rolesHistorial/manto_<id>` con la cuenta de servicio del proyecto. No
+  depende de las reglas de esta base.
+- El rol trae `origen: 'MANTENIMIENTO'`, departamento `MANTENIMIENTO`, el
+  mismo formato de `asignaciones` y su `subidoEn` (cuándo se creó en
+  Mantenimiento), así que cuenta igual para faltas, reportes y el panel de
+  cumplimiento (SPEC-060).
+- Al vencer se borra solo como cualquier rol (SPEC-059) y su ficha se queda.
+
+### Reglas de negocio
+
+- **Un rol con `origen: 'MANTENIMIENTO'` es de solo lectura**, también para un
+  administrador. El editor lo abre para consultar, con un aviso de que se
+  corrige en Mantenimiento. La lista lo marca «Desde app de Mantenimiento».
+- **Borrarlo aquí** solo lo puede un administrador, como salida de emergencia,
+  y se le advierte que lo normal es borrarlo en Mantenimiento.
+- **MANTENIMIENTO no se ofrece para crear roles aquí** (`DEPTOS_CON_APP`). Así
+  no vuelve la doble captura. Si la persona solo tiene a cargo Mantenimiento,
+  se le dice dónde se captura.
+- Las vacaciones y los permisos (SPEC-062) también se capturan en
+  Mantenimiento y llegan como `VAC` y `PER`.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |

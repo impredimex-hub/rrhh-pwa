@@ -7,6 +7,17 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.42.0] — 2026-10-14
+
+### Agregado
+
+- **El rol de Mantenimiento llega solo desde su app** (SPEC-064). Se marca
+  «Desde app de Mantenimiento», se consulta y exporta como cualquier otro y
+  cuenta para faltas y cumplimiento, pero se corrige allá. MANTENIMIENTO ya no
+  se ofrece para crear roles aquí.
+
+---
+
 ## [2.41.0] — 2026-10-14
 
 ### Cambiado

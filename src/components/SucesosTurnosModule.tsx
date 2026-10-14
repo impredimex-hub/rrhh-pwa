@@ -3,7 +3,7 @@ import { Plus, Trash2, FileSpreadsheet, FileText, Edit2, Copy, ClipboardPaste, E
 import type {
   Colaborador, Suceso, TipoSuceso, RolTurnos, PeriodoRol, ClaveTurno, AsignacionTurno
 } from '../types/rrhh';
-import { ETIQUETA_SUCESO, HORARIO_TURNO, etiquetaTurno, AUSENCIAS, esAusencia, NOMBRE_AUSENCIA } from '../types/rrhh';
+import { ETIQUETA_SUCESO, HORARIO_TURNO, etiquetaTurno, AUSENCIAS, esAusencia, NOMBRE_AUSENCIA, esDeMantenimiento, esDeptoConApp } from '../types/rrhh';
 import { subscribeColaboradores, areasACargoDe } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
 import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino, purgarRolesVencidos } from '../services/turnoService';
@@ -163,7 +163,18 @@ export const SucesosTurnosModule: React.FC = () => {
     return departamentos.filter(d => asignados.includes(d));
   }, [esAdmin, sesion, colaboradores, departamentos]);
 
-  const puedeCrearRol = misDepartamentos.length > 0;
+  /**
+   * Departamentos en los que aquí se puede **crear** un rol (SPEC-064).
+   * Mantenimiento captura el suyo en su propia app y llega aquí solo; si
+   * también se ofreciera aquí, volvería la doble captura.
+   */
+  const deptosParaCrear = useMemo(
+    () => misDepartamentos.filter(d => !esDeptoConApp(d)),
+    [misDepartamentos]
+  );
+  const soloDeptosConApp = misDepartamentos.length > 0 && deptosParaCrear.length === 0;
+
+  const puedeCrearRol = deptosParaCrear.length > 0;
 
   /**
    * El permiso es por departamento, no por autoría: quien puede programar un
@@ -191,6 +202,8 @@ export const SucesosTurnosModule: React.FC = () => {
    * sobre los turnos asignados (SPEC-014).
    */
   const puedeEditarRol = (rol: RolTurnos) => {
+    // Un rol copiado desde Mantenimiento se corrige allá (SPEC-064).
+    if (esDeMantenimiento(rol)) return false;
     const autor = String(rol.creadoPorNomina || '').trim();
     const yo = String(sesion?.nomina || '').trim();
     // Ambas nóminas deben existir: comparar dos vacíos da verdadero, y un rol
@@ -209,6 +222,8 @@ export const SucesosTurnosModule: React.FC = () => {
    * el nombre de quien lo rehizo, y la autoría sigue siendo honesta.
    */
   const puedeBorrarRol = (rol: RolTurnos) => esAdmin || puedeEditarRol(rol);
+  // Un rol de Mantenimiento solo lo retira un administrador, como salida de
+  // emergencia; lo normal es borrarlo en Mantenimiento y que se quite solo.
 
   /* ══════════════════ SUCESOS ══════════════════ */
 
@@ -319,7 +334,7 @@ export const SucesosTurnosModule: React.FC = () => {
      Directorio, en la ventana de la llave (SPEC-061). Aquí ya no hay panel. */
 
   const nuevoRol = (): RolTurnos => {
-    const departamento = misDepartamentos[0] || '';
+    const departamento = deptosParaCrear[0] || '';
     const periodo: PeriodoRol = 'SEMANAL';
     const fechaInicio = hoyISO();
     return {
@@ -893,7 +908,13 @@ export const SucesosTurnosModule: React.FC = () => {
             </div>
           </div>
 
-          {soloLectura && (
+          {soloLectura && esDeMantenimiento(editandoRol) && (
+            <div style={{ background: '#E8EEF8', border: '1px solid rgba(0,53,128,.15)', borderRadius: '10px', padding: '10px 14px', marginBottom: '10px', fontSize: '11.5px', color: '#003580' }}>
+              Este rol <b>viene de la app de Mantenimiento</b>, donde lo capturó {editandoRol.creadoPorNombre || 'su supervisor'}. Aquí solo se consulta; cualquier cambio se hace en Mantenimiento y llega aquí solo.
+            </div>
+          )}
+
+          {soloLectura && !esDeMantenimiento(editandoRol) && (
             <div style={{ background: '#E8EEF8', border: '1px solid rgba(0,53,128,.15)', borderRadius: '10px', padding: '10px 14px', marginBottom: '10px', fontSize: '11.5px', color: '#003580' }}>
               Estás viendo un rol creado por {editandoRol.creadoPorNombre || 'otra persona'}. <b>Solo quien lo creó puede modificarlo</b>, ni siquiera un administrador o RRHH. Si hay que corregirlo, pídeselo a esa persona.
             </div>
@@ -917,9 +938,9 @@ export const SucesosTurnosModule: React.FC = () => {
                 {/* Si es un rol ajeno en modo lectura, su departamento puede no
                     estar entre los míos; se agrega para que el campo no se vea
                     vacío. */}
-                {(misDepartamentos.includes(editandoRol.departamento) || !editandoRol.departamento
-                    ? misDepartamentos
-                    : [editandoRol.departamento, ...misDepartamentos]
+                {(deptosParaCrear.includes(editandoRol.departamento) || !editandoRol.departamento
+                    ? deptosParaCrear
+                    : [editandoRol.departamento, ...deptosParaCrear]
                 ).map(d => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
@@ -1210,7 +1231,9 @@ export const SucesosTurnosModule: React.FC = () => {
           {!puedeCrearRol && (
             <div style={{ background: '#E8EEF8', border: '1px solid rgba(0,53,128,.15)', borderRadius: '10px', padding: '9px 12px', marginBottom: '9px', fontSize: '11px', color: '#003580', display: 'flex', alignItems: 'center', gap: '7px' }}>
               <Eye size={14} />
-              Puedes consultar y exportar los roles, pero no crearlos.
+              {soloDeptosConApp
+                ? 'El rol de Mantenimiento se captura en la app de Mantenimiento y llega aquí solo. Aquí puedes consultarlo y exportarlo.'
+                : 'Puedes consultar y exportar los roles, pero no crearlos.'}
             </div>
           )}
 
@@ -1233,6 +1256,11 @@ export const SucesosTurnosModule: React.FC = () => {
                         </div>
                         <div style={{ fontSize: '9.5px', color: 'var(--text-light)', marginTop: '2px' }}>
                           Creado por {r.creadoPorNombre || '—'}
+                          {esDeMantenimiento(r) && (
+                            <span style={{ marginLeft: '6px', padding: '1px 6px', borderRadius: '8px', background: '#E8EEF8', color: '#003580', fontWeight: 700 }}>
+                              Desde app de Mantenimiento
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '3px', flexShrink: 0, alignItems: 'center' }}>
@@ -1257,12 +1285,14 @@ export const SucesosTurnosModule: React.FC = () => {
                           <FileSpreadsheet size={14} />
                         </button>
                         <button onClick={() => setEditandoRol({ ...r, asignaciones: { ...r.asignaciones } })}
-                          title={mio ? 'Editar rol' : `Ver rol (solo lo puede guardar ${r.creadoPorNombre || 'quien lo creó'})`}
+                          title={mio ? 'Editar rol' : esDeMantenimiento(r) ? 'Ver rol (se modifica en la app de Mantenimiento)' : `Ver rol (solo lo puede guardar ${r.creadoPorNombre || 'quien lo creó'})`}
                           style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-navy)', padding: '2px' }}>
                           <Edit2 size={14} />
                         </button>
                         {puedoBorrar && (
-                          <button onClick={() => r.id && window.confirm(`¿Eliminar el rol "${r.nombre}"?`) && deleteRolTurnos(r.id)}
+                          <button onClick={() => r.id && window.confirm(esDeMantenimiento(r)
+                              ? `«${r.nombre}» viene de la app de Mantenimiento. Lo normal es borrarlo allá.\n\n¿Eliminarlo de todos modos solo aquí?`
+                              : `¿Eliminar el rol "${r.nombre}"?`) && deleteRolTurnos(r.id)}
                             title={mio ? 'Eliminar rol' : 'Eliminar rol (no se puede editar el de otra persona, solo retirarlo)'}
                             style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--brand-red)', padding: '2px' }}>
                             <Trash2 size={14} />

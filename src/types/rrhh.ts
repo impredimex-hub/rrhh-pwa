@@ -365,7 +365,24 @@ export interface RolTurnos {
   creadoPorNombre: string;
   /** Cuándo se subió por primera vez (SPEC-060). Los roles anteriores no lo tienen. */
   subidoEn?: unknown;
+  /**
+   * De dónde vino (SPEC-064). `MANTENIMIENTO`: lo copió el servicio desde la
+   * app de Mantenimiento; aquí es de solo lectura. Sin campo: se capturó aquí.
+   */
+  origen?: 'MANTENIMIENTO';
 }
+
+/** ¿Este rol lo copió el servicio desde la app de Mantenimiento? (SPEC-064) */
+export const esDeMantenimiento = (rol?: Pick<RolTurnos, 'origen'> | null): boolean =>
+  !!rol && rol.origen === 'MANTENIMIENTO';
+
+/**
+ * Departamentos que capturan su rol en su propia app (SPEC-064). Aquí no se
+ * ofrecen para crear roles: el suyo llega solo.
+ */
+export const DEPTOS_CON_APP = ['MANTENIMIENTO'];
+export const esDeptoConApp = (depto: string): boolean =>
+  DEPTOS_CON_APP.includes(String(depto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase());
 
 /* ───────────────── Promociones internas (v2.9) ───────────────── */
 
