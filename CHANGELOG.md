@@ -7,6 +7,22 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.41.0] — 2026-10-14
+
+### Cambiado
+
+- **Excel con el mismo diseño que el PDF** en todas las exportaciones
+  (SPEC-063): título, fecha, encabezado azul, renglones alternados, bordes y
+  celdas justificadas que no se cortan.
+- **PDF:** el título largo ya no se sale de la hoja, la hoja va horizontal con
+  muchas columnas y el nombre no se parte.
+- **Cursos:** con un curso filtrado, las columnas dicen «Estatus» y «Fecha».
+- **Cumpleaños:** sin columna de edad.
+- Las librerías de exportación se cargan solo al exportar: la app abre más
+  rápido.
+
+---
+
 ## [2.40.0] — 2026-10-14
 
 ### Agregado

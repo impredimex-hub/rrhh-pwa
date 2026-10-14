@@ -443,6 +443,10 @@ export const CursosModule: React.FC = () => {
   const indexInicio = (paginaActual - 1) * elementosPorPagina;
   const colaboradoresPaginados = pendientes.slice(indexInicio, indexInicio + elementosPorPagina);
 
+  // Con un curso filtrado se exporta solo ese: sus columnas se llaman
+  // «Estatus» y «Fecha», y con más de un curso chocarían.
+  const cursosExportar = cursoActivo ? [cursoActivo] : cursos;
+
   // Exportar a Excel respetando columnas visibles y filtros activos
   const handleExportExcel = () => {
     const data = pendientes.map(c => {
@@ -452,14 +456,16 @@ export const CursosModule: React.FC = () => {
       if (columnasVisibles.nombre !== false) rowData['NOMBRE'] = c.nombreCompleto;
       if (columnasVisibles.puesto !== false) rowData['PUESTO'] = c.puesto || '-';
 
-      cursos.forEach(curso => {
+      cursosExportar.forEach(curso => {
         if (columnasVisibles[`curso_${curso.id}`] !== false) {
           const est = obtenerEstadoCurso(c, curso);
-          rowData[curso.titulo] = est || '-';
+          // Con un curso filtrado su nombre ya va en el título: la columna
+          // solo dice «Estatus» y «Fecha».
+          rowData[cursoActivo ? 'ESTATUS' : curso.titulo] = est || '-';
         }
         if (columnasVisibles[`fecha_${curso.id}`] !== false) {
           const est = obtenerEstadoCurso(c, curso);
-          rowData[`FECHA (${curso.titulo})`] = est 
+          rowData[cursoActivo ? 'FECHA' : `FECHA (${curso.titulo})`] = est 
             // Con varios días se avisa, para que no parezca que el curso es
             // de una sola fecha (SPEC-038).
             // El día asignado a esta persona, no el primero del curso (SPEC-041).
@@ -503,7 +509,8 @@ export const CursosModule: React.FC = () => {
         { nombre: 'Pendientes', data },
         { nombre: 'Completados', data: dataCompletados }
       ],
-      'IMPREDIMEX_Matriz_Cursos'
+      'IMPREDIMEX_Matriz_Cursos',
+      `IMPREDIMEX — ${cursoActivo.titulo}`
     );
   };
 
@@ -514,9 +521,10 @@ export const CursosModule: React.FC = () => {
     if (columnasVisibles.nombre !== false) headers.push('Nombre');
     if (columnasVisibles.puesto !== false) headers.push('Puesto');
 
-    cursos.forEach(curso => {
-      if (columnasVisibles[`curso_${curso.id}`] !== false) headers.push(curso.titulo);
-      if (columnasVisibles[`fecha_${curso.id}`] !== false) headers.push(`Fecha (${curso.titulo})`);
+    cursosExportar.forEach(curso => {
+      // Con un curso filtrado su nombre ya va en el título del PDF.
+      if (columnasVisibles[`curso_${curso.id}`] !== false) headers.push(cursoActivo ? 'Estatus' : curso.titulo);
+      if (columnasVisibles[`fecha_${curso.id}`] !== false) headers.push(cursoActivo ? 'Fecha' : `Fecha (${curso.titulo})`);
     });
 
 
@@ -527,7 +535,7 @@ export const CursosModule: React.FC = () => {
       if (columnasVisibles.nombre !== false) rowArr.push(c.nombreCompleto);
       if (columnasVisibles.puesto !== false) rowArr.push(c.puesto || '-');
 
-      cursos.forEach(curso => {
+      cursosExportar.forEach(curso => {
         const est = obtenerEstadoCurso(c, curso);
         if (columnasVisibles[`curso_${curso.id}`] !== false) {
           rowArr.push(est || '-');

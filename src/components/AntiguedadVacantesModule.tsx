@@ -4,7 +4,7 @@ import type { Colaborador, Vacante } from '../types/rrhh';
 import { subscribeColaboradores, ordenarPorNomina, guardarFechasNacimiento } from '../services/personalService';
 import { subscribeVacantes, saveVacante, deleteVacante } from '../services/vacanteService';
 import { usePermisos, useSesion } from '../services/SesionContext';
-import { partesFecha, diaYMes, edadQueCumple } from '../utils/fechas';
+import { partesFecha, diaYMes } from '../utils/fechas';
 import { CUMPLEANOS_INICIALES } from '../data/cumpleanos';
 import { BarrasVerticales, BarrasHorizontales, COLORES } from './Graficas';
 import { puedeVerGraficas } from '../services/permisosPadron';
@@ -386,8 +386,7 @@ export const AntiguedadVacantesModule: React.FC = () => {
                   'NOMBRE': x.colab.nombreCompleto,
                   'DEPARTAMENTO': x.colab.departamento || '-',
                   'PUESTO': x.colab.puesto || '-',
-                  'CUMPLEAÑOS': diaYMes(x.colab.fechaNacimiento),
-                  'EDAD QUE CUMPLE': edadQueCumple(x.colab.fechaNacimiento) ?? '-'
+                  'CUMPLEAÑOS': diaYMes(x.colab.fechaNacimiento)
                 })),
                 `Cumpleanos_${new Date().toLocaleDateString('es-MX', { month: 'long' })}`
               )}
@@ -432,13 +431,12 @@ export const AntiguedadVacantesModule: React.FC = () => {
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Departamento</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Puesto</th>
                 <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Cumpleaños</th>
-                <th style={{ padding: '6px 8px', fontSize: '9px', fontWeight: 'bold', color: 'var(--brand-navy)', textTransform: 'uppercase' }}>Edad</th>
               </tr>
             </thead>
             <tbody>
               {cumpleanosDelMes.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: '1.4rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '11px' }}>
+                  <td colSpan={5} style={{ padding: '1.4rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '11px' }}>
                     {sinFechaNacimiento === colaboradores.filter(c => c.estatus !== 'BAJA').length
                       ? 'Todavía no hay fechas de nacimiento cargadas.'
                       : 'Nadie cumple años este mes.'}
@@ -448,7 +446,6 @@ export const AntiguedadVacantesModule: React.FC = () => {
                 cumpleanosDelMes.map(({ colab, p }) => {
                   const esHoy = p!.dia === diaHoy;
                   const yaPaso = p!.dia < diaHoy;
-                  const edad = edadQueCumple(colab.fechaNacimiento);
                   return (
                     <tr key={colab.noNomina} style={{ borderBottom: '1px solid #f1f5f9', background: esHoy ? '#ecfdf5' : 'transparent', opacity: yaPaso ? 0.55 : 1 }}>
                       <td style={{ padding: '5px 8px', fontWeight: 'bold', color: 'var(--brand-navy)' }}>{colab.noNomina}</td>
@@ -459,7 +456,6 @@ export const AntiguedadVacantesModule: React.FC = () => {
                         {diaYMes(colab.fechaNacimiento)}
                         {esHoy && <b style={{ color: '#059669', marginLeft: '6px' }}>¡Hoy!</b>}
                       </td>
-                      <td style={{ padding: '5px 8px', color: 'var(--text-secondary)' }}>{edad !== null ? `${edad} años` : '-'}</td>
                     </tr>
                   );
                 })

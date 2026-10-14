@@ -2673,6 +2673,33 @@ Se copian, se pegan en la fila y se borran igual que un turno.
 
 ---
 
+# SPEC-063 — Exportaciones con el mismo diseño, y PDF que no corta
+
+### Qué cambia
+
+- **Todos los Excel** de la app (Directorio, Incidencias, Promociones,
+  Capacitación, Cursos, Cumpleaños, roles, faltas y cumplimiento) salen con el
+  diseño del PDF: título azul, fecha de emisión, encabezado azul con letra
+  blanca, renglones alternados, bordes finos, celdas justificadas y ajustadas
+  en varias líneas, ancho de columna según su contenido y filtro en el
+  encabezado.
+- **PDF:** el título largo se parte en renglones en vez de salirse de la hoja;
+  con más de 6 columnas la hoja es horizontal; el nombre y la nómina tienen
+  ancho mínimo para no partirse letra por letra.
+- **Cursos, con un curso filtrado:** las columnas se llaman **Estatus** y
+  **Fecha**; el nombre del curso ya va en el título del PDF y del Excel.
+- **Cumpleaños:** se retira la columna Edad, en pantalla y en Excel.
+
+### Detalles técnicos
+
+- La librería de Excel pasa de `xlsx` a `xlsx-js-style`, la misma API con
+  soporte de estilos. Se quita el archivo sin uso `utils/exportToExcel.ts`.
+- Las librerías de Excel y PDF se cargan **hasta que alguien exporta**. Con la
+  de estilos, el paquete principal pasaba de 2 MB y dejaba de caber en la
+  caché del teléfono; así la app además abre más rápido.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |
