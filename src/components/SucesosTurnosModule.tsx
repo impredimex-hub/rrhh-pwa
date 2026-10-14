@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, FileSpreadsheet, FileText, Edit2, Copy, ClipboardPaste, Eraser, X, ChevronLeft, Eye, Check, FileWarning } from 'lucide-react';
+import { Plus, Trash2, FileSpreadsheet, FileText, Edit2, Copy, ClipboardPaste, Eraser, X, ChevronLeft, Eye, Check, FileWarning, AlertTriangle } from 'lucide-react';
 import type {
   Colaborador, Suceso, TipoSuceso, RolTurnos, PeriodoRol, ClaveTurno, AsignacionTurno
 } from '../types/rrhh';
-import { ETIQUETA_SUCESO, HORARIO_TURNO, etiquetaTurno } from '../types/rrhh';
+import { ETIQUETA_SUCESO, HORARIO_TURNO, etiquetaTurno, AUSENCIAS, esAusencia, NOMBRE_AUSENCIA } from '../types/rrhh';
 import { subscribeColaboradores, areasACargoDe } from '../services/personalService';
 import { subscribeSucesos, saveSuceso, deleteSuceso } from '../services/sucesoService';
 import { subscribeRolesTurnos, saveRolTurnos, deleteRolTurnos, diasDelPeriodo, claveCelda, turnoYaTermino, purgarRolesVencidos } from '../services/turnoService';
@@ -16,6 +16,18 @@ import { hoyISO, partesFecha } from '../utils/fechas';
 import { BarrasVerticales, BarrasHorizontales, COLORES } from './Graficas';
 
 const CLAVES_TURNO: ClaveTurno[] = ['T1', 'T2', 'T3', 'D12', 'N12', 'ADM', 'LIB'];
+
+/** Colores de las ausencias justificadas (SPEC-062), para distinguirlas de un turno de un vistazo. */
+const COLOR_AUSENCIA: Record<string, { fondo: string; borde: string; texto: string }> = {
+  VAC: { fondo: '#E6F4EA', borde: '#2E7D4F', texto: '#1E5E3A' },
+  PER: { fondo: '#FFF4E0', borde: '#B7791F', texto: '#8A5A12' }
+};
+
+/** Cómo se escribe una asignación en reportes y exportaciones. */
+const textoAsignacion = (a: AsignacionTurno) =>
+  a.turno === 'LIB' ? `LIB ${a.horaInicio || ''}-${a.horaFin || ''}`
+  : esAusencia(a.turno) ? NOMBRE_AUSENCIA[a.turno].toUpperCase()
+  : etiquetaTurno(a.turno);
 const DIAS_CORTOS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 /** Etiqueta corta del periodo, para armar el nombre del rol. */
@@ -352,10 +364,22 @@ export const SucesosTurnosModule: React.FC = () => {
    */
   const estadoAsistencia = (noNomina: string, fecha: string, a?: AsignacionTurno) => {
     if (!a) return 'NA' as const;
+    // Vacaciones o permiso: no se juzga asistencia. Si aun así alguien
+    // reportó falta, es una inconsistencia que conviene revisar (SPEC-062).
+    if (esAusencia(a.turno)) return asistencias.has(`${noNomina}|${fecha}`) ? ('REVISAR' as const) : ('NA' as const);
     // Cambió de qué depende (SPEC-047): la cruz es una falta reportada, y la
     // palomita, que el turno terminó sin que nadie reportara nada.
     if (asistencias.has(`${noNomina}|${fecha}`)) return 'NO' as const;
     return turnoYaTermino(fecha, a, ahora) ? ('SI' as const) : ('NA' as const);
+  };
+
+  /** Vacaciones o permiso de una persona en una fecha, según cualquier rol. */
+  const ausenciaDe = (noNomina: string, fecha: string): string | null => {
+    for (const r of roles) {
+      const a = r.asignaciones?.[claveCelda(noNomina, fecha)];
+      if (a && esAusencia(a.turno)) return a.turno;
+    }
+    return null;
   };
 
   const personasDelRol = useMemo(() => {
@@ -509,7 +533,11 @@ export const SucesosTurnosModule: React.FC = () => {
       ds.forEach(f => {
         const a = rol.asignaciones[claveCelda(p.noNomina, f)];
         if (!a) { fila[f] = ''; return; }
-        const turno = a.turno === 'LIB' ? `LIB ${a.horaInicio || ''}-${a.horaFin || ''}` : etiquetaTurno(a.turno);
+        const turno = textoAsignacion(a);
+        if (esAusencia(a.turno)) {
+          fila[f] = faltas.has(`${p.noNomina}|${f}`) ? `${turno} · falta reportada (revisar)` : turno;
+          return;
+        }
         // Misma regla que la pantalla: el «Asistió» en cuanto hay revisión, y
         // la falta solo si el turno ya terminó. Un turno en curso sale sin
         // marca, para no reportar como falta una jornada que no ha acabado.
@@ -668,7 +696,7 @@ export const SucesosTurnosModule: React.FC = () => {
               '# Nómina': per.noNomina,
               'Colaborador': per.nombreCompleto,
               'Departamento': deptoRol,
-              'Turno': a.turno === 'LIB' ? `LIB ${a.horaInicio || ''}-${a.horaFin || ''}` : etiquetaTurno(a.turno),
+              'Turno': textoAsignacion(a),
               'Rol': rol.nombre
             });
           }
@@ -685,13 +713,16 @@ export const SucesosTurnosModule: React.FC = () => {
         if (vistos.has(k)) continue;
         if (repDepto !== '__TODOS__' && r.area !== repDepto) continue;
         vistos.add(k);
+        // Si ese día tenía vacaciones o permiso en su rol, la falta
+        // contradice al rol: se deja en el reporte, señalada (SPEC-062).
+        const aus = ausenciaDe(r.nomina, r.fecha);
         filas.push({
           'Fecha': r.fecha,
           '# Nómina': r.nomina,
           'Colaborador': r.nombre,
           'Departamento': r.area,
           'Turno': r.turno,
-          'Rol': '— sin rol asignado ese día —'
+          'Rol': aus ? `— tenía ${NOMBRE_AUSENCIA[aus].toUpperCase()} ese día: revisar —` : '— sin rol asignado ese día —'
         });
       }
 
@@ -755,6 +786,8 @@ export const SucesosTurnosModule: React.FC = () => {
         const k = `${r.nomina}|${r.fecha}`;
         if (vistos.has(k)) continue;
         if (!puedeReporteTodas && !departamentos.includes(r.area)) continue;
+        // Con vacaciones o permiso en su rol no se cuenta como falta (SPEC-062).
+        if (ausenciaDe(r.nomina, r.fecha)) continue;
         vistos.add(k);
         filas.push({ fecha: r.fecha, depto: r.area });
       }
@@ -910,6 +943,11 @@ export const SucesosTurnosModule: React.FC = () => {
                 <b style={{ color: 'var(--brand-navy)' }}>{t}</b> {HORARIO_TURNO[t]}
               </span>
             ))}
+            {AUSENCIAS.map(t => (
+              <span key={t} style={{ fontSize: '9.5px', background: COLOR_AUSENCIA[t].fondo, border: '1px solid ' + COLOR_AUSENCIA[t].borde, borderRadius: '20px', padding: '3px 9px', color: COLOR_AUSENCIA[t].texto }}>
+                <b>{t}</b> {NOMBRE_AUSENCIA[t]}
+              </span>
+            ))}
             <span style={{ fontSize: '9.5px', background: '#F3F6FA', border: '1px solid var(--border-light)', borderRadius: '20px', padding: '3px 9px', color: 'var(--text-secondary)' }}>
               Celda vacía = descanso
             </span>
@@ -990,9 +1028,12 @@ export const SucesosTurnosModule: React.FC = () => {
                                 disabled={soloLectura}
                                 style={{
                                   flex: 1, minWidth: '62px', height: '26px', padding: '2px 4px', fontSize: '10px',
-                                  borderRadius: '6px', border: '1px solid ' + (a ? 'var(--brand-navy)' : 'var(--border-light)'),
-                                  background: a ? 'var(--brand-navy-light)' : '#fff',
-                                  fontWeight: a ? 700 : 400, color: 'var(--text-primary)', fontFamily: 'inherit'
+                                  borderRadius: '6px',
+                                  border: '1px solid ' + (a && esAusencia(a.turno) ? COLOR_AUSENCIA[a.turno].borde : a ? 'var(--brand-navy)' : 'var(--border-light)'),
+                                  background: a && esAusencia(a.turno) ? COLOR_AUSENCIA[a.turno].fondo : a ? 'var(--brand-navy-light)' : '#fff',
+                                  fontWeight: a ? 700 : 400,
+                                  color: a && esAusencia(a.turno) ? COLOR_AUSENCIA[a.turno].texto : 'var(--text-primary)',
+                                  fontFamily: 'inherit'
                                 }}
                               >
                                 <option value="">—</option>
@@ -1001,10 +1042,18 @@ export const SucesosTurnosModule: React.FC = () => {
                                     blanco sobre un turno que sí existe. */}
                                 {a?.turno === 'G8' && <option value="G8">ADM</option>}
                                 {CLAVES_TURNO.map(t => <option key={t} value={t}>{t}</option>)}
+                                <optgroup label="Ausencia">
+                                  {AUSENCIAS.map(t => <option key={t} value={t}>{t} · {NOMBRE_AUSENCIA[t]}</option>)}
+                                </optgroup>
                               </select>
                               {(() => {
                                 const est = estadoAsistencia(p.noNomina, f, a);
                                 if (est === 'NA') return null;
+                                if (est === 'REVISAR') return (
+                                  <AlertTriangle size={13} strokeWidth={2.5} style={{ color: '#B7791F', flexShrink: 0 }}>
+                                    <title>Se reportó falta en un día de {NOMBRE_AUSENCIA[a!.turno].toLowerCase()}: revisar</title>
+                                  </AlertTriangle>
+                                );
                                 return est === 'SI' ? (
                                   <Check size={13} strokeWidth={3} style={{ color: 'var(--green-dark)', flexShrink: 0 }}>
                                     <title>Asistió</title>

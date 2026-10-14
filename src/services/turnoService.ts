@@ -167,6 +167,9 @@ export const turnoYaTermino = (
     // Una salida anterior o igual a la entrada significa que cruza la noche.
     minutosFin = fin > ini ? fin : fin + 24 * 60;
   } else {
+    // Vacaciones y permiso no son jornada: no terminan, así que nunca se
+    // juzga su asistencia (SPEC-062).
+    if (asignacion.turno === 'VAC' || asignacion.turno === 'PER') return false;
     minutosFin = FIN_TURNO[asignacion.turno];
     if (minutosFin === undefined) return false;
   }
@@ -200,7 +203,8 @@ export const rolVencido = (rol: RolTurnos, ahora: Date = new Date()): boolean =>
 
   return Object.entries(rol.asignaciones || {})
     .filter(([clave]) => clave.endsWith('|' + ultimo))
-    .every(([, asig]) => turnoYaTermino(ultimo, asig, ahora));
+    // Vacaciones y permiso no tienen hora de fin: no detienen el vencimiento.
+    .every(([, asig]) => asig.turno === 'VAC' || asig.turno === 'PER' || turnoYaTermino(ultimo, asig, ahora));
 };
 
 /**

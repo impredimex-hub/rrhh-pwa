@@ -294,7 +294,16 @@ export interface Suceso {
  * nunca contaran como falta. `ADM` es la clave que se ofrece de aquí en
  * adelante; `G8` solo se lee, y se muestra como `ADM`.
  */
-export type ClaveTurno = 'T1' | 'T2' | 'T3' | 'D12' | 'N12' | 'ADM' | 'G8' | 'LIB';
+export type ClaveTurno = 'T1' | 'T2' | 'T3' | 'D12' | 'N12' | 'ADM' | 'G8' | 'LIB' | 'VAC' | 'PER';
+
+/**
+ * Ausencias justificadas (SPEC-062). Se capturan en la misma celda que un
+ * turno, pero no son jornada: no tienen hora de fin, nunca se juzga su
+ * asistencia y una falta reportada ese día se señala como inconsistencia.
+ */
+export const AUSENCIAS: ClaveTurno[] = ['VAC', 'PER'];
+export const esAusencia = (clave?: ClaveTurno): boolean => !!clave && AUSENCIAS.includes(clave);
+export const NOMBRE_AUSENCIA: Record<string, string> = { VAC: 'Vacaciones', PER: 'Permiso' };
 
 export const HORARIO_TURNO: Record<ClaveTurno, string> = {
   T1: '06:00 – 14:00',
@@ -304,7 +313,9 @@ export const HORARIO_TURNO: Record<ClaveTurno, string> = {
   N12: '18:00 – 06:00',
   ADM: '08:00 – 18:00',
   G8: '08:00 – 18:00',
-  LIB: 'Horario libre'
+  LIB: 'Horario libre',
+  VAC: 'Vacaciones',
+  PER: 'Permiso'
 };
 
 /** Cómo se muestra una clave guardada. `G8` es el nombre viejo de `ADM`. */
@@ -315,7 +326,7 @@ export const etiquetaTurno = (clave: ClaveTurno): string => (clave === 'G8' ? 'A
  * Los que pasan de 1440 terminan al día siguiente: un T3 del día 14 acaba a
  * las 06:00 del 15, y hasta ese momento no se puede juzgar su asistencia.
  */
-export const FIN_TURNO: Record<Exclude<ClaveTurno, 'LIB'>, number> = {
+export const FIN_TURNO: Record<Exclude<ClaveTurno, 'LIB' | 'VAC' | 'PER'>, number> = {
   T1:  14 * 60,            // 14:00 del mismo día
   T2:  21 * 60 + 30,       // 21:30 del mismo día
   T3:  24 * 60 + 6 * 60,   // 06:00 del día siguiente

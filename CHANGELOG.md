@@ -7,6 +7,17 @@ Versionado según [Versionado Semántico](https://semver.org/lang/es/).
 
 ---
 
+## [2.40.0] — 2026-10-14
+
+### Agregado
+
+- **Vacaciones (`VAC`) y permiso (`PER`) en el rol de turnos** (SPEC-062). Se
+  eligen en el mismo selector de cada celda, con color propio. No se juzga
+  asistencia en esos días; si EPP reporta falta en uno de ellos, el rol y el
+  reporte de faltas lo señalan para revisar, y la gráfica no lo cuenta.
+
+---
+
 ## [2.39.0] — 2026-10-13
 
 ### Cambiado

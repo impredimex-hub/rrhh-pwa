@@ -2637,6 +2637,42 @@ el Directorio), en la sección **Permisos especiales en Recursos Humanos**:
 
 ---
 
+# SPEC-062 — Vacaciones y permisos en el rol de turnos
+
+### Qué resuelve
+
+El rol distinguía turno, descanso (celda vacía), asistencia y falta, pero no
+**vacaciones** ni **permiso**. Quien estaba de vacaciones aparecía como
+descanso, o con un turno que no iba a cumplir.
+
+### Cómo se captura
+
+En el mismo selector de cada celda, debajo de los turnos, en el grupo
+«Ausencia»:
+
+| Clave | Significa | Color |
+|---|---|---|
+| `VAC` | Vacaciones | verde |
+| `PER` | Permiso | ámbar |
+
+Se copian, se pegan en la fila y se borran igual que un turno.
+
+### Reglas de negocio
+
+- **No son jornada:** no tienen hora de fin, así que nunca se marca asistencia
+  ni falta por ellas, ni cuentan en el número de faltas del rol.
+- **Si EPP reporta falta en un día de vacaciones o permiso**, el rol muestra ⚠
+  en esa celda: el rol y el reporte se contradicen y alguien debe revisarlo.
+  En el **reporte de faltas** la fila sale con «— tenía VACACIONES ese día:
+  revisar —». En la **gráfica** no se cuenta como falta.
+- **Excel del rol:** la celda dice VACACIONES o PERMISO; si además hubo falta
+  reportada, «· falta reportada (revisar)».
+- Una ausencia en el último día de un rol no retrasa su borrado automático
+  (SPEC-059).
+- El panel de cumplimiento (SPEC-060) cuenta el día como cubierto por rol.
+
+---
+
 # Deuda técnica conocida
 
 | # | Asunto | Estado |
